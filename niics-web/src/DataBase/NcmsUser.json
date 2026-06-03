@@ -1,0 +1,12 @@
+
+
+[
+    {
+        "Id" : "NCMS0001",
+        "UserName": "MuhammadShafee",
+        "UserEmail" : "shafeealam1364@gmail.com",
+        "UserPassword" : "@MSD@",
+        "UserRole" : "Admin",
+        "IsAuthenticated" : false
+    }
+]
