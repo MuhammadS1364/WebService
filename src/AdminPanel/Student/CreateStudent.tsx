@@ -1,12 +1,17 @@
 import { useState } from "react";
 import { APPS_SCRIPT_URL, SupaBaseFunction } from "../../lib/SupaBase";
 
-import axios from "axios";
+// import axios from "axios"; // retained if you need it elsewhere
 import * as XLSX from "xlsx";
 
 export default function StudentRegistration() {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // --- NEW: Photo Upload States ---
+    const [uploadMethod, setUploadMethod] = useState("url"); // "url" | "file"
+    const [imageUrl, setImageUrl] = useState("");
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [uploadError, setUploadError] = useState("");
 
     const [formData, setFormData] = useState({
         AddNo: "",
@@ -16,7 +21,6 @@ export default function StudentRegistration() {
         CollegeName: "",
         Class: "",
     });
-
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -36,6 +40,7 @@ export default function StudentRegistration() {
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsSubmitting(true);
+        setUploadError(""); // Reset previous errors
 
         try {
             // 1. Ensure No Duplicate Email exists in UserTable
@@ -50,37 +55,46 @@ export default function StudentRegistration() {
                 throw new Error("This Email is already registered in the system!");
             }
 
-            let photoUrl = "";
+            // 2. Handle Photo Source (URL or File Upload)
+            let finalPhotoUrl = "";
 
-            if (selectedFile) {
-                let base64File = await convertToBase64(selectedFile);
+            if (uploadMethod === "url" && imageUrl.trim()) {
+                finalPhotoUrl = imageUrl.trim();
+            } else if (uploadMethod === "file" && selectedFile) {
+                try {
+                    let base64File = await convertToBase64(selectedFile);
 
-                if (base64File.includes(",")) {
-                    base64File = base64File.split(",")[1];
-                }
+                    if (base64File.includes(",")) {
+                        base64File = base64File.split(",")[1];
+                    }
 
-                const payloadData = {
-                    action: "upload",
-                    subFolderName: "NcMs-Students",
-                    file: base64File,
-                    filename: `STD_${formData.AddNo}_${selectedFile.name}`,
-                };
+                    const payloadData = {
+                        action: "upload",
+                        subFolderName: "NcMs-Students",
+                        file: base64File,
+                        filename: `STD_${formData.AddNo}_${selectedFile.name}`,
+                    };
 
-                // 🚨 FIX: Swapped Axios for fetch
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "text/plain;charset=utf-8"
-                    },
-                    body: JSON.stringify(payloadData)
-                });
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "text/plain;charset=utf-8"
+                        },
+                        body: JSON.stringify(payloadData)
+                    });
 
-                const responseData = await response.json();
+                    const responseData = await response.json();
 
-                if (responseData && (responseData.success || responseData.status === "success")) {
-                    photoUrl = responseData.fileUrl;
-                } else {
-                    throw new Error("Google Drive upload failed: " + (responseData.error || responseData.message || "Unknown Error"));
+                    if (responseData && (responseData.success || responseData.status === "success")) {
+                        finalPhotoUrl = responseData.fileUrl;
+                    } else {
+                        throw new Error("Google Drive upload failed: " + (responseData.error || responseData.message || "Unknown Error"));
+                    }
+                } catch (uploadFailError) {
+                    console.error("Upload process failed:", uploadFailError);
+                    setUploadError("⚠️ Image upload failed. Please switch to the 'Image URL' option to continue.");
+                    setIsSubmitting(false);
+                    return; // Halt submission
                 }
             }
 
@@ -106,7 +120,7 @@ export default function StudentRegistration() {
                 CollegeName: formData.CollegeName,
                 StnUserId: formData.StudentEmail,
                 Class: formData.Class,
-                ...(photoUrl && { Student_Photo_Urls: photoUrl }),
+                ...(finalPhotoUrl && { Student_Photo_Urls: finalPhotoUrl }), // Only attach if a URL was resolved
             };
 
             const { error: studentBoxError } = await SupaBaseFunction
@@ -117,8 +131,11 @@ export default function StudentRegistration() {
 
             alert("Success! User account verified and Student registered perfectly.");
 
+            // Reset Form Data
             setFormData({ AddNo: "", StudentName: "", StudentEmail: "", FatherName: "", CollegeName: "", Class: "" });
+            setImageUrl("");
             setSelectedFile(null);
+            setUploadError("");
             const fileInput = document.getElementById("studentPhotoInput") as HTMLInputElement;
             if (fileInput) fileInput.value = "";
 
@@ -274,25 +291,78 @@ export default function StudentRegistration() {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Upload Student Photo</label>
-                        <input
-                            id="studentPhotoInput"
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                                if (e.target.files && e.target.files[0]) {
-                                    setSelectedFile(e.target.files[0]);
-                                }
-                            }}
-                            className="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
-                        />
+                    {/* NEW: Photo Upload/URL Section */}
+                    <div className="rounded-lg border border-gray-200 p-4 bg-gray-50/50">
+                        <label className="block text-sm font-semibold text-gray-700 mb-3">
+                            Student Photo (Optional)
+                        </label>
+
+                        <div className="flex gap-4 mb-3">
+                            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="uploadMethod"
+                                    value="url"
+                                    checked={uploadMethod === "url"}
+                                    onChange={() => {
+                                        setUploadMethod("url");
+                                        setUploadError("");
+                                    }}
+                                    className="text-blue-600 focus:ring-blue-500"
+                                />
+                                Image URL
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="uploadMethod"
+                                    value="file"
+                                    checked={uploadMethod === "file"}
+                                    onChange={() => {
+                                        setUploadMethod("file");
+                                        setUploadError("");
+                                    }}
+                                    className="text-blue-600 focus:ring-blue-500"
+                                />
+                                Upload Image File
+                            </label>
+                        </div>
+
+                        {uploadMethod === "url" ? (
+                            <input
+                                type="url"
+                                placeholder="https://example.com/photo.jpg"
+                                value={imageUrl}
+                                onChange={(e) => setImageUrl(e.target.value)}
+                                className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none"
+                            />
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                <input
+                                    id="studentPhotoInput"
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            setSelectedFile(e.target.files[0]);
+                                            setUploadError(""); // clear error on new file
+                                        }
+                                    }}
+                                    className="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none bg-white file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                />
+                                {uploadError && (
+                                    <div className="text-sm font-medium text-red-600 bg-red-50 p-2 rounded-lg border border-red-200">
+                                        {uploadError}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className={`w-full rounded-xl py-3 font-bold text-white transition mt-4 ${isSubmitting ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"}`}
+                        className={`w-full rounded-xl py-3 font-bold text-white transition mt-4 shadow-lg ${isSubmitting ? "bg-blue-400 cursor-not-allowed shadow-none" : "bg-blue-600 hover:bg-blue-700 active:scale-[0.99] shadow-blue-600/20"}`}
                     >
                         {isSubmitting ? "Processing Registration..." : "Register Student & Create Login"}
                     </button>
