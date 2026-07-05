@@ -1,0 +1,60 @@
+
+
+
+import axios from 'axios';
+
+const APPS_SCRIPT_URL = "YOUR_DEPLOYED_WEB_APP_URL";
+
+/**
+ * Main handler to transmit documents (PDF, DOCX, PNG, etc.) to Apps Script
+ */
+async function uploadDocumentToRepository(selectedFile, studentData) {
+  try {
+    if (!selectedFile) return null;
+
+    // Convert document file to Base64 String
+    let base64String = await convertToBase64(selectedFile);
+
+    // CRITICAL: Extract and strip the Data URL header prefix
+    if (base64String.includes(",")) {
+      base64String = base64String.split(",")[1];
+    }
+
+    const payloadData = {
+      action: "upload",
+      subFolderName: "NcMs-Students", // Dynamically routes or auto-creates this subfolder
+      file: base64String,
+      filename: `STD_${studentData.AddNo}_${selectedFile.name}`
+    };
+
+    // Forward payload payload as plain text context string to prevent CORS preflight friction
+    const response = await axios.post(
+      APPS_SCRIPT_URL,
+      JSON.stringify(payloadData),
+      { headers: { "Content-Type": "text/plain;charset=utf-8" } }
+    );
+
+    if (response.data && response.data.success) {
+      console.log("Archive Successful, Document URL:", response.data.fileUrl);
+      return response.data.fileUrl;
+    } else {
+      throw new Error(response.data?.error || "Unknown repository runtime error.");
+    }
+
+  } catch (error) {
+    console.error("Repository Gateway Failure:", error);
+    throw error;
+  }
+}
+
+/**
+ * Standard Promise File Reader Converter Engine
+ */
+function convertToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const fileReader = new FileReader();
+    fileReader.readAsDataURL(file);
+    fileReader.onload = () => resolve(fileReader.result);
+    fileReader.onerror = (error) => reject(error);
+  });
+}
