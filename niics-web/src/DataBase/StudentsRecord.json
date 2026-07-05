@@ -1,0 +1,16 @@
+
+[
+    {
+        "Id" : "STN0001",
+        "AddNo" : "U1364",
+        "FullName": "Muhammad Shafee Alam",
+        "StnEmail" : "shafeealam1364@gmail.com",
+        "StnFather" : "Muhammad Shahbaz Alam",
+        "StnVillege" : "Sagunia",
+        "StnState" : "Bihar",
+        "StnPhoneNum" : "7004022716",
+        "IsActive" : true,
+        "StnImgUrl" : "https://instagrame/shafee.png",
+        "StnRole" : "Admin"
+    }
+]
