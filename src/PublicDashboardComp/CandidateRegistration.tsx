@@ -1,7 +1,11 @@
 
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { SupaBaseFunction } from "../lib/SupaBase";
+import { APPS_SCRIPT_URL, SupaBaseFunction } from "../lib/SupaBase";
+
+// give user option ,that they uploader img url directly or can can upload img 
+// radio option for asking this by default ulode url not img 
+// if use select img uloade and geting error , suggest to urls of teh img 
 
 export default function CandidateRegistration() {
   const { P_Code } = useParams();

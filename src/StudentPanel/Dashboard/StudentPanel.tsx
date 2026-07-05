@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
 
 export default function StudentPanel() {
-    const { StnEmail } = useParams();
-    console.log("Current stn", StnEmail);
+   
+    const {actStn} = useParams();
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
@@ -42,7 +42,7 @@ export default function StudentPanel() {
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3">Academics</p>
                         
                         <NavLink 
-                            to={`/student-panel/${StnEmail}/stn-dashboard`} 
+                            to={`/student-panel/${actStn}/stn-dashboard`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -50,7 +50,7 @@ export default function StudentPanel() {
                         </NavLink>
                         
                         <NavLink 
-                            to={`/student-panel/${StnEmail}/all-programmes-list`} 
+                            to={`/student-panel/${actStn}/all-programmes-list`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -63,7 +63,7 @@ export default function StudentPanel() {
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Program</p>
                         
                         <NavLink 
-                            to={`/student-panel/${StnEmail}/stn-achievements-list`} 
+                            to={`/student-panel/${actStn}/stn-achievements-list`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -71,7 +71,7 @@ export default function StudentPanel() {
                         </NavLink>
                         
                         <NavLink 
-                            to={`/student-panel/${StnEmail}/stn-outreach-list`} 
+                            to={`/student-panel/${actStn}/stn-outreach-list`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -110,7 +110,8 @@ export default function StudentPanel() {
 
                 {/* Dynamic Route Content */}
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-                    <div className="max-w-[1500px] mx-auto px-6 lg:px-12">
+                    {/* Kept your max-w-[1600px] requirement */}
+                    <div className="w-full max-w-[1600px] mx-auto">
                         <Outlet />
                     </div>
                 </main>

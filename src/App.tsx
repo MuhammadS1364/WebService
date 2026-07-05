@@ -27,6 +27,10 @@ import WingPanel from './WingPanel/DashBoard/WingPanel';
 import CreateResult from './PublicProgrammesComponents/CreateResult';
 import CandidateRegistration from './PublicDashboardComp/CandidateRegistration';
 import AdminDashboard from './AdminPanel/Dashboard/AdminDashBoard';
+import WingDashboard from './WingPanel/DashBoard/WingDashoard';
+import WingAnylatics from './WingPanel/WingAnylatics/WingAnylatics';
+import WingProgrammes from './WingPanel/WingProgrammes/WingProgrammes';
+import WingResults from './WingPanel/WingResults/WingResults';
 
 export default function App() {
   return (
@@ -35,7 +39,7 @@ export default function App() {
         <Route path='/login' element={<GetWay />} />
         <Route path='/cand/:P_Code' element={<CandidateRegistration />} />
 
-        <Route path='/admin-panel' element={<AdminPanel />} >
+        <Route path='/admin-panel/:actUser' element={<AdminPanel />} >
           <Route path='Programmes-List' element={<AllProgrammesList />} />
           <Route path='dashBoard' element={<AdminDashboard />} />
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />
@@ -52,13 +56,17 @@ export default function App() {
 
         </Route>
 
-        <Route path='/student-panel/:StnEmail' element={< StudentPanel/>} >
+        <Route path='/student-panel/:actStn' element={< StudentPanel/>} >
           <Route path='stn-dashboard' element={<StudentDashBoard />} />
 
         </Route>
-        <Route path='/wing-panel/:WingEmailID' element={< WingPanel/>} >
+        <Route path='/wing-panel/:actWing' element={< WingPanel/>} >
+          <Route path='wing-dashboard' element={<WingDashboard />} />
           <Route path='create-result' element={<CreateResult />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
+          <Route path='wing-anylatics' element={<WingAnylatics />} />
+          <Route path='wing-programmes' element={<WingProgrammes />} />
+          <Route path='wing-results' element={<WingResults/>} />
 
           
         </Route>

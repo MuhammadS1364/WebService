@@ -54,7 +54,7 @@ export default function GetWay() {
       // Navigate once immediately using the user's ID in the URL path
       setTimeout(() => {
         if (actUser.UserRole === 'Admin') {
-          navigate(`/admin-panel`);
+          navigate(`/admin-panel/${actUser.UserEmail}`);
         } else if (actUser.UserRole === 'Wing') {
           navigate(`/wing-panel/${actUser.UserEmail}`);
         } else if (actUser.UserRole === 'Treasurer') {

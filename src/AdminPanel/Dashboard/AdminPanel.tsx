@@ -31,44 +31,44 @@ export default function AdminPanel() {
                 </div>
                 <nav className="p-4 space-y-2">
                     {/* Fixed the onClick here from true to false */}
-                    <NavLink to={`/admin-panel/dashBoard`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/admin-panel/${actUser}/dashBoard`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Dashboard
                     </NavLink>
-                    <NavLink to={`/admin-panel/Programmes-List`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/admin-panel/${actUser}/Programmes-List`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Programmes List
                     </NavLink>
-                    <NavLink to={`/admin-panel/create-program`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/admin-panel/${actUser}/create-program`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Create Programmes
                     </NavLink>
-                    <NavLink to={`/admin-panel/programmes-card`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/admin-panel/${actUser}/programmes-card`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Programmes Card
                     </NavLink>
-                    <NavLink to={`/admin-panel/programmes-celender`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/admin-panel/${actUser}/programmes-celender`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Programmes Celender
                     </NavLink>
 
                     <div className='flex flex-col space-y-1'>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Program</p>
-                        <NavLink to={`/admin-panel/edite-student`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        <NavLink to={`/admin-panel/${actUser}/edite-student`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Edite Student
                         </NavLink>
-                        <NavLink to={`/admin-panel/all-students`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        <NavLink to={`/admin-panel/${actUser}/all-students`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             All Students
                         </NavLink>
-                        <NavLink to={`/admin-panel/all-users`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        <NavLink to={`/admin-panel/${actUser}/all-users`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             All User
                         </NavLink>
-                        <NavLink to={`/admin-panel/new-student`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        <NavLink to={`/admin-panel/${actUser}/new-student`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Create student
                         </NavLink>
 
                     </div>
                     <div className='flex flex-col space-y-1'>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Program</p>
-                        <NavLink to={`/admin-panel/create-wing`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        <NavLink to={`/admin-panel/${actUser}/create-wing`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Create Wing
                         </NavLink>
-                        <NavLink to={`/admin-panel/all-wings-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        <NavLink to={`/admin-panel/${actUser}/all-wings-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Wing List
                         </NavLink>
 

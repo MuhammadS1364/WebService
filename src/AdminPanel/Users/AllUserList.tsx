@@ -1,15 +1,15 @@
 
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
-import { SupaBaseFunction } from "../../lib/SupaBase"; 
+import { SupaBaseFunction } from "../../lib/SupaBase";
 
 export default function AllUsersList() {
   const navigate = useNavigate();
-  
+
   // State for users, UI controls, and loading/error handling
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -23,7 +23,7 @@ export default function AllUsersList() {
   useEffect(() => {
     const fetchUsers = async () => {
       setIsLoading(true);
-      
+
       const { data, error } = await SupaBaseFunction
         .from('UserTable')
         .select('*');
@@ -33,7 +33,7 @@ export default function AllUsersList() {
       } else {
         setUsers(data || []);
       }
-      
+
       setIsLoading(false);
     };
 
@@ -44,7 +44,7 @@ export default function AllUsersList() {
   const handleToggleActive = async (email, currentStatus) => {
     const newStatus = !currentStatus;
 
-    setUsers(users.map(user => 
+    setUsers(users.map(user =>
       user.UserEmail === email ? { ...user, IsActive: newStatus } : user
     ));
 
@@ -55,7 +55,7 @@ export default function AllUsersList() {
 
     if (error) {
       console.error("Failed to update user status in Supabase:", error.message);
-      setUsers(users.map(user => 
+      setUsers(users.map(user =>
         user.UserEmail === email ? { ...user, IsActive: currentStatus } : user
       ));
       alert("Failed to update user status. Please try again.");
@@ -71,14 +71,14 @@ export default function AllUsersList() {
   // 4. Combined Filter and Search Logic
   const filteredUsers = users.filter((user) => {
     // Search check
-    const matchesSearch = user.UserEmail.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          user.UserId.toLowerCase().includes(searchQuery.toLowerCase());
-    
+    const matchesSearch = user.UserEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.UserId.toLowerCase().includes(searchQuery.toLowerCase());
+
     // Status check
-    const matchesStatus = statusFilter === "All" || 
-                          (statusFilter === "Active" && user.IsActive) || 
-                          (statusFilter === "Inactive" && !user.IsActive);
-                          
+    const matchesStatus = statusFilter === "All" ||
+      (statusFilter === "Active" && user.IsActive) ||
+      (statusFilter === "Inactive" && !user.IsActive);
+
     // Role check
     const matchesRole = roleFilter === "All" || user.UserRole === roleFilter;
 
@@ -92,12 +92,7 @@ export default function AllUsersList() {
       <div className="mb-8 flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between border border-gray-100">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <h1 className="text-2xl font-bold text-gray-900">All Users</h1>
-          <button
-            className="rounded-md bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 ring-1 ring-inset ring-purple-600/20 w-fit hover:bg-purple-100 transition-colors"
-            onClick={BackToDashBoard}
-          >
-            &larr; Back To DashBoard
-          </button>
+          
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-wrap">
@@ -188,13 +183,11 @@ export default function AllUsersList() {
                       <td className="px-6 py-4 text-center">
                         <button
                           onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${
-                            user.IsActive ? 'bg-green-500' : 'bg-gray-200'
-                          }`}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'
+                            }`}
                         >
-                          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            user.IsActive ? 'translate-x-5' : 'translate-x-0'
-                          }`} />
+                          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'
+                            }`} />
                         </button>
                       </td>
                     </tr>
@@ -222,27 +215,25 @@ export default function AllUsersList() {
                       {user.UserRole}
                     </span>
                   </div>
-                  
+
                   <div className="mt-2 flex items-center justify-between border-t border-gray-100 pt-3">
                     <div className="text-sm">
-                       Auth: {user.IsAuthenticated ? (
-                          <span className="text-green-600 font-medium">Verified</span>
-                        ) : (
-                          <span className="text-gray-400">Unverified</span>
-                        )}
+                      Auth: {user.IsAuthenticated ? (
+                        <span className="text-green-600 font-medium">Verified</span>
+                      ) : (
+                        <span className="text-gray-400">Unverified</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-600 font-medium">Active:</span>
                       <button
-                          onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                            user.IsActive ? 'bg-green-500' : 'bg-gray-200'
+                        onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'
                           }`}
-                        >
-                          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                            user.IsActive ? 'translate-x-5' : 'translate-x-0'
+                      >
+                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'
                           }`} />
-                        </button>
+                      </button>
                     </div>
                   </div>
                 </div>

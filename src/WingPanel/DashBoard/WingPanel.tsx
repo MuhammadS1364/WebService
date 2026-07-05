@@ -3,12 +3,12 @@ import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
 
 export default function WingPanel() {
-    const { actWingEmail } = useParams();
-    console.log("Current stn", actWingEmail);
+
+        const {actWing} = useParams();
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
-    
+
     const handleLogout = () => {
         // 1. Clear the login data
         localStorage.removeItem("token");
@@ -22,10 +22,9 @@ export default function WingPanel() {
 
     // Helper function for active link styling
     const navLinkClasses = ({ isActive }) =>
-        `block p-3 rounded-lg transition-all duration-200 ${
-            isActive 
-                ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2" 
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+        `block p-3 rounded-lg transition-all duration-200 ${isActive
+            ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2"
+            : "text-slate-300 hover:bg-slate-800 hover:text-white"
         }`;
 
     return (
@@ -35,54 +34,61 @@ export default function WingPanel() {
                 <div className="p-6 text-2xl font-bold border-b border-slate-800 tracking-tight">
                     Wing<span className="text-blue-500">DashBoard</span>
                 </div>
-                
+
                 <nav className="p-4 space-y-4">
                     {/* Academics Section */}
                     <div className='flex flex-col space-y-1'>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3">Academics</p>
-                        
-                        <NavLink 
-                            to={`/wing-panel/${actWingEmail}/wing-dashboard`} 
-                            onClick={() => setIsMenuOpen(false)} 
+
+                        <NavLink
+                            to={`/wing-panel/${actWing}/wing-dashboard`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={navLinkClasses}
                         >
                             Dashboard
                         </NavLink>
-                        
-                        <NavLink 
-                            to={`/wing-panel/${actWingEmail}/create-result`} 
-                            onClick={() => setIsMenuOpen(false)} 
+
+                        <NavLink
+                            to={`/wing-panel/${actWing}/create-result`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={navLinkClasses}
                         >
                             Create Result
                         </NavLink>
-                        <NavLink 
-                            to={`/wing-panel/${actWingEmail}/create-program`} 
-                            onClick={() => setIsMenuOpen(false)} 
+                        <NavLink
+                            to={`/wing-panel/${actWing}/create-program`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={navLinkClasses}
                         >
-                            Create Result
+                            Create Program
                         </NavLink>
                     </div>
 
                     {/* Program Section */}
                     <div className='flex flex-col space-y-1'>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Program</p>
-                        
-                        <NavLink 
-                            to={`/wing-panel/${actWingEmail}/stn-achievements-list`} 
-                            onClick={() => setIsMenuOpen(false)} 
+
+                        <NavLink
+                            to={`/wing-panel/${actWing}/wing-programmes`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={navLinkClasses}
                         >
-                            My Achievements
+                            My Programmes
                         </NavLink>
-                        
-                        <NavLink 
-                            to={`/wing-panel/${actWingEmail}/stn-outreach-list`} 
-                            onClick={() => setIsMenuOpen(false)} 
+
+                        <NavLink
+                            to={`/wing-panel/${actWing}/wing-results`}
+                            onClick={() => setIsMenuOpen(false)}
                             className={navLinkClasses}
                         >
-                            My Outreach
+                            My Results
+                        </NavLink>
+                        <NavLink
+                            to={`/wing-panel/${actWing}/wing-anylatics`}
+                            onClick={() => setIsMenuOpen(false)}
+                            className={navLinkClasses}
+                        >
+                            Wing Anylatics
                         </NavLink>
                     </div>
 
@@ -103,8 +109,8 @@ export default function WingPanel() {
                 {/* Mobile Header */}
                 <header className="lg:hidden flex items-center justify-between p-4 bg-white shadow-sm flex-shrink-0 border-b border-slate-200">
                     <span className="font-bold text-slate-800">Wing Portal</span>
-                    <button 
-                        onClick={() => setIsMenuOpen(!isMenuOpen)} 
+                    <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
                         className="p-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 transition-colors"
                     >
                         {isMenuOpen ? (
@@ -115,9 +121,10 @@ export default function WingPanel() {
                     </button>
                 </header>
 
-                {/* Dynamic Route Content */}
+               {/* Dynamic Route Content */}
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-                    <div className="max-w-6xl mx-auto">
+                    {/* Kept your max-w-[1600px] requirement */}
+                    <div className="w-full max-w-[1600px] mx-auto">
                         <Outlet />
                     </div>
                 </main>
@@ -125,9 +132,9 @@ export default function WingPanel() {
 
             {/* Mobile Overlay */}
             {isMenuOpen && (
-                <div 
-                    onClick={() => setIsMenuOpen(false)} 
-                    className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden transition-opacity" 
+                <div
+                    onClick={() => setIsMenuOpen(false)}
+                    className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden transition-opacity"
                 />
             )}
         </div>

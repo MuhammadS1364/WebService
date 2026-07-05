@@ -209,7 +209,7 @@ useEffect(() => {
   }, [selectedDate, todayString]);
 
   return (
-    <div className="w-full space-y-6 text-slate-900 antialiased max-w-7xl mx-auto p-4 sm:p-6">
+    <div className=" max-w[1500] space-y-6 text-slate-900 antialiased mx-auto sm:p-6">
 
       {/* Top Controls Layout */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
