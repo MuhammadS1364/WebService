@@ -49,8 +49,9 @@ export default function App() {
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />
           <Route path='programmes-celender' element={<ProgrammesCalendar />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
+          <Route path='candidate-registration/:P_Code' element={<CandidateRegistration />} />
 
-          <Route path='edite-student' element={<EditeStudentRecord />} />
+          <Route path='edite-student/:StnAddNo' element={<EditeStudentRecord />} />
           <Route path='all-students' element={<OurStudentsList />} />
           <Route path='new-student' element={<StudentRegistration />} />
           <Route path='all-users' element={<AllUsersList />} />
@@ -62,6 +63,7 @@ export default function App() {
 
         <Route path='/student-panel/:actStn' element={< StudentPanel />} >
           <Route path='stn-dashboard' element={<StudentDashBoard />} />
+          <Route path='candidate-registration/:P_Code' element={<CandidateRegistration />} />
 
         </Route>
         <Route path='/wing-panel/:actWing' element={< WingPanel />} >

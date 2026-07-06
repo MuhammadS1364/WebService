@@ -1,29 +1,35 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { APPS_SCRIPT_URL, SupaBaseFunction } from "../lib/SupaBase";
-
-// give user option ,that they uploader img url directly or can can upload img 
-// radio option for asking this by default ulode url not img 
-// if use select img uloade and geting error , suggest to urls of teh img 
+import { SupaBaseFunction } from "../lib/SupaBase";
 
 export default function CandidateRegistration() {
+  // Extract P_Code from the URL. 
+  // IMPORTANT: Your router MUST look like: <Route path="/register/:P_Code" element={...} />
   const { P_Code } = useParams();
   const navigate = useNavigate();
 
-  // Component states
+  // Core Data States
   const [programDetails, setProgramDetails] = useState(null);
   const [candidateCode, setCandidateCode] = useState("");
   const [studentName, setStudentName] = useState("");
+  
+  // UI/UX Status States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDuplicate, setIsDuplicate] = useState(false);
   const [status, setStatus] = useState({ type: "", text: "" });
 
-  // 1. Fetch current program info on component initialization
+  // ----------------------------------------
+  // 1. Fetch current program info 
+  // ----------------------------------------
   useEffect(() => {
     async function fetchProgram() {
-      if (!P_Code) return;
+      if (!P_Code) {
+        setStatus({ type: "error", text: "Program Code missing from URL. Check your Router setup." });
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const { data, error } = await SupaBaseFunction
           .from("ProgrammesBox")
@@ -32,10 +38,15 @@ export default function CandidateRegistration() {
           .maybeSingle();
 
         if (error) throw error;
-        setProgramDetails(data);
+        
+        if (data) {
+          setProgramDetails(data);
+        } else {
+          setStatus({ type: "error", text: `No program found with code: ${P_Code}` });
+        }
       } catch (err) {
         console.error("Error fetching program details:", err);
-        setStatus({ type: "error", text: "Failed to load program metadata." });
+        setStatus({ type: "error", text: "Failed to load program metadata. Check your column names in Supabase." });
       } finally {
         setIsLoading(false);
       }
@@ -43,7 +54,9 @@ export default function CandidateRegistration() {
     fetchProgram();
   }, [P_Code]);
 
-  // 2. Real-time Student Lookup & Duplicate Registration check
+  // ----------------------------------------
+  // 2. Real-time Student Lookup Validation
+  // ----------------------------------------
   useEffect(() => {
     if (!candidateCode.trim()) {
       setStudentName("");
@@ -59,7 +72,7 @@ export default function CandidateRegistration() {
         // Step A: Check if the student exists in StudentsBox
         const { data: studentData, error: studentError } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("Student_Name")
+          .select("StudentName")
           .eq("AddNo", candidateCode.trim())
           .maybeSingle();
 
@@ -76,22 +89,28 @@ export default function CandidateRegistration() {
           .eq("Candidate_Code", candidateCode.trim())
           .maybeSingle();
 
+        if (duplicateError && duplicateError.code !== "PGRST116") throw duplicateError;
+
         if (duplicateCheck) {
-          setStudentName(`⚠️ ${studentData.Student_Name} is ALREADY registered!`);
+          setStudentName(`⚠️ ${studentData.StudentName} is ALREADY registered!`);
           setIsDuplicate(true);
         } else {
-          setStudentName(`✅ ${studentData.Student_Name}`);
+          setStudentName(`✅ ${studentData.StudentName}`);
           setIsDuplicate(false);
         }
       } catch (err) {
+        console.error(err);
         setStudentName("⚠️ Validation service runtime exception");
       }
-    }, 400); // 400ms typing debounce delay
+    }, 450); // Debounce delay for smooth typing UX
 
     return () => clearTimeout(delayDebounce);
   }, [candidateCode, P_Code]);
 
-  // 3. Process the transactional sequence on submit
+
+  // ----------------------------------------
+  // 3. Process the Registration
+  // ----------------------------------------
   const handleRegister = async (e) => {
     e.preventDefault();
 
@@ -122,21 +141,24 @@ export default function CandidateRegistration() {
           .eq("Program_Code", P_Code);
       }
 
-      // Step C: Increment registration count for the student in StudentsBox
+      // Step C: Increment Registration_Count +1 for the student in StudentsBox
       const { data: currentStudent } = await SupaBaseFunction
         .from("StudentsBox")
         .select("Registration_Count")
         .eq("AddNo", candidateCode.trim())
         .maybeSingle();
 
-      await SupaBaseFunction
-        .from("StudentsBox")
-        .update({ Registration_Count: (currentStudent?.Registration_Count || 0) + 1 })
-        .eq("AddNo", candidateCode.trim());
+      if (currentStudent) {
+        await SupaBaseFunction
+          .from("StudentsBox")
+          .update({ Registration_Count: (currentStudent.Registration_Count || 0) + 1 })
+          .eq("AddNo", candidateCode.trim());
+      }
 
       setStatus({ type: "success", text: "🎉 Candidate successfully assigned to program!" });
       setCandidateCode("");
       setStudentName("");
+      
     } catch (err) {
       console.error("Workflow Pipeline Failure:", err);
       setStatus({ type: "error", text: err.message || "Failed to commit registration operations." });
@@ -145,69 +167,85 @@ export default function CandidateRegistration() {
     }
   };
 
+  // ----------------------------------------
+  // RENDER UI
+  // ----------------------------------------
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 text-gray-500 font-medium">
-        Validating secure registration channel...
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center animate-pulse">
+          <div className="h-10 w-10 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mb-4"></div>
+          <p className="text-slate-500 font-medium tracking-wide">Validating secure channel...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-12 flex items-center justify-center font-sans selection:bg-blue-500 selection:text-white">
-      <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8 transition-all">
+    <div className="min-h-screen bg-slate-50 px-4 py-12 flex items-center justify-center font-sans selection:bg-violet-500 selection:text-white">
+      <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-6 sm:p-10 transition-all">
         
-        {/* Header Title Section */}
-        <div className="mb-6 border-b border-gray-100 pb-4">
-          <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Candidate Entry Gate</h2>
-          <p className="text-sm text-gray-500 mt-1">Assign records to active programs seamlessly.</p>
+        {/* Header Section */}
+        <div className="mb-8 border-b border-slate-100 pb-5">
+          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Candidate Entry</h2>
+          <p className="text-sm text-slate-500 mt-1.5 font-medium">Assign records to active programs seamlessly.</p>
         </div>
 
         {/* Action Validation Alerts */}
         {status.text && (
-          <div className={`p-4 rounded-xl mb-6 text-sm font-medium border transition-all ${
-            status.type === "success" ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+          <div className={`p-4 rounded-xl mb-6 text-sm font-semibold border transition-all flex items-start ${
+            status.type === "success" 
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+              : "bg-rose-50 text-rose-700 border-rose-200"
           }`}>
-            {status.text}
+            <span className="mr-2 text-lg">{status.type === "success" ? "✅" : "⚠️"}</span>
+            <span className="mt-0.5">{status.text}</span>
           </div>
         )}
 
-        {/* Dynamic Branching Content Workflow */}
-        {status.type === "success" ? (
-          <div className="space-y-4 py-4">
-            <p className="text-gray-600 text-sm text-center font-medium">What structural route would you like to process next?</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        {/* Prevent rendering form if the P_Code wasn't found in DB */}
+        {!programDetails && status.type === "error" ? (
+           <button
+            onClick={() => navigate("/student-panel/:actStn/candidate-registration")}
+            className="w-full py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all active:scale-95"
+           >
+             Return to Program List
+           </button>
+        ) : status.type === "success" ? (
+          // Success / Next Action Workflow
+          <div className="space-y-6 py-4 animate-in fade-in zoom-in duration-300">
+            <p className="text-slate-600 text-center font-medium">What would you like to do next?</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 onClick={() => setStatus({ type: "", text: "" })}
-                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700 transition active:scale-95"
+                className="w-full py-3.5 bg-violet-600 text-white font-bold rounded-xl shadow-md shadow-violet-200 hover:bg-violet-700 hover:-translate-y-0.5 transition-all active:scale-95"
               >
-                Register Another Candidate
+                + Register Another
               </button>
               <button
-                onClick={() => navigate("/all-programmes-list")}
-                className="w-full py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition active:scale-95"
+                onClick={() => navigate("/admin-panel/admin@gmail.com/")}
+                className="w-full py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 hover:-translate-y-0.5 transition-all active:scale-95"
               >
-                Return to Program List
+                Return to List
               </button>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleRegister} className="space-y-5">
+          // Main Form
+          <form onSubmit={handleRegister} className="space-y-6">
             
-            {/* Field 1: Program Meta Reference Box View */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Target Code && Name and Category
-              </label>
-              <div className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3.5 text-gray-500 font-mono text-sm cursor-not-allowed select-none flex flex-wrap gap-2 items-center">
-                <span className="font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">
-                  {P_Code}
+            {/* Field 1: Program Meta Reference */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Target Program</label>
+              <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-wrap gap-3 items-center">
+                <span className="font-bold text-violet-700 bg-violet-100 px-2.5 py-1 rounded-md text-xs tracking-wide shadow-sm">
+                  {P_Code || "N/A"}
                 </span>
-                <span className="text-gray-700 font-sans font-semibold">
+                <span className="text-slate-700 font-semibold text-sm">
                   {programDetails ? programDetails.Program_Title : "Loading title..."}
                 </span>
                 {programDetails?.Category && (
-                  <span className="ml-auto text-xs font-sans font-medium bg-gray-200 text-gray-600 px-2.5 py-0.5 rounded-full">
+                  <span className="ml-auto text-xs font-bold bg-white border border-slate-200 text-slate-500 px-3 py-1 rounded-full shadow-sm">
                     {programDetails.Category}
                   </span>
                 )}
@@ -215,61 +253,62 @@ export default function CandidateRegistration() {
             </div>
 
             {/* Field 2: Target Candidate Admission Code */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-600">
-                Candidate Admission No (AddNo) *
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Candidate Admission No (AddNo) <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder="Enter Student's AddNo (e.g. 4501)"
+                placeholder="e.g. 4501"
                 value={candidateCode}
                 onChange={(e) => setCandidateCode(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 p-3.5 text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all text-sm font-medium"
+                className="w-full rounded-xl border border-slate-300 p-3.5 text-slate-800 placeholder-slate-400 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-500/20 transition-all text-sm font-bold bg-white"
               />
             </div>
 
             {/* Field 3: Dynamic Verification Feedback Box */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                Resolved Student Name Verification
-              </label>
-              <input
-                type="text"
-                value={studentName}
-                placeholder="Awaiting valid identifier code configuration entry..."
-                readOnly
-                className={`w-full rounded-xl border p-3.5 text-sm font-semibold transition-all focus:outline-none ${
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Identity Verification</label>
+              <div className={`w-full rounded-xl border p-3.5 text-sm font-semibold transition-all duration-300 flex items-center ${
                   studentName.startsWith("✅")
-                    ? "bg-green-50/50 border-green-200 text-green-800"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-800 shadow-inner"
                     : isDuplicate || studentName.startsWith("❌") || studentName.startsWith("⚠️")
-                    ? "bg-red-50/50 border-red-200 text-red-800"
-                    : "bg-gray-50 border-gray-200 text-gray-400 font-normal italic"
+                    ? "bg-rose-50 border-rose-200 text-rose-800 shadow-inner"
+                    : "bg-slate-50 border-slate-200 text-slate-400 font-medium italic"
                 }`}
-              />
+              >
+                {studentName || "Awaiting valid admission number..."}
+              </div>
             </div>
 
-            {/* Controls Button Layout Footer */}
+            {/* Form Actions */}
             <div className="pt-4 flex flex-col sm:flex-row gap-3">
               <button
                 type="button"
-                onClick={() => navigate("/all-programmes-list")}
-                className="w-full sm:w-1/3 order-2 sm:order-1 py-3.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition active:scale-98"
+                onClick={() => navigate("/admin-panel/admin@gmail.com/")}
+                className="w-full sm:w-1/3 order-2 sm:order-1 py-3.5 bg-slate-100 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-200 transition-all active:scale-95"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting || !studentName.startsWith("✅") || isDuplicate}
-                className={`w-full sm:w-2/3 order-1 sm:order-2 py-3.5 text-sm font-bold text-white rounded-xl transition shadow-lg ${
+                className={`w-full sm:w-2/3 order-1 sm:order-2 py-3.5 text-sm font-bold text-white rounded-xl transition-all duration-200 shadow-lg flex justify-center items-center ${
                   isSubmitting || !studentName.startsWith("✅") || isDuplicate
-                    ? "bg-gray-300 cursor-not-allowed opacity-75 shadow-none"
-                    : "bg-blue-600 hover:bg-blue-700 active:scale-[0.99] shadow-blue-600/10"
+                    ? "bg-slate-300 cursor-not-allowed shadow-none"
+                    : "bg-violet-600 hover:bg-violet-700 hover:-translate-y-0.5 hover:shadow-violet-300 active:scale-[0.98]"
                 }`}
               >
-                {isSubmitting ? "Finalizing Credentials..." : "Complete Registration"}
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Processing...
+                  </>
+                ) : "Complete Registration"}
               </button>
             </div>
+            
           </form>
         )}
       </div>
