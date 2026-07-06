@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { NavLink, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, Outlet, useParams } from 'react-router-dom';
 
 export default function OutReachPanel() {
-    const location = useLocation();
-    const user = location.state?.user;
-
+    const {actOutReach} = useParams(); 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
     
@@ -29,11 +27,14 @@ export default function OutReachPanel() {
                     Admin<span className="text-blue-500">DashBoard</span>
                 </div>
                 <nav className="p-4 space-y-2">
-                    <NavLink to="/admin-panel/Programmes-List" onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/outreach-panel/${actOutReach}/dashboard`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Programmes List
                     </NavLink>
-                    <NavLink to="/admin-panel/our-students" onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                        Our Students
+                    <NavLink to={`/outreach-panel/${actOutReach}/create-outreach`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        Create OutReach
+                    </NavLink>
+                    <NavLink to={`/outreach-panel/${actOutReach}/create-achievements`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        Create Achievement
                     </NavLink>
 
                     <div className="pt-4 border-t border-slate-800 mt-4">

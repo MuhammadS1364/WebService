@@ -31,6 +31,10 @@ import WingDashboard from './WingPanel/DashBoard/WingDashoard';
 import WingAnylatics from './WingPanel/WingAnylatics/WingAnylatics';
 import WingProgrammes from './WingPanel/WingProgrammes/WingProgrammes';
 import WingResults from './WingPanel/WingResults/WingResults';
+import OutReachPanel from './OutReachPanel/DashBoard/OutReachPanel';
+import OutReachDashboard from './OutReachPanel/DashBoard/OutReachDashboard';
+import CreateAchievements from './OutReachPanel/OutReach/CreateAchievements';
+import CreateOutReach from './OutReachPanel/OutReach/CreateOutReach';
 
 export default function App() {
   return (
@@ -56,24 +60,27 @@ export default function App() {
 
         </Route>
 
-        <Route path='/student-panel/:actStn' element={< StudentPanel/>} >
+        <Route path='/student-panel/:actStn' element={< StudentPanel />} >
           <Route path='stn-dashboard' element={<StudentDashBoard />} />
 
         </Route>
-        <Route path='/wing-panel/:actWing' element={< WingPanel/>} >
+        <Route path='/wing-panel/:actWing' element={< WingPanel />} >
           <Route path='wing-dashboard' element={<WingDashboard />} />
           <Route path='create-result' element={<CreateResult />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
           <Route path='wing-anylatics' element={<WingAnylatics />} />
           <Route path='wing-programmes' element={<WingProgrammes />} />
-          <Route path='wing-results' element={<WingResults/>} />
+          <Route path='wing-results' element={<WingResults />} />
 
-          
-        </Route>
-
-        {/* <Route path='' element={< />} >
 
         </Route>
+        <Route path='/outreach-panel/:actOutReach' element={<OutReachPanel />} >
+          <Route path='dashboard' element={<OutReachDashboard />} />
+          <Route path='create-achievements' element={<CreateAchievements />} />
+          <Route path='create-outreach' element={<CreateOutReach />} />
+
+        </Route>
+        {/* 
 
         <Route path='' element={< />} >
 
