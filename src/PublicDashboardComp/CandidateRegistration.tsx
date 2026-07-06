@@ -1,23 +1,37 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 
+// Define the shape of your program data
+interface ProgramDetails {
+  Program_Code: string;
+  Program_Title: string;
+  Category?: string;
+  Total_Registration?: number;
+}
+
+// Define the shape of your status alerts
+interface StatusState {
+  type: string;
+  text: string;
+}
+
 export default function CandidateRegistration() {
-  // Extract P_Code from the URL. 
+  // Extract P_Code from the URL and tell TypeScript it's a string
   // IMPORTANT: Your router MUST look like: <Route path="/register/:P_Code" element={...} />
-  const { P_Code } = useParams();
+  const { P_Code } = useParams<{ P_Code: string }>();
   const navigate = useNavigate();
 
   // Core Data States
-  const [programDetails, setProgramDetails] = useState(null);
-  const [candidateCode, setCandidateCode] = useState("");
-  const [studentName, setStudentName] = useState("");
+  const [programDetails, setProgramDetails] = useState<ProgramDetails | null>(null);
+  const [candidateCode, setCandidateCode] = useState<string>("");
+  const [studentName, setStudentName] = useState<string>("");
   
   // UI/UX Status States
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDuplicate, setIsDuplicate] = useState(false);
-  const [status, setStatus] = useState({ type: "", text: "" });
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isDuplicate, setIsDuplicate] = useState<boolean>(false);
+  const [status, setStatus] = useState<StatusState>({ type: "", text: "" });
 
   // ----------------------------------------
   // 1. Fetch current program info 
@@ -40,7 +54,7 @@ export default function CandidateRegistration() {
         if (error) throw error;
         
         if (data) {
-          setProgramDetails(data);
+          setProgramDetails(data as ProgramDetails);
         } else {
           setStatus({ type: "error", text: `No program found with code: ${P_Code}` });
         }
@@ -111,7 +125,7 @@ export default function CandidateRegistration() {
   // ----------------------------------------
   // 3. Process the Registration
   // ----------------------------------------
-  const handleRegister = async (e) => {
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!studentName.startsWith("✅") || isDuplicate) {
@@ -161,7 +175,8 @@ export default function CandidateRegistration() {
       
     } catch (err) {
       console.error("Workflow Pipeline Failure:", err);
-      setStatus({ type: "error", text: err.message || "Failed to commit registration operations." });
+      const error = err as Error;
+      setStatus({ type: "error", text: error.message || "Failed to commit registration operations." });
     } finally {
       setIsSubmitting(false);
     }
@@ -215,19 +230,19 @@ export default function CandidateRegistration() {
           // Success / Next Action Workflow
           <div className="space-y-6 py-4 animate-in fade-in zoom-in duration-300">
             <p className="text-slate-600 text-center font-medium">What would you like to do next?</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
               <button
                 onClick={() => setStatus({ type: "", text: "" })}
                 className="w-full py-3.5 bg-violet-600 text-white font-bold rounded-xl shadow-md shadow-violet-200 hover:bg-violet-700 hover:-translate-y-0.5 transition-all active:scale-95"
               >
                 + Register Another
               </button>
-              <button
-                onClick={() => navigate("/admin-panel/admin@gmail.com/")}
+              {/* <button
+                onClick={() => navigate(`/student-panel//`)}
                 className="w-full py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 hover:-translate-y-0.5 transition-all active:scale-95"
               >
                 Return to List
-              </button>
+              </button> */}
             </div>
           </div>
         ) : (
@@ -283,14 +298,14 @@ export default function CandidateRegistration() {
             </div>
 
             {/* Form Actions */}
-            <div className="pt-4 flex flex-col sm:flex-row gap-3">
-              <button
+            <div className="pt-4 flex flex-col align-middle justify-center sm:flex-row gap-3">
+              {/* <button
                 type="button"
                 onClick={() => navigate("/admin-panel/admin@gmail.com/")}
                 className="w-full sm:w-1/3 order-2 sm:order-1 py-3.5 bg-slate-100 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-200 transition-all active:scale-95"
               >
                 Cancel
-              </button>
+              </button> */}
               <button
                 type="submit"
                 disabled={isSubmitting || !studentName.startsWith("✅") || isDuplicate}

@@ -58,7 +58,8 @@ export default function App() {
           </ProtectedRoute>
         }>
           <Route path='Programmes-List' element={<AllProgrammesList />} />
-          <Route path='dashBoard' element={<AdminDashboard />} />
+          <Route  index element={<AdminDashboard />} />
+          <Route path='dashBoard' index element={<AdminDashboard />} />
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />
           <Route path='programmes-celender' element={<ProgrammesCalendar />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
@@ -77,6 +78,7 @@ export default function App() {
             <StudentPanel />
           </ProtectedRoute>
         }>
+          <Route index element={<StudentDashBoard />} />
           <Route path='stn-dashboard' element={<StudentDashBoard />} />
           <Route path='all-programmes-list' element={<ProgrammesRegistrationCard />} />
           <Route path='candidate-registration/:P_Code' element={<CandidateRegistration />} />
@@ -92,6 +94,7 @@ export default function App() {
             <WingPanel />
           </ProtectedRoute>
         }>
+          <Route index element={<WingDashboard />} />
           <Route path='wing-dashboard' element={<WingDashboard />} />
           <Route path='create-result' element={<CreateResult />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
@@ -106,6 +109,7 @@ export default function App() {
             <OutReachPanel />
           </ProtectedRoute>
         }>
+          <Route index element={<OutReachDashboard />} />
           <Route path='dashboard' element={<OutReachDashboard />} />
           <Route path='create-achievements' element={<CreateAchievements />} />
           <Route path='create-outreach' element={<CreateOutReach />} />

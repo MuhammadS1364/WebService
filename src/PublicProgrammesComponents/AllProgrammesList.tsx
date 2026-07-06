@@ -1,22 +1,44 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { SupaBaseFunction } from "../lib/SupaBase";
 
+// Define the shape of your program records
+interface Programme {
+    Program_Code: string;
+    Program_Title: string;
+    WingCode?: string;
+    WingTitle?: string;
+    WingEmail?: string;
+    Date?: string;
+    Venue?: string;
+    Category?: string;
+    Group?: string;
+    IsApproved?: boolean;
+}
+
+// Define the shape of your wing records for the lookup
+interface WingData {
+    WingCode: string;
+    WingTitle: string;
+    WingEmail: string;
+    Total_Registrations?: number;
+}
+
 export default function AllProgrammesList() {
-    const [viewMode, setViewMode] = useState("list");
-    const [searchQuery, setSearchQuery] = useState("");
+    const [viewMode, setViewMode] = useState<string>("list");
+    const [searchQuery, setSearchQuery] = useState<string>("");
     
     // Calendar Navigation States (Defaults to July 2026)
-    const [currentYear, setCurrentYear] = useState(2026);
-    const [currentMonth, setCurrentMonth] = useState(6); // 0-indexed: 6 = July
-    const [selectedDate, setSelectedDate] = useState("2026-07-05");
+    const [currentYear, setCurrentYear] = useState<number>(2026);
+    const [currentMonth, setCurrentMonth] = useState<number>(6); // 0-indexed: 6 = July
+    const [selectedDate, setSelectedDate] = useState<string>("2026-07-05");
 
     // Data States
-    const [programmes, setProgrammes] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isMobile, setIsMobile] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
+    const [programmes, setProgrammes] = useState<Programme[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isMobile, setIsMobile] = useState<boolean>(false);
+    const [isImporting, setIsImporting] = useState<boolean>(false);
 
-    const fileInputRef = useRef(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [filters, setFilters] = useState({ wing: "All", category: "All", group: "All" });
 
     // Handle Mobile Responsiveness Layout
@@ -47,8 +69,8 @@ export default function AllProgrammesList() {
             }
 
             // Fetch structural details matching WingCode keys
-            const wingCodes = [...new Set(programmesData.map(p => p.WingCode).filter(Boolean))];
-            let wingsData = [];
+            const wingCodes = [...new Set(programmesData.map((p: any) => p.WingCode).filter(Boolean))];
+            let wingsData: WingData[] = [];
             
             if (wingCodes.length > 0) {
                 const { data: wData, error: wingError } = await SupaBaseFunction
@@ -60,7 +82,7 @@ export default function AllProgrammesList() {
                 wingsData = wData || [];
             }
 
-            const mergedData = programmesData.map(prog => {
+            const mergedData: Programme[] = programmesData.map((prog: any) => {
                 const matchedWing = wingsData.find(w => w.WingCode === prog.WingCode);
                 return {
                     ...prog,
@@ -81,6 +103,7 @@ export default function AllProgrammesList() {
     // Re-trigger global query state logic upon view changes or date modifications
     useEffect(() => {
         fetchProgrammes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewMode, selectedDate]);
 
     // Unique dynamic filter dropdown arrays extracted directly from compiled data
@@ -116,7 +139,7 @@ export default function AllProgrammesList() {
     const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
 
     // --- APPROVE PROGRAMME ---
-    const handleApprove = async (code) => {
+    const handleApprove = async (code: string) => {
         try {
             const { error } = await SupaBaseFunction
                 .from('ProgrammesBox')
@@ -126,7 +149,8 @@ export default function AllProgrammesList() {
             if (error) throw error;
             setProgrammes(prev => prev.map(p => p.Program_Code === code ? { ...p, IsApproved: true } : p));
         } catch (error) {
-            console.error("Error setting approval state:", error.message);
+            const err = error as Error;
+            console.error("Error setting approval state:", err.message);
         }
     };
 
@@ -144,15 +168,20 @@ export default function AllProgrammesList() {
     };
 
     // --- CSV PARSER & INCREMENT ENGINE ---
-    const handleFileUpload = async (e) => {
-        const file = e.target.files[0];
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
         setIsImporting(true);
         const reader = new FileReader();
         
-        reader.onload = async (event) => {
-            const text = event.target.result;
+        reader.onload = async (event: ProgressEvent<FileReader>) => {
+            const text = event.target?.result as string;
+            if (!text) {
+                setIsImporting(false);
+                return;
+            }
+
             const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
             if (lines.length <= 1) {
                 setIsImporting(false);
@@ -160,12 +189,12 @@ export default function AllProgrammesList() {
             }
 
             const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
-            const itemsToInsert = [];
-            const wingRegistrationIncrements = {};
+            const itemsToInsert: any[] = [];
+            const wingRegistrationIncrements: Record<string, number> = {};
 
             for (let i = 1; i < lines.length; i++) {
                 const currentLine = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-                const rowData = {};
+                const rowData: Record<string, string> = {};
                 
                 headers.forEach((header, index) => {
                     let val = currentLine[index] ? currentLine[index].replace(/^"|"$/g, '').trim() : "";
@@ -247,7 +276,7 @@ export default function AllProgrammesList() {
                 <div className="flex flex-wrap items-center gap-3">
                     <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
                     
-                    <button disabled={isImporting} onClick={() => fileInputRef.current.click()} className="px-3 py-2 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg shadow-sm transition">
+                    <button disabled={isImporting} onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg shadow-sm transition">
                         {isImporting ? "Processing..." : "↑ Import CSV"}
                     </button>
                     <button onClick={handleExport} className="px-3 py-2 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg shadow-sm transition">
@@ -272,10 +301,10 @@ export default function AllProgrammesList() {
                 />
                 <div className="flex w-full sm:w-auto gap-2 justify-end">
                     <select onChange={(e) => setFilters({ ...filters, wing: e.target.value })} className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-medium text-slate-600">
-                        {uniqueWings.map(w => <option key={w} value={w}>{w === "All" ? "All Wings" : w}</option>)}
+                        {uniqueWings.map((w: any) => <option key={w} value={w}>{w === "All" ? "All Wings" : w}</option>)}
                     </select>
                     <select onChange={(e) => setFilters({ ...filters, category: e.target.value })} className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-medium text-slate-600">
-                        {uniqueCategories.map(c => <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>)}
+                        {uniqueCategories.map((c: any) => <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>)}
                     </select>
                 </div>
             </div>
@@ -298,7 +327,7 @@ export default function AllProgrammesList() {
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
                                 {isLoading ? (
-                                    <tr><td colSpan="7" className="p-8 text-center text-slate-400">Syncing database registers...</td></tr>
+                                    <tr><td colSpan={7} className="p-8 text-center text-slate-400">Syncing database registers...</td></tr>
                                 ) : filteredProgrammes.length > 0 ? (
                                     filteredProgrammes.map(prog => (
                                         <tr key={prog.Program_Code} className="hover:bg-slate-50/50 transition">
@@ -322,7 +351,7 @@ export default function AllProgrammesList() {
                                         </tr>
                                     ))
                                 ) : (
-                                    <tr><td colSpan="7" className="p-12 text-center text-slate-400">No active parameters match your filters.</td></tr>
+                                    <tr><td colSpan={7} className="p-12 text-center text-slate-400">No active parameters match your filters.</td></tr>
                                 )}
                             </tbody>
                         </table>

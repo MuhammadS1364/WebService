@@ -29,7 +29,7 @@ export default function AdminPanel() {
                     Admin<span className="text-blue-500">DashBoard</span>
                 </div>
                 <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100%-80px)]">
-                    <NavLink to={`/admin-panel/${actUser}/dashBoard`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/admin-panel/${actUser}/dashBoard`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
                         Dashboard
                     </NavLink>
                     <NavLink to={`/admin-panel/${actUser}/Programmes-List`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { SupaBaseFunction } from "../../lib/SupaBase"; // Assuming this is your initialized Supabase client
+import { SupaBaseFunction } from "../../lib/SupaBase";
 
 export default function WingResults() {
     const { actWing } = useParams();
@@ -24,7 +24,7 @@ export default function WingResults() {
         try {
             // 1. Fetch all programmes associated with this wing code
             const { data: progData, error: progError } = await SupaBaseFunction
-                .from('programes') // Replace with your actual table name
+                .from('programes')
                 .select('*')
                 .eq('wing_code', actWing);
 
@@ -36,7 +36,7 @@ export default function WingResults() {
             
             if (progCodes.length > 0) {
                 const { data: candData, error: candError } = await SupaBaseFunction
-                    .from('candidates') // Replace with your actual table name
+                    .from('candidates')
                     .select('*')
                     .in('programme_code', progCodes);
 
@@ -144,8 +144,6 @@ export default function WingResults() {
 
                             return (
                                 <div key={prog.id} className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden transition-all duration-200 hover:shadow-md">
-                                    
-                                    {/* PROGRAMME ROW (ALWAYS VISIBLE) */}
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 gap-4">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3">
@@ -158,38 +156,29 @@ export default function WingResults() {
                                         </div>
 
                                         <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
-                                            
-                                            {/* Toggle Registration Button */}
                                             <div className="flex items-center gap-3">
                                                 <span className="text-sm font-semibold text-slate-600">Registration</span>
                                                 <button 
                                                     onClick={() => toggleRegistration(prog.id, prog.registration_on)}
-                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${prog.registration_on ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${prog.registration_on ? 'bg-emerald-500' : 'bg-slate-300'}`}
                                                 >
                                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${prog.registration_on ? 'translate-x-6' : 'translate-x-1'}`} />
                                                 </button>
                                             </div>
 
-                                            {/* Show Candidates Button */}
                                             <button 
                                                 onClick={() => toggleExpand(prog.programme_code)}
                                                 className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-bold transition-colors border border-slate-200"
                                             >
                                                 {isExpanded ? 'Hide Candidates' : 'View Candidates'}
-                                                <svg className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                                                </svg>
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* CANDIDATES TABLE (HIDDEN BY DEFAULT) */}
                                     {isExpanded && (
                                         <div className="border-t border-slate-100 bg-slate-50/50 p-5">
                                             {progCandidates.length === 0 ? (
-                                                <div className="text-center py-8 text-slate-500 italic text-sm">
-                                                    No candidates registered for this programme yet.
-                                                </div>
+                                                <div className="text-center py-8 text-slate-500 italic text-sm">No candidates registered for this programme yet.</div>
                                             ) : (
                                                 <div className="overflow-x-auto rounded-xl ring-1 ring-slate-200 bg-white">
                                                     <table className="w-full text-left text-sm text-slate-600">
@@ -204,22 +193,10 @@ export default function WingResults() {
                                                         <tbody className="divide-y divide-slate-100">
                                                             {progCandidates.map((candidate) => (
                                                                 <tr key={candidate.id} className="hover:bg-slate-50 transition-colors">
-                                                                    <td className="px-6 py-4 font-semibold text-slate-800">
-                                                                        {candidate.name}
-                                                                    </td>
-                                                                    <td className="px-6 py-4">
-                                                                        <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                                                                            {candidate.class_name}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-6 py-4">
-                                                                        <span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-700/10">
-                                                                            {candidate.category}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td className="px-6 py-4 font-medium">
-                                                                        {candidate.campus_name}
-                                                                    </td>
+                                                                    <td className="px-6 py-4 font-semibold text-slate-800">{candidate.name}</td>
+                                                                    <td className="px-6 py-4"><span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">{candidate.class_name}</span></td>
+                                                                    <td className="px-6 py-4"><span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-700/10">{candidate.category}</span></td>
+                                                                    <td className="px-6 py-4 font-medium">{candidate.campus_name}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>

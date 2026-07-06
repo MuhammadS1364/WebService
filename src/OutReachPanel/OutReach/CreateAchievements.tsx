@@ -14,7 +14,8 @@ const ACHIEVEMENT_TYPES = [
   "Other",
 ];
 
-const POSITION_POINTS = {
+// Explicitly tell TypeScript this is an object with string keys and number values
+const POSITION_POINTS: Record<string, number> = {
   "First": 7,
   "Second": 5,
   "Third": 3,
@@ -29,8 +30,25 @@ const POSITION_POINTS = {
   "Other": 3,
 };
 
+// Define interfaces for your state
+interface AchievementFormData {
+  stnAddNo: string;
+  studentName: string;
+  title: string;
+  type: string;
+  position: string;
+  description: string;
+}
+
+interface StatusState {
+  loading: boolean;
+  searching: boolean;
+  error: string;
+  success: string;
+}
+
 export default function CreateAchievements() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AchievementFormData>({
     stnAddNo: "",
     studentName: "",
     title: "",
@@ -39,15 +57,17 @@ export default function CreateAchievements() {
     description: "",
   });
 
-  const [status, setStatus] = useState({
+  const [status, setStatus] = useState<StatusState>({
     loading: false,
     searching: false,
     error: "",
     success: "",
   });
 
-  // Handle Input Changes
-  const handleChange = (e) => {
+  // Handle Input Changes with strict event typing covering inputs, selects, and textareas
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setStatus((prev) => ({ ...prev, success: "", error: "" }));
@@ -79,8 +99,9 @@ export default function CreateAchievements() {
         setFormData((prev) => ({ ...prev, studentName: data.StudentName }));
         setStatus((prev) => ({ ...prev, searching: false, error: "" }));
       } catch (err) {
+        const error = err as Error;
         setFormData((prev) => ({ ...prev, studentName: "" }));
-        setStatus((prev) => ({ ...prev, searching: false, error: err.message }));
+        setStatus((prev) => ({ ...prev, searching: false, error: error.message }));
       }
     };
 
@@ -93,7 +114,7 @@ export default function CreateAchievements() {
   }, [formData.stnAddNo]);
 
   // Submit Form
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!formData.studentName) {
@@ -159,7 +180,8 @@ export default function CreateAchievements() {
       });
 
     } catch (err) {
-      setStatus({ ...status, loading: false, error: err.message });
+      const error = err as Error;
+      setStatus({ ...status, loading: false, error: error.message });
     }
   };
 
@@ -295,7 +317,7 @@ export default function CreateAchievements() {
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
-                rows="3"
+                rows={3}
                 placeholder="Brief description of the event or accomplishment..."
                 className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-800 focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all duration-200 shadow-sm resize-none"
               ></textarea>

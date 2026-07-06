@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
@@ -10,7 +10,6 @@ export default function StudentsOutReach() {
   const [student, setStudent] = useState(null);
   const [outreachRecords, setOutreachRecords] = useState([]);
   const [typeFilter, setTypeFilter] = useState("All");
-
 
   useEffect(() => {
     const fetchOutreach = async () => {
@@ -31,7 +30,7 @@ export default function StudentsOutReach() {
           .from("StudentsOutReach")
           .select("*")
           .eq("StnAddNo", studentData.AddNo)
-          .order("created_at", { ascending: false }); // Newest impact first
+          .order("created_at", { ascending: false });
 
         if (outreachError) throw outreachError;
         setOutreachRecords(outreachData || []);
@@ -50,19 +49,15 @@ export default function StudentsOutReach() {
   const totalPoints = outreachRecords.reduce((sum, record) => sum + (record.Point_Obtained || 0), 0);
   const totalMissions = outreachRecords.length;
   
-  // Extract unique outreach types for the filter dropdown
   const outreachTypes = ["All", ...new Set(outreachRecords.map(o => o.OutReach_Type).filter(Boolean))];
 
-  // Apply Filter
   const filteredOutreach = outreachRecords.filter(record => 
     typeFilter === "All" || record.OutReach_Type === typeFilter
   );
 
-  // Dynamic colors for different outreach types (generates a consistent color based on string length/char)
   const getTypeColor = (type) => {
     const defaultColor = "bg-teal-50 text-teal-700 border-teal-200";
     if (!type) return defaultColor;
-    
     const charCode = type.charCodeAt(0);
     if (charCode % 4 === 0) return "bg-cyan-50 text-cyan-700 border-cyan-200";
     if (charCode % 4 === 1) return "bg-blue-50 text-blue-700 border-blue-200";
@@ -91,26 +86,17 @@ export default function StudentsOutReach() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-8">
         
-        {/* Header - Global Impact Style */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-700 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
-          {/* Background vector art illusion */}
-          <div className="absolute -right-10 -top-10 opacity-10">
-            <svg className="w-64 h-64" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-          </div>
-
           <div className="relative z-10">
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-              Global Footprint
-            </h1>
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Global Footprint</h1>
             <p className="text-teal-100 mt-2 text-lg">
               Outreach & community impact map for <span className="font-bold text-white">{student.StudentName}</span>
             </p>
           </div>
           <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20 text-center shadow-lg transform hover:scale-105 transition-transform">
             <p className="text-sm font-bold text-teal-100 uppercase tracking-widest mb-1">Impact Score</p>
-            <p className="text-5xl font-black text-white">
-              {totalPoints}
-            </p>
+            <p className="text-5xl font-black text-white">{totalPoints}</p>
           </div>
         </div>
 
@@ -126,7 +112,7 @@ export default function StudentsOutReach() {
           />
           <OverviewClipBox
             BoxTitle="Network Sectors"
-            BoxValue={outreachTypes.length - 1} // minus the "All" category
+            BoxValue={outreachTypes.length > 1 ? outreachTypes.length - 1 : 0}
             variant="blue"
             BoxSvgLogo={
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
@@ -136,9 +122,7 @@ export default function StudentsOutReach() {
 
         {/* Filter Section */}
         <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4 sm:mb-0">
-            🌍 Mission Log
-          </h2>
+          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4 sm:mb-0">🌍 Mission Log</h2>
           <div className="flex items-center gap-3">
             <label className="text-sm font-semibold text-gray-500">Sector:</label>
             <select
@@ -158,55 +142,30 @@ export default function StudentsOutReach() {
           <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-gray-300">
             <span className="text-6xl mb-4 block">🚀</span>
             <h3 className="text-2xl font-bold text-gray-700">Ready for Launch?</h3>
-            <p className="text-gray-500 mt-2 max-w-md mx-auto">
-              Your footprint outside the campus starts here. Engage in community service, inter-college events, or global programs to fill your mission log.
-            </p>
+            <p className="text-gray-500 mt-2 max-w-md mx-auto">Engage in community service or global programs to fill your mission log.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredOutreach.map((record) => {
               const themeColor = getTypeColor(record.OutReach_Type);
-              
               return (
-                <div 
-                  key={record.OutReach_Id} 
-                  className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden flex flex-col group hover:-translate-y-1"
-                >
-                  {/* Card Header Strip */}
+                <div key={record.OutReach_Id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden flex flex-col group hover:-translate-y-1">
                   <div className={`h-2 w-full ${themeColor.split(' ')[0].replace('bg-', 'bg-')}`} style={{ filter: 'brightness(0.9)' }}></div>
-                  
                   <div className="p-6 flex flex-col flex-1">
                     <div className="flex justify-between items-start mb-4">
                       <span className={`px-3 py-1 text-xs font-bold rounded-full border ${themeColor}`}>
                         {record.OutReach_Type || "General Outreach"}
                       </span>
-                      {record.Position_Achieved && (
-                        <span className="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded-md flex items-center gap-1">
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                          {record.Position_Achieved}
-                        </span>
-                      )}
                     </div>
-
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 leading-tight">
-                      {record.OutReach_Title}
-                    </h3>
-                    
-                    <p className="text-sm text-gray-600 mb-6 flex-1 line-clamp-3">
-                      {record.OutReach_Descriptin || "Participant in outreach initiative representing the core values of the institution."}
-                    </p>
-
+                    <h3 className="text-xl font-bold text-gray-900 mb-2 leading-tight">{record.OutReach_Title}</h3>
+                    <p className="text-sm text-gray-600 mb-6 flex-1 line-clamp-3">{record.OutReach_Descriptin}</p>
                     <div className="mt-auto border-t border-gray-100 pt-4 flex justify-between items-center">
-                      <div className="text-xs font-medium text-gray-400 flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        {record.created_at ? new Date(`1970-01-01T${record.created_at}`).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Log Time'}
+                      <div className="text-xs font-medium text-gray-400">
+                        {record.created_at ? new Date(record.created_at).toLocaleDateString() : 'Date N/A'}
                       </div>
-                      
                       <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
                         <span className="text-xs font-bold text-gray-500 uppercase">Impact</span>
-                        <span className="text-lg font-black text-cyan-600">
-                          +{record.Point_Obtained}
-                        </span>
+                        <span className="text-lg font-black text-cyan-600">+{record.Point_Obtained}</span>
                       </div>
                     </div>
                   </div>

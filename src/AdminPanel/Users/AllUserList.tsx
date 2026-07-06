@@ -1,10 +1,7 @@
-
-import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect, useMemo } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 
 export default function AllUsersList() {
-  const navigate = useNavigate();
 
   // State for users, UI controls, and loading/error handling
   const [users, setUsers] = useState([]);
@@ -13,11 +10,7 @@ export default function AllUsersList() {
   // Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [roleFilter, setRoleFilter] = useState("All"); // <-- New Role state
-
-  const BackToDashBoard = () => {
-    navigate(-1);
-  };
+  const [roleFilter, setRoleFilter] = useState("All");
 
   // 1. Fetch Users from Supabase
   useEffect(() => {
@@ -44,7 +37,8 @@ export default function AllUsersList() {
   const handleToggleActive = async (email, currentStatus) => {
     const newStatus = !currentStatus;
 
-    setUsers(users.map(user =>
+    // Optimistic UI update using functional state to prevent stale closures
+    setUsers((prevUsers) => prevUsers.map(user =>
       user.UserEmail === email ? { ...user, IsActive: newStatus } : user
     ));
 
@@ -55,7 +49,8 @@ export default function AllUsersList() {
 
     if (error) {
       console.error("Failed to update user status in Supabase:", error.message);
-      setUsers(users.map(user =>
+      // Revert the UI update if the database call fails
+      setUsers((prevUsers) => prevUsers.map(user =>
         user.UserEmail === email ? { ...user, IsActive: currentStatus } : user
       ));
       alert("Failed to update user status. Please try again.");
@@ -64,15 +59,18 @@ export default function AllUsersList() {
 
   // 3. Dynamically extract unique roles for the dropdown
   const uniqueRoles = useMemo(() => {
-    const roles = users.map(user => user.UserRole);
+    const roles = users.map(user => user.UserRole).filter(Boolean); // Filter out any undefined/null roles
     return [...new Set(roles)]; // Removes duplicates
   }, [users]);
 
   // 4. Combined Filter and Search Logic
   const filteredUsers = users.filter((user) => {
-    // Search check
-    const matchesSearch = user.UserEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.UserId.toLowerCase().includes(searchQuery.toLowerCase());
+    const safeEmail = user.UserEmail || "";
+    const safeId = user.UserId || "";
+    
+    // Search check (Safe against null values)
+    const matchesSearch = safeEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      safeId.toLowerCase().includes(searchQuery.toLowerCase());
 
     // Status check
     const matchesStatus = statusFilter === "All" ||
@@ -92,7 +90,6 @@ export default function AllUsersList() {
       <div className="mb-8 flex flex-col gap-4 rounded-2xl bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between border border-gray-100">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <h1 className="text-2xl font-bold text-gray-900">All Users</h1>
-          
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-wrap">
@@ -110,7 +107,7 @@ export default function AllUsersList() {
             </svg>
           </div>
 
-          {/* Role Filter (New) */}
+          {/* Role Filter */}
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -146,7 +143,7 @@ export default function AllUsersList() {
         </div>
       ) : (
         <>
-          {/* --- DESKTOP TABLE VIEW (Hidden on small screens < 768px) --- */}
+          {/* --- DESKTOP TABLE VIEW --- */}
           <div className="hidden md:block overflow-x-auto rounded-xl shadow-sm border border-gray-200 bg-white">
             <table className="w-full text-left text-sm text-gray-600">
               <thead className="bg-gray-50 text-gray-900 border-b border-gray-200">
@@ -165,12 +162,12 @@ export default function AllUsersList() {
                   </tr>
                 ) : (
                   filteredUsers.map((user) => (
-                    <tr key={user.UserEmail} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-gray-500 truncate max-w-[150px]">{user.UserId}</td>
+                    <tr key={user.UserEmail || user.UserId} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-xs text-gray-500 truncate ">{user.UserId}</td>
                       <td className="px-6 py-4 font-medium text-gray-900">{user.UserEmail}</td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                          {user.UserRole}
+                          {user.UserRole || 'N/A'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -183,11 +180,9 @@ export default function AllUsersList() {
                       <td className="px-6 py-4 text-center">
                         <button
                           onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'
-                            }`}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                         >
-                          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'
-                            }`} />
+                          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                       </td>
                     </tr>
@@ -197,7 +192,7 @@ export default function AllUsersList() {
             </table>
           </div>
 
-          {/* --- MOBILE CARD VIEW (Hidden on medium/large screens >= 768px) --- */}
+          {/* --- MOBILE CARD VIEW --- */}
           <div className="flex flex-col gap-4 md:hidden">
             {filteredUsers.length === 0 ? (
               <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 shadow-sm">
@@ -205,14 +200,14 @@ export default function AllUsersList() {
               </div>
             ) : (
               filteredUsers.map((user) => (
-                <div key={user.UserEmail} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div key={user.UserEmail || user.UserId} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                   <div className="flex justify-between items-start">
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-gray-900 break-all">{user.UserEmail}</span>
                       <span className="font-mono text-xs text-gray-500 mt-1 truncate max-w-[200px]">ID: {user.UserId}</span>
                     </div>
                     <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                      {user.UserRole}
+                      {user.UserRole || 'N/A'}
                     </span>
                   </div>
 
@@ -228,11 +223,9 @@ export default function AllUsersList() {
                       <span className="text-sm text-gray-600 font-medium">Active:</span>
                       <button
                         onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'
-                          }`}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                       >
-                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'
-                          }`} />
+                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>
                     </div>
                   </div>

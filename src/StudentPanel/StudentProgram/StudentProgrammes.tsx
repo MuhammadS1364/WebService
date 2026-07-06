@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
@@ -13,8 +13,6 @@ export default function StudentProgrammes() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
-
-
 
   useEffect(() => {
     const fetchPrograms = async () => {
@@ -107,7 +105,7 @@ export default function StudentProgrammes() {
           </div>
         </div>
 
-        {/* Top Summary Stats using OverviewClipBox */}
+        {/* Top Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <OverviewClipBox
             BoxTitle="Total Enrolled"
@@ -137,8 +135,6 @@ export default function StudentProgrammes() {
 
         {/* Filters Section */}
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-          
-          {/* Status Pills */}
           <div className="flex space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
             {["All", "Upcoming", "Completed", "Result Out"].map(status => (
               <button
@@ -155,7 +151,6 @@ export default function StudentProgrammes() {
             ))}
           </div>
 
-          {/* Category Dropdown */}
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-gray-500">Category:</label>
             <select
@@ -173,9 +168,7 @@ export default function StudentProgrammes() {
         {/* Program Cards Grid */}
         {filteredPrograms.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-gray-300">
-            <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
             <h3 className="text-xl font-bold text-gray-700">No Programs Found</h3>
-            <p className="text-gray-500 mt-2">Adjust your filters or register for new upcoming events to see them here.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -184,56 +177,28 @@ export default function StudentProgrammes() {
                 key={prog.Program_Code} 
                 className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
               >
-                {/* Poster Image */}
                 <div className="relative h-48 overflow-hidden">
-                  <img 
-                    src={prog.Program_Poster} 
-                    alt={prog.Program_Title} 
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  {/* Status Overlay Badge */}
+                  <img src={prog.Program_Poster} alt={prog.Program_Title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                   <div className="absolute top-3 right-3 flex flex-col gap-2">
-                    {prog.IsResultPublished && (
-                      <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md">
-                        🏆 Result Out
-                      </span>
-                    )}
-                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md ${
-                      prog.IsConducted 
-                        ? "bg-emerald-500/90 text-white" 
-                        : "bg-amber-400/90 text-amber-950"
-                    }`}>
+                    {prog.IsResultPublished && <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md">🏆 Result Out</span>}
+                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-lg ${prog.IsConducted ? "bg-emerald-500/90 text-white" : "bg-amber-400/90 text-amber-950"}`}>
                       {prog.IsConducted ? "Completed" : "Upcoming"}
                     </span>
                   </div>
                 </div>
 
-                {/* Card Content */}
                 <div className="p-5 flex flex-col flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                      {prog.Category || "Event"}
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-400">
-                      CODE: {prog.Program_Code}
-                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{prog.Category || "Event"}</span>
                   </div>
-                  
-                  <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">
-                    {prog.Program_Title}
-                  </h3>
-                  
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">
-                    {prog.Description}
-                  </p>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">{prog.Program_Title}</h3>
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">{prog.Description}</p>
 
                   <div className="mt-auto border-t border-gray-50 pt-4 flex items-center justify-between text-xs font-medium text-gray-500">
                     <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                       {prog.Date ? new Date(prog.Date).toLocaleDateString() : "TBA"}
                     </div>
                     <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                       {prog.Venue || "TBA"}
                     </div>
                   </div>

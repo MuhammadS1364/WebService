@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { SupaBaseFunction } from "../../lib/SupaBase"; // Ensure this acts as your Supabase client instance
+import { useState } from "react";
+import { SupaBaseFunction } from "../../lib/SupaBase"; 
 
 const OUTREACH_TYPES = [
   "PPT Presentation",
@@ -56,7 +56,7 @@ export default function CreateOutReach() {
       return;
     }
 
-    setStatus({ ...status, searching: true, error: "", success: "" });
+    setStatus((prev) => ({ ...prev, searching: true, error: "", success: "" }));
 
     try {
       const { data, error } = await SupaBaseFunction.from("StudentsBox")
@@ -69,10 +69,10 @@ export default function CreateOutReach() {
       }
 
       setFormData((prev) => ({ ...prev, studentName: data.StudentName }));
-      setStatus({ ...status, searching: false });
+      setStatus((prev) => ({ ...prev, searching: false }));
     } catch (err) {
       setFormData((prev) => ({ ...prev, studentName: "" }));
-      setStatus({ ...status, searching: false, error: err.message });
+      setStatus((prev) => ({ ...prev, searching: false, error: err.message }));
     }
   };
 
@@ -81,13 +81,15 @@ export default function CreateOutReach() {
     e.preventDefault();
 
     if (!formData.studentName) {
-      setStatus({ ...status, error: "Please enter a valid Admission Number first." });
+      setStatus((prev) => ({ ...prev, error: "Please enter a valid Admission Number first." }));
       return;
     }
 
-    setStatus({ ...status, loading: true, error: "", success: "" });
+    setStatus((prev) => ({ ...prev, loading: true, error: "", success: "" }));
     const pointsGained = POSITION_POINTS[formData.position] || 0;
-    const currentTimeString = new Date().toTimeString().split(' ')[0];
+    
+    // Fixed: Use ISO string for database timestamp compatibility
+    const currentTimestamp = new Date().toISOString(); 
 
     try {
       // Step A: Check for existing duplicate
@@ -104,12 +106,12 @@ export default function CreateOutReach() {
 
       // Step B: Insert into StudentsOutReach
       const { error: insertError } = await SupaBaseFunction.from("StudentsOutReach").insert({
-        created_at: currentTimeString, 
+        created_at: currentTimestamp, 
         OutReach_Holder: formData.holder,
         OutReach_Title: formData.title,
         OutReach_Type: formData.type,
         Position_Achieved: formData.position,
-        OutReach_Descriptin: formData.description,
+        OutReach_Descriptin: formData.description, // NOTE: Check if this should be 'OutReach_Description'
         Point_Obtained: pointsGained,
         StnAddNo: formData.stnAddNo,
       });
@@ -136,7 +138,7 @@ export default function CreateOutReach() {
       if (updateError) throw updateError;
 
       // Success Reset
-      setStatus({ ...status, loading: false, success: "Outreach successfully recorded!" });
+      setStatus((prev) => ({ ...prev, loading: false, success: "Outreach successfully recorded!" }));
       setFormData({
         ...formData,
         holder: "",
@@ -147,7 +149,7 @@ export default function CreateOutReach() {
       });
 
     } catch (err) {
-      setStatus({ ...status, loading: false, error: err.message });
+      setStatus((prev) => ({ ...prev, loading: false, error: err.message }));
     }
   };
 
@@ -214,7 +216,7 @@ export default function CreateOutReach() {
                           : "bg-slate-100 border-slate-200 text-slate-500"
                     } cursor-not-allowed outline-none transition-colors`}
                   />
-                  {/* Success Indicator Icon (Optional Visual Polish) */}
+                  {/* Success Indicator Icon */}
                   {formData.studentName && !status.searching && !status.error && (
                     <div className="absolute right-4 top-3.5 text-emerald-500">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,15 +1,23 @@
-
-
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../lib/SupaBase"; // Assuming this exports your Supabase client
 
+// Define the shape of your Result data so TypeScript knows what fields exist
+interface ResultRecord {
+  id: string | number;
+  Program_Title?: string;
+  FirstHolder?: string;
+  SecondHolder?: string;
+  ThirdHolder?: string;
+  IsAwarded?: boolean;
+}
+
 export default function AllResultsList() {
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [results, setResults] = useState<ResultRecord[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   
   // State to track which result IDs are currently selected
-  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedIds, setSelectedIds] = useState<(string | number)[]>([]);
 
   // Fetch results on component mount
   useEffect(() => {
@@ -20,14 +28,15 @@ export default function AllResultsList() {
     try {
       setLoading(true);
       // Fetching all results. You could add .eq('IsAwarded', true) if you only want public finalized ones.
-      const { data, error } = await SupaBaseFunction
+      const { data, error: fetchError } = await SupaBaseFunction
         .from('ResultBox')
-        .select('*')
+        .select('*');
     
-      if (error) throw error;
+      if (fetchError) throw fetchError;
       setResults(data || []);
     } catch (err) {
-      console.error("Error fetching results:", err.message);
+      const error = err as Error;
+      console.error("Error fetching results:", error.message);
       setError("Failed to load results. Please try again later.");
     } finally {
       setLoading(false);
@@ -37,7 +46,7 @@ export default function AllResultsList() {
   // --- Multiple Selection Logic ---
 
   // Handle checking/unchecking a single row
-  const handleSelectOne = (id) => {
+  const handleSelectOne = (id: string | number) => {
     if (selectedIds.includes(id)) {
       // If already selected, remove it
       setSelectedIds(selectedIds.filter(selectedId => selectedId !== id));
@@ -48,7 +57,7 @@ export default function AllResultsList() {
   };
 
   // Handle checking/unchecking the "Select All" box in the header
-  const handleSelectAll = (e) => {
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       // Select all currently loaded result IDs
       const allIds = results.map(result => result.id);
@@ -110,7 +119,7 @@ export default function AllResultsList() {
           <tbody>
             {results.length === 0 ? (
               <tr>
-                <td colSpan="6" className="p-4 text-center text-gray-500">
+                <td colSpan={6} className="p-4 text-center text-gray-500">
                   No results published yet.
                 </td>
               </tr>

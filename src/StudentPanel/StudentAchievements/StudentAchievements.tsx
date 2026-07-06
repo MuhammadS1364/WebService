@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
@@ -12,7 +10,6 @@ export default function StudentsAchievements() {
   const [student, setStudent] = useState(null);
   const [achievements, setAchievements] = useState([]);
   const [typeFilter, setTypeFilter] = useState("All");
-
 
   useEffect(() => {
     const fetchAchievements = async () => {
@@ -127,7 +124,7 @@ export default function StudentsAchievements() {
           />
           <OverviewClipBox
             BoxTitle="Top Placement"
-            BoxValue={achievements.length > 0 ? achievements[0]?.Position_Achieved || "Honored" : "N/A"}
+            BoxValue={achievements.length > 0 ? (achievements[0]?.Position_Achieved || "Honored") : "N/A"}
             variant="orange"
             BoxSvgLogo={
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -173,7 +170,6 @@ export default function StudentsAchievements() {
                   key={ach.Achieve_Id} 
                   className={`relative flex flex-col overflow-hidden rounded-2xl border-2 ${style.border} ${style.bg} hover:shadow-xl hover:-translate-y-1 transition-all duration-300 p-6`}
                 >
-                  {/* Decorative Background Element */}
                   <div className="absolute -right-6 -top-6 text-9xl opacity-5 select-none pointer-events-none">
                     {style.icon}
                   </div>

@@ -1,7 +1,4 @@
 
-import { useState, useEffect } from "react";
-import { SupaBaseFunction } from "../../lib/SupaBase";
-
 import OverViewClipBox from "../../PublicDashboardComp/OverViewBox";
 import ProgrammesCalendar from "../../PublicProgrammesComponents/ProgramCelender";
 import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
@@ -14,7 +11,6 @@ export default function OutReachDashboard() {
                 Panel={"Admin"}
                 UserName={"Admin"}
             />
-
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <OverViewClipBox
@@ -47,9 +43,10 @@ export default function OutReachDashboard() {
                     }
                 />
             </div>
+            
             <div className="mx-auto">
                 <ProgrammesCalendar />
             </div>
         </div>
-    )
+    );
 }

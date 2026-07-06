@@ -1,9 +1,21 @@
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase"; // Ensure this exports a standard Supabase client
 import * as XLSX from "xlsx";
 
+// Define the shape of your form data so TypeScript knows exactly what to expect
+interface WingFormData {
+  wingCode: string;
+  wingTitle: string;
+  wingEmail: string;
+  wingManager: string;
+  wingConvener: string;
+  wingAssistant: string;
+  Description: string;
+  wingUserId?: string; // Optional, as it might only come from Excel
+}
+
 export default function CreateNewWing() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<WingFormData>({
     wingCode: "",
     wingTitle: "",
     wingEmail: "",
@@ -12,21 +24,22 @@ export default function CreateNewWing() {
     wingAssistant: "",
     Description: "",
   });
-  
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ text: "", type: "" });
-  const fileInputRef = useRef(null);
 
-  // Handle Input Changes
-  const handleInputChange = (e) => {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [message, setMessage] = useState({ text: "", type: "" });
+
+  // Explicitly tell TypeScript this ref belongs to an HTML Input Element
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle Input Changes with strict event typing
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   // 1. Core Logic to Create a Single User & Wing
-  const createWingRecord = async (data) => {
+  const createWingRecord = async (data: WingFormData) => {
     // A. Create User in UserTable
-    // Note: If your backend supports it, using upsert here prevents crashes on duplicates.
     const { error: userError } = await SupaBaseFunction.from("UserTable").insert([
       {
         UserEmail: data.wingEmail,
@@ -36,8 +49,6 @@ export default function CreateNewWing() {
     ]);
 
     if (userError) {
-      // If the error is a duplicate key, you can optionally bypass throwing an error 
-      // if you just want to update the wing for an existing user.
       throw new Error(`User Creation Failed: ${userError.message}`);
     }
 
@@ -46,9 +57,8 @@ export default function CreateNewWing() {
       {
         WingCode: data.wingCode,
         WingTitle: data.wingTitle,
-        // Uses provided wingUserId from Excel, otherwise falls back to wingEmail
-        WingUserId: data.wingEmail, 
-        WingEmail: data.wingEmail, 
+        WingUserId: data.wingUserId || data.wingEmail, // Fallback to email if ID isn't provided
+        WingEmail: data.wingEmail,
         WingManager: data.wingManager,
         WingConvener: data.wingConvener,
         WingAssistant: data.wingAssistant,
@@ -60,7 +70,7 @@ export default function CreateNewWing() {
   };
 
   // 2. Handle Manual Form Submission
-  const handleManualSubmit = async (e) => {
+  const handleManualSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setMessage({ text: "", type: "" });
@@ -74,31 +84,37 @@ export default function CreateNewWing() {
         Description: "",
       });
     } catch (error) {
-      setMessage({ text: error.message, type: "error" });
+      // Cast the unknown error to a standard Error object
+      const err = error as Error;
+      setMessage({ text: err.message, type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
   // 3. Handle Excel Import
-  const handleImport = (e) => {
-    const file = e.target.files[0];
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setLoading(true);
     setMessage({ text: "Importing data, please wait...", type: "info" });
 
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    reader.onload = async (event: ProgressEvent<FileReader>) => {
       try {
-        const data = new Uint8Array(event.target.result);
+        const result = event.target?.result;
+        if (!result) throw new Error("Failed to read the file.");
+
+        // Safely cast result to ArrayBuffer for Uint8Array
+        const data = new Uint8Array(result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
+
         // Convert to 2D array
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        
+        const jsonData = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+
         let successCount = 0;
         let errorCount = 0;
 
@@ -106,22 +122,20 @@ export default function CreateNewWing() {
         for (let i = 1; i < jsonData.length; i++) {
           const row = jsonData[i];
           if (row.length === 0) continue; // Skip empty rows
-          
-          // Updated column order mapping
+
           const [
-            wingCode, 
-            wingTitle, 
-            wingEmail, 
-            wingManager, 
-            wingConvener, 
-            wingAssistant, 
-            description, 
+            wingCode,
+            wingTitle,
+            wingEmail,
+            wingManager,
+            wingConvener,
+            wingAssistant,
+            description,
             wingUserId
           ] = row;
-          
+
           if (wingCode && wingEmail) {
             try {
-              // Unified creation call for both User and Wing
               await createWingRecord({
                 wingCode: String(wingCode),
                 wingTitle: String(wingTitle || ""),
@@ -130,32 +144,32 @@ export default function CreateNewWing() {
                 wingConvener: String(wingConvener || ""),
                 wingAssistant: String(wingAssistant || ""),
                 Description: String(description || ""),
-                wingUserId: wingUserId ? String(wingUserId) : ""
+                wingUserId: wingUserId ? String(wingUserId) : undefined
               });
-              
+
               successCount++;
             } catch (rowError) {
               console.error(`Failed to import row ${i} (Code: ${wingCode}):`, rowError);
               errorCount++;
-              // Continuing the loop even if one row fails
             }
           }
         }
 
         if (errorCount > 0) {
-          setMessage({ 
-            text: `Imported ${successCount} wings, but ${errorCount} failed (likely due to duplicates). Check console.`, 
-            type: "warning" 
+          setMessage({
+            text: `Imported ${successCount} wings, but ${errorCount} failed (likely due to duplicates). Check console.`,
+            type: "warning"
           });
         } else {
           setMessage({ text: `Successfully imported ${successCount} wings!`, type: "success" });
         }
 
       } catch (error) {
-        setMessage({ text: `Import error: ${error.message}`, type: "error" });
+        const err = error as Error;
+        setMessage({ text: `Import error: ${err.message}`, type: "error" });
       } finally {
         setLoading(false);
-        // Reset file input
+        // Reset file input so you can upload the same file again if needed
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     };
@@ -169,21 +183,22 @@ export default function CreateNewWing() {
 
     try {
       const { data, error } = await SupaBaseFunction.from("Chs-WingS").select("*");
-      
+
       if (error) throw error;
       if (!data || data.length === 0) {
-         setMessage({ text: "No data available to export.", type: "error" });
-         return;
+        setMessage({ text: "No data available to export.", type: "error" });
+        return;
       }
 
       const worksheet = XLSX.utils.json_to_sheet(data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Wings");
-      
+
       XLSX.writeFile(workbook, "WingsData.xlsx");
       setMessage({ text: "Export successful!", type: "success" });
     } catch (error) {
-      setMessage({ text: `Export failed: ${error.message}`, type: "error" });
+      const err = error as Error;
+      setMessage({ text: `Export failed: ${err.message}`, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -192,30 +207,32 @@ export default function CreateNewWing() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-md overflow-hidden">
-        
+
         {/* Header Section */}
         <header className="bg-blue-600 p-6 text-white flex flex-col md:flex-row justify-between items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold">Wing Management</h1>
             <p className="text-sm opacity-90">Create and manage structural wings</p>
           </div>
-          
+
           <div className="flex flex-wrap gap-3">
-            <input 
-              type="file" 
-              accept=".xlsx, .xls" 
-              className="hidden" 
+            <input
+              type="file"
+              accept=".xlsx, .xls"
+              className="hidden"
               ref={fileInputRef}
               onChange={handleImport}
             />
-            <button 
-              onClick={() => fileInputRef.current.click()}
+            <button
+              type="button" // Always specify button type
+              onClick={() => fileInputRef.current?.click()}
               disabled={loading}
               className="px-4 py-2 bg-white text-blue-600 font-semibold rounded-lg shadow hover:bg-gray-100 transition disabled:opacity-50"
             >
               Import XLSX
             </button>
-            <button 
+            <button
+              type="button"
               onClick={handleExport}
               disabled={loading}
               className="px-4 py-2 bg-blue-800 text-white font-semibold rounded-lg shadow hover:bg-blue-900 transition disabled:opacity-50"
@@ -227,11 +244,10 @@ export default function CreateNewWing() {
 
         {/* Status Messages */}
         {message.text && (
-          <div className={`p-4 text-center font-medium ${
-            message.type === "error" ? "bg-red-100 text-red-700" : 
-            message.type === "success" ? "bg-green-100 text-green-700" : 
-            "bg-blue-100 text-blue-700"
-          }`}>
+          <div className={`p-4 text-center font-medium ${message.type === "error" ? "bg-red-100 text-red-700" :
+              message.type === "success" ? "bg-green-100 text-green-700" :
+                "bg-blue-100 text-blue-700"
+            }`}>
             {message.text}
           </div>
         )}
@@ -239,10 +255,10 @@ export default function CreateNewWing() {
         {/* Form Section */}
         <div className="p-6 md:p-8">
           <h2 className="text-xl font-semibold mb-6 text-gray-800 border-b pb-2">Manual Wing Registration</h2>
-          
+
           <form onSubmit={handleManualSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
+
               {/* Wing Code / Password */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Wing Code (Password)*</label>
@@ -302,8 +318,8 @@ export default function CreateNewWing() {
             </div>
 
             <div className="pt-4 flex justify-end">
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={loading}
                 className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition disabled:opacity-50 flex justify-center items-center"
               >
@@ -318,7 +334,7 @@ export default function CreateNewWing() {
               </button>
             </div>
           </form>
-          
+
         </div>
       </div>
     </div>

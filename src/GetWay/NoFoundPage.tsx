@@ -1,8 +1,10 @@
-
-import React from 'react';
 import { Link } from 'react-router-dom';
-
+import { useState } from 'react';
 export default function NotFoundPage() {
+  // Using React state to safely handle hover effects instead of direct DOM mutation
+  const [isHomeHovered, setIsHomeHovered] = useState(false);
+  const [isLoginHovered, setIsLoginHovered] = useState(false);
+
   const styles = {
     container: {
       minHeight: '100vh',
@@ -57,16 +59,18 @@ export default function NotFoundPage() {
       fontWeight: '600',
       transition: 'all 0.3s ease',
       boxShadow: '0 4px 6px rgba(102, 126, 234, 0.25)',
+      transform: isHomeHovered ? 'translateY(-2px)' : 'translateY(0)',
     },
     secondaryBtn: {
       padding: '12px 24px',
-      backgroundColor: 'transparent',
+      backgroundColor: isLoginHovered ? '#f3f4f6' : 'transparent',
       color: '#667eea',
       textDecoration: 'none',
       borderRadius: '8px',
       fontWeight: '600',
       border: '2px solid #667eea',
       transition: 'all 0.3s ease',
+      transform: isLoginHovered ? 'translateY(-2px)' : 'translateY(0)',
     }
   };
 
@@ -79,22 +83,21 @@ export default function NotFoundPage() {
           Oops! The page you are looking for doesn't exist, has been removed, or is temporarily unavailable.
         </p>
         <div style={styles.buttonContainer}>
-          {/* Change '/' to wherever your main landing page is */}
-          <Link to="/" style={styles.primaryBtn} 
-                onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}>
+          <Link 
+            to="/" 
+            style={styles.primaryBtn} 
+            onMouseEnter={() => setIsHomeHovered(true)}
+            onMouseLeave={() => setIsHomeHovered(false)}
+          >
             Go to Home
           </Link>
           
-          <Link to="/login" style={styles.secondaryBtn}
-                onMouseOver={(e) => {
-                  e.target.style.backgroundColor = '#f3f4f6';
-                  e.target.style.transform = 'translateY(-2px)';
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.backgroundColor = 'transparent';
-                  e.target.style.transform = 'translateY(0)';
-                }}>
+          <Link 
+            to="/login" 
+            style={styles.secondaryBtn}
+            onMouseEnter={() => setIsLoginHovered(true)}
+            onMouseLeave={() => setIsLoginHovered(false)}
+          >
             Login Now
           </Link>
         </div>

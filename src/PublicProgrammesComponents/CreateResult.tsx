@@ -1,9 +1,40 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../src/lib/SupaBase";
 
-// Abstracted for clean state resets
-const INITIAL_HOLDERS = {
+// Define the blueprint for individual holders
+interface HolderState {
+  addNo: string;
+  name: string;
+}
+
+// Define the blueprint for the entire holders object
+interface Holders {
+  first: HolderState;
+  second: HolderState;
+  third: HolderState;
+  aGrade: HolderState;
+  bGrade: HolderState;
+}
+
+// Define data shapes for your fetched items
+interface Programme {
+  Program_Code: string;
+  Program_Title?: string;
+}
+
+interface Participant {
+  Candidate_Code?: string;
+  CandidateUUiD?: string;
+}
+
+interface StatusMsg {
+  type: string;
+  text: string;
+}
+
+// Abstracted for clean state resets, strictly typed
+const INITIAL_HOLDERS: Holders = {
   first: { addNo: "", name: "" },
   second: { addNo: "", name: "" },
   third: { addNo: "", name: "" },
@@ -12,23 +43,22 @@ const INITIAL_HOLDERS = {
 };
 
 export default function CreateResult() {
-  const { actWing } = useParams();
+  const { actWing } = useParams<{ actWing: string }>();
 
-  
   // State variables
-  const [wingCode, setWingCode] = useState("");
-  const [wingTitle, setWingTitle] = useState("");
-  const [programmes, setProgrammes] = useState([]);
-  const [selectedProgram, setSelectedProgram] = useState("");
+  const [WingCode, setWingCode] = useState<string>("");
+  const [wingTitle, setWingTitle] = useState<string>("");
+  const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState<string>("");
   
   // Participants State
-  const [participants, setParticipants] = useState([]);
-  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState<boolean>(false);
   
   // Holder States
-  const [holders, setHolders] = useState(INITIAL_HOLDERS);
-  const [loading, setLoading] = useState(false);
-  const [statusMsg, setStatusMsg] = useState({ type: "", text: "" });
+  const [holders, setHolders] = useState<Holders>(INITIAL_HOLDERS);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [statusMsg, setStatusMsg] = useState<StatusMsg>({ type: "", text: "" });
 
   // 1. Fetch Wing Code
   useEffect(() => {
@@ -55,12 +85,12 @@ export default function CreateResult() {
   // 2. Fetch unresulted programmes
   useEffect(() => {
     async function fetchProgrammes() {
-      if (!wingCode) return;
+      if (!WingCode) return;
       try {
         const { data, error } = await SupaBaseFunction
           .from("ProgrammesBox") // <- Check Table Name
           .select("Program_Code, Program_Title") // <- Check Column Names
-          .eq("WingCode", wingCode) // <- Change "WingCode" if needed (e.g., to "WingCode")
+          .eq("WingCode", WingCode) // <- Change "WingCode" if needed (e.g., to "WingCode")
           .eq("IsResulted", false); // <- Check Column Name
 
         if (error) {
@@ -74,7 +104,8 @@ export default function CreateResult() {
       }
     }
     fetchProgrammes();
-  }, [wingCode]);
+  }, [WingCode]);
+
   // 3. Fetch participants
   useEffect(() => {
     async function fetchParticipants() {
@@ -102,7 +133,8 @@ export default function CreateResult() {
   }, [selectedProgram]);
 
   // 4. Real-time name lookup (with Race Condition Protection)
-  const handleAddNoChange = async (role, addNo) => {
+  // role is strongly typed to match the exact keys of Holders
+  const handleAddNoChange = async (role: keyof Holders, addNo: string) => {
     // Optimistic UI Update
     setHolders(prev => ({
       ...prev,
@@ -135,7 +167,7 @@ export default function CreateResult() {
   };
 
   // 5. Complete database pipeline
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!selectedProgram) return alert("Please select a programme");
     
@@ -206,11 +238,21 @@ export default function CreateResult() {
       setParticipants([]);
 
     } catch (err) {
-      setStatusMsg({ type: "error", text: err.message || "An error occurred while saving." });
+      const error = err as Error;
+      setStatusMsg({ type: "error", text: error.message || "An error occurred while saving." });
     } finally {
       setLoading(false);
     }
   };
+
+  // Define keys for mapping to ensure type safety in JSX
+  const positionKeys: { id: keyof Holders; label: string }[] = [
+    { id: "first", label: "🥇 First Holder (7 Pts)" },
+    { id: "second", label: "🥈 Second Holder (5 Pts)" },
+    { id: "third", label: "🥉 Third Holder (3 Pts)" },
+    { id: "aGrade", label: "⭐ A Grade Holder" },
+    { id: "bGrade", label: "⭐ B Grade Holder" },
+  ];
 
   return (
     <div style={styles.container}>
@@ -233,7 +275,7 @@ export default function CreateResult() {
           <div style={styles.row}>
             <div style={{ ...styles.formGroup, flex: "1 1 200px" }}>
               <label style={styles.label}>Wing Code</label>
-              <input type="text" value={wingCode || "Loading..."} readOnly style={styles.inputReadOnly} />
+              <input type="text" value={WingCode || "Loading..."} readOnly style={styles.inputReadOnly} />
             </div>
 
             <div style={{ ...styles.formGroup, flex: "1 1 200px" }}>
@@ -242,7 +284,7 @@ export default function CreateResult() {
                 value={selectedProgram} 
                 onChange={(e) => setSelectedProgram(e.target.value)} 
                 required 
-                disabled={!wingCode}
+                disabled={!WingCode}
                 style={styles.select}
               >
                 <option value="">-- Choose Programme --</option>
@@ -278,13 +320,7 @@ export default function CreateResult() {
               </div>
 
               {/* Positions Panel Fields Layout */}
-              {[
-                { id: "first", label: "🥇 First Holder (7 Pts)" },
-                { id: "second", label: "🥈 Second Holder (5 Pts)" },
-                { id: "third", label: "🥉 Third Holder (3 Pts)" },
-                { id: "aGrade", label: "⭐ A Grade Holder" },
-                { id: "bGrade", label: "⭐ B Grade Holder" },
-              ].map((role) => (
+              {positionKeys.map((role) => (
                 <div style={styles.row} key={role.id}>
                   <div style={{ ...styles.formGroup, flex: "1 1 180px" }}>
                     <label style={styles.label}>{role.label} AddNo</label>
@@ -320,7 +356,8 @@ export default function CreateResult() {
   );
 }
 
-const styles = {
+// Strongly type the styles object for React
+const styles: Record<string, React.CSSProperties> = {
   container: {
     padding: "20px 12px",
     display: "flex",
@@ -413,7 +450,7 @@ const styles = {
     border: "none",
     borderRadius: "8px",
     fontSize: "15px",
-    fontWeight: "600",
+    fontWeight: 600,
     cursor: "pointer",
     marginTop: "12px",
     boxShadow: "0 2px 6px rgba(26, 115, 232, 0.2)"
@@ -423,7 +460,7 @@ const styles = {
     borderRadius: "8px",
     marginBottom: "20px",
     fontSize: "14px",
-    fontWeight: "500",
+    fontWeight: 500,
     textAlign: "center"
   },
   participantsBox: {
@@ -450,6 +487,6 @@ const styles = {
     padding: "4px 10px",
     borderRadius: "16px",
     fontSize: "12px",
-    fontWeight: "600"
+    fontWeight: 600
   }
 };

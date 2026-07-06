@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { SupaBaseFunction } from "../lib/SupaBase"; // Update path if needed
+import { SupaBaseFunction } from "../lib/SupaBase"; 
 
 export default function ProgrammesRegistrationCard() {
   const { actStn } = useParams();
@@ -48,7 +48,7 @@ export default function ProgrammesRegistrationCard() {
   }
 
   return (
-    <div className="md:p-5  bg-gray-50 min-h-screen">
+    <div className="md:p-5 bg-gray-50 min-h-screen">
       <div className="max-w-[1200px] mx-auto">
         <h2 className="text-3xl font-extrabold text-gray-900 mb-8">
           Upcoming Programmes
@@ -57,22 +57,23 @@ export default function ProgrammesRegistrationCard() {
         {programmes.length === 0 ? (
           <p className="text-gray-500">No programs available at the moment.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 ">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             
             {/* Loop through the fetched data */}
-            {programmes.map((program) => (
+            {programmes.map((program, index) => (
               
               <div 
-                key={program.Program_Code} 
+                key={program.Program_Code || index} 
                 className="w-full max-w-[360px] mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden font-sans hover:shadow-md transition-shadow"
               >
                 
                 {/* --- Image Section --- */}
                 <div className="relative h-48 w-full bg-gray-200">
                   <img
-                    src={program.Program_Poster}
+                    src={program.Program_Poster || "https://via.placeholder.com/400x200?text=No+Image"}
                     alt={program.Program_Title}
                     className="w-full h-full object-cover"
+                    onError={(e) => { e.target.src = "https://via.placeholder.com/400x200?text=No+Image" }}
                   />
                   {program.Group && (
                     <div className="absolute top-3 left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm">
@@ -156,8 +157,10 @@ export default function ProgrammesRegistrationCard() {
                 <div className="px-5 pb-5 pt-2 mt-auto">
                   <button
                     onClick={() => {
-                      if (program.IsOpenRegistration && program.Program_Code) {
+                      if (program.IsOpenRegistration && program.Program_Code && actStn) {
                         navigate(`/student-panel/${actStn}/candidate-registration/${program.Program_Code}`);
+                      } else if (!actStn) {
+                        alert("Student ID is missing from the URL. Cannot register.");
                       }
                     }}
                     disabled={!program.IsOpenRegistration}

@@ -132,7 +132,8 @@ export default function ProgrammeRegistration() {
         ...restOfFormData,
         Program_Poster: driveFileUrl,
         WingCode: actWing.WingCode, // Use WingCode to match the schema
-        Date: formatteddDate
+        Date: formatteddDate,
+        AccademicYear : "2026-27"
       };
 
       // 4. Insert programme data row
