@@ -28,7 +28,7 @@ export default function WingPanel() {
         }`;
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-slate-50">
+        <div className="flex h-screen overflow-hidden bg-slate-50">
             {/* Sidebar - Desktop: Sticky/Fixed, Mobile: Sliding Overlay */}
             <aside className={`h-full fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-6 text-2xl font-bold border-b border-slate-800 tracking-tight">
@@ -124,7 +124,7 @@ export default function WingPanel() {
                {/* Dynamic Route Content */}
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto">
                     {/* Kept your max-w-[1600px] requirement */}
-                    <div className="w-full max-w-[1600px] mx-auto">
+                    <div className=" mx-auto">
                         <Outlet />
                     </div>
                 </main>

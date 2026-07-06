@@ -24,7 +24,7 @@ export default function OutReachPanel() {
             {/* Sidebar */}
             <aside className={`h-full fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-6 text-2xl font-bold border-b border-slate-800 tracking-tight">
-                    Admin<span className="text-blue-500">DashBoard</span>
+                    OutReach<span className="text-blue-500">DashBoard</span>
                 </div>
                 <nav className="p-4 space-y-2">
                     <NavLink to={`/outreach-panel/${actOutReach}/dashboard`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
@@ -62,11 +62,11 @@ export default function OutReachPanel() {
                 {/* Dynamic Route Content */}
                 <main className="flex-1 overflow-y-auto flex flex-col">
                     <div className="flex-1 p-4 md:p-8">
-                        <div className="max-w-6xl mx-auto">
+                        <div className=" mx-auto">
                             <Outlet />
                         </div>
                     </div>
-                    {/* Kept your footer here, attached to the bottom of the scrollable area */}
+                    
                     
                 </main>
             </div>

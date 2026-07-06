@@ -8,7 +8,7 @@ import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
 
 export default function AdminDashboard() {
     return (
-        <div className="mx-auto max-w-[1500px] px-4">
+       <div className="mx-auto px-4 overflow-hidden">
             {/* Banner Section */}
             <ActiveUserCard
             Panel={"Admin"}
@@ -201,7 +201,7 @@ export default function AdminDashboard() {
                     }
                 />
             </div>
-            <div className="mx-auto max-w-[1500px] px-4">
+            <div className="mx-auto">
                 <ProgrammesCalendar/>
             </div>
         </div>

@@ -9,7 +9,7 @@ import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
 
 export default function StudentDashboard() {
   return (
-    <div className="mx-auto max-w-[1500px] px-4">
+    <div className="mx-auto">
       {/* Banner Section */}
       <ActiveUserCard
         Panel={"Admin"}
@@ -58,6 +58,9 @@ export default function StudentDashboard() {
             </svg>
           }
         />
+      </div>
+      <div className="mx-auto">
+        <ProgrammesCalendar />
       </div>
     </div>
   )

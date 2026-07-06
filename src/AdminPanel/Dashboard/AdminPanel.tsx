@@ -99,7 +99,7 @@ export default function AdminPanel() {
                 {/* Dynamic Route Content */}
                 <main className="flex-1 p-4 md:p-8 overflow-y-auto">
                     {/* Kept your max-w-[1600px] requirement */}
-                    <div className="w-full max-w-[1600px] mx-auto">
+                    <div className="w-full mx-auto">
                         <Outlet />
                     </div>
                 </main>

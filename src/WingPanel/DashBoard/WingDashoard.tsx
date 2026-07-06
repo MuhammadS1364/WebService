@@ -9,7 +9,7 @@ import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
 
 export default function WingDashboard() {
     return (
-        <div className="mx-auto max-w-[1500px] px-4">
+        <div className="mx-auto">
             {/* Banner Section */}
             <ActiveUserCard
                 Panel={"Wing"}
@@ -30,7 +30,7 @@ export default function WingDashboard() {
                     }
                 />
             </div>
-            <div className="mx-auto max-w-[1500px] px-4">
+            <div className="mx-auto">
                 <ProgrammesCalendar />
             </div>
         </div>
