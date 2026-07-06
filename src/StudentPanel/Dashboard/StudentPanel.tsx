@@ -62,6 +62,14 @@ export default function StudentPanel() {
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Program</p>
                         
                         <NavLink 
+                            to={`/student-panel/${actStn}/stn-program`} 
+                            onClick={() => setIsMenuOpen(false)} 
+                            className={navLinkClasses}
+                        >
+                            My Programm
+                        </NavLink>
+                        
+                        <NavLink 
                             to={`/student-panel/${actStn}/stn-achievements-list`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
@@ -75,6 +83,13 @@ export default function StudentPanel() {
                             className={navLinkClasses}
                         >
                             My Outreach
+                        </NavLink>
+                        <NavLink 
+                            to={`/student-panel/${actStn}/stn-anylatics`} 
+                            onClick={() => setIsMenuOpen(false)} 
+                            className={navLinkClasses}
+                        >
+                            Anylatics
                         </NavLink>
                     </div>
 

@@ -35,6 +35,10 @@ import OutReachPanel from './OutReachPanel/DashBoard/OutReachPanel';
 import OutReachDashboard from './OutReachPanel/DashBoard/OutReachDashboard';
 import CreateAchievements from './OutReachPanel/OutReach/CreateAchievements';
 import CreateOutReach from './OutReachPanel/OutReach/CreateOutReach';
+import StudentsAchievements from './StudentPanel/StudentAchievements/StudentAchievements';
+import StudentsOutReach from './StudentPanel/StudentOutReach/StudentOutReach';
+import StudentAnalytics from './StudentPanel/Anylatics/StudentAnylatics';
+import StudentProgrammes from './StudentPanel/StudentProgram/StudentProgrammes';
 
 export default function App() {
   return (
@@ -65,6 +69,10 @@ export default function App() {
           <Route path='stn-dashboard' element={<StudentDashBoard />} />
           <Route path='all-programmes-list' element={<ProgrammesRegistrationCard />} />
           <Route path='candidate-registration/:P_Code' element={<CandidateRegistration />} />
+          <Route path='stn-achievements-list' element={<StudentsAchievements />} />
+          <Route path='stn-outreach-list' element={<StudentsOutReach />} />
+          <Route path='stn-anylatics' element={<StudentAnalytics />} />
+          <Route path='stn-program' element={<StudentProgrammes />} />
 
         </Route>
         <Route path='/wing-panel/:actWing' element={< WingPanel />} >

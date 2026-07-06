@@ -7,7 +7,7 @@ import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
 
 export default function StudentDashboard() {
   return (
-    <div className="max-w-[1600px] mx-auto space-y-6">
+    <div className="mx-auto space-y-6">
       {/* Banner Section */}
       <ActiveUserCard
         Panel={"Admin"}

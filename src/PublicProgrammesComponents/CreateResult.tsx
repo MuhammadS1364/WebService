@@ -13,7 +13,7 @@ const INITIAL_HOLDERS = {
 
 export default function CreateResult() {
   const { actWing } = useParams();
-  console.log(actWing);
+
   
   // State variables
   const [wingCode, setWingCode] = useState("");
