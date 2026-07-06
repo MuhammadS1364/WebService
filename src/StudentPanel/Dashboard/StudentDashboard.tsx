@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 
@@ -9,15 +7,15 @@ import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
 
 export default function StudentDashboard() {
   return (
-    <div className="mx-auto">
+    <div className="max-w-[1600px] mx-auto space-y-6">
       {/* Banner Section */}
       <ActiveUserCard
         Panel={"Admin"}
         UserName={"Admin"}
       />
 
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Grid Container - Balanced 3-column rows on tablet/desktop views */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
         <OverViewClipBox
           BoxTitle={"Total Students"}
           BoxValue={10}
@@ -47,9 +45,10 @@ export default function StudentDashboard() {
             </svg>
           }
         />
+        {/* Changed title name to signify unique tracking data metrics */}
         <OverViewClipBox
-          BoxTitle={"Total Students"}
-          BoxValue={10}
+          BoxTitle={"Active Sessions"}
+          BoxValue={5}
           BoxSvgLogo={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-graduation-cap w-5 h-5">
               <path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"></path>
@@ -59,9 +58,11 @@ export default function StudentDashboard() {
           }
         />
       </div>
-      <div className="mx-auto">
+
+      {/* Calendar Section Wrapper */}
+      <div className="w-full">
         <ProgrammesCalendar />
       </div>
     </div>
-  )
+  );
 }

@@ -63,6 +63,7 @@ export default function App() {
 
         <Route path='/student-panel/:actStn' element={< StudentPanel />} >
           <Route path='stn-dashboard' element={<StudentDashBoard />} />
+          <Route path='all-programmes-list' element={<ProgrammesRegistrationCard />} />
           <Route path='candidate-registration/:P_Code' element={<CandidateRegistration />} />
 
         </Route>

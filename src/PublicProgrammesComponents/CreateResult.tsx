@@ -1,11 +1,19 @@
-
-
 import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom"; // Assumed path for useParams
+import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../src/lib/SupaBase";
 
+// Abstracted for clean state resets
+const INITIAL_HOLDERS = {
+  first: { addNo: "", name: "" },
+  second: { addNo: "", name: "" },
+  third: { addNo: "", name: "" },
+  aGrade: { addNo: "", name: "" },
+  bGrade: { addNo: "", name: "" },
+};
+
 export default function CreateResult() {
-  const { WingEmailID } = useParams(); // Active Wing Email from URL params
+  const { actWing } = useParams();
+  console.log(actWing);
   
   // State variables
   const [wingCode, setWingCode] = useState("");
@@ -13,30 +21,27 @@ export default function CreateResult() {
   const [programmes, setProgrammes] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState("");
   
-  // Holder States (Admission Numbers & Auto-Fetched Names)
-  const [holders, setHolders] = useState({
-    first: { addNo: "", name: "" },
-    second: { addNo: "", name: "" },
-    third: { addNo: "", name: "" },
-    aGrade: { addNo: "", name: "" },
-    bGrade: { addNo: "", name: "" },
-  });
-
+  // Participants State
+  const [participants, setParticipants] = useState([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  
+  // Holder States
+  const [holders, setHolders] = useState(INITIAL_HOLDERS);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState({ type: "", text: "" });
 
-  // 1. Fetch Wing Code using the email parameter
+  // 1. Fetch Wing Code
   useEffect(() => {
     async function fetchWingData() {
-      if (!WingEmailID) return;
+      if (!actWing) return;
       try {
-        const { data: WCode, error: CodeError } = await SupaBaseFunction
+        const { data: WCode, error } = await SupaBaseFunction
           .from("Chs-WingS")
           .select("WingCode, WingEmail, WingTitle")
-          .eq("WingEmail", WingEmailID)
+          .eq("WingEmail", actWing)
           .maybeSingle();
 
-        if (!CodeError && WCode) {
+        if (!error && WCode) {
           setWingCode(WCode.WingCode);
           setWingTitle(WCode.WingTitle);
         }
@@ -45,29 +50,60 @@ export default function CreateResult() {
       }
     }
     fetchWingData();
-  }, [WingEmailID]);
+  }, [actWing]);
 
-  // 2. Fetch unresulted programmes matching active wing code
+  // 2. Fetch unresulted programmes
   useEffect(() => {
     async function fetchProgrammes() {
       if (!wingCode) return;
       try {
         const { data, error } = await SupaBaseFunction
-          .from("ProgrammesBox")
-          .select("Program_Code, Programme_Title")
-          .eq("Wing_Code", wingCode) // Adjust column name if named differently
-          .eq("IsResulted", false);
+          .from("ProgrammesBox") // <- Check Table Name
+          .select("Program_Code, Program_Title") // <- Check Column Names
+          .eq("WingCode", wingCode) // <- Change "WingCode" if needed (e.g., to "WingCode")
+          .eq("IsResulted", false); // <- Check Column Name
 
-        if (!error && data) setProgrammes(data);
+        if (error) {
+          console.error("Supabase Error Details:", error.message); 
+          return; // Add this log to catch future DB errors easily
+        }
+        
+        if (data) setProgrammes(data);
       } catch (err) {
         console.error("Error fetching programmes:", err);
       }
     }
     fetchProgrammes();
   }, [wingCode]);
+  // 3. Fetch participants
+  useEffect(() => {
+    async function fetchParticipants() {
+      if (!selectedProgram) {
+        setParticipants([]);
+        return;
+      }
+      setLoadingParticipants(true);
+      try {
+        const { data, error } = await SupaBaseFunction
+          .from("CandidateRegistrationTable")
+          .select("Candidate_Code, CandidateUUiD")
+          .eq("Program_Code", selectedProgram);
 
-  // 3. Real-time name lookup tracking when an AddNo changes
+        if (!error && data) {
+          setParticipants(data);
+        }
+      } catch (err) {
+        console.error("Error fetching participants:", err);
+      } finally {
+        setLoadingParticipants(false);
+      }
+    }
+    fetchParticipants();
+  }, [selectedProgram]);
+
+  // 4. Real-time name lookup (with Race Condition Protection)
   const handleAddNoChange = async (role, addNo) => {
+    // Optimistic UI Update
     setHolders(prev => ({
       ...prev,
       [role]: { ...prev[role], addNo: addNo, name: addNo ? "Searching..." : "" }
@@ -82,16 +118,23 @@ export default function CreateResult() {
         .eq("AddNo", addNo)
         .single();
 
-      setHolders(prev => ({
-        ...prev,
-        [role]: { ...prev[role], name: (!error && data) ? data.Student_Name : "⚠️ Student Not Found" }
-      }));
+      // Guard against race conditions (if user typed a new number before this resolved)
+      setHolders(prev => {
+        if (prev[role].addNo !== addNo) return prev; 
+        return {
+          ...prev,
+          [role]: { ...prev[role], name: (!error && data) ? data.Student_Name : "⚠️ Student Not Found" }
+        };
+      });
     } catch {
-      setHolders(prev => ({ ...prev, [role]: { ...prev[role], name: "⚠️ Student Not Found" } }));
+      setHolders(prev => {
+        if (prev[role].addNo !== addNo) return prev;
+        return { ...prev, [role]: { ...prev[role], name: "⚠️ Student Not Found" } };
+      });
     }
   };
 
-  // 4. Complete database pipeline on Form Submit
+  // 5. Complete database pipeline
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedProgram) return alert("Please select a programme");
@@ -108,24 +151,26 @@ export default function CreateResult() {
           First_Holder: holders.first.addNo || null,
           Second_Holder: holders.second.addNo || null,
           Third_Holder: holders.third.addNo || null,
-          AGrade: holders.aGrade.addNo || "No Grade",
+          AGrade: holders.aGrade.addNo || null, // Changed from "No Grade" to null for DB consistency
           BGrade: holders.bGrade.addNo || null,
-          creaded_At: new Date().toISOString()
+          creaded_At: new Date().toISOString() // Note: Double-check if your DB column is actually spelled 'creaded_At'
         }]);
 
       if (insertError) throw insertError;
 
-      // Step B: Set up point tracking allocations (1st: 7, 2nd: 5, 3rd: 3)
+      // Step B: Set up point tracking allocations
       const pointSchema = [
-        { addNo: holders.first.addNo, points: 7 },
-        { addNo: holders.second.addNo, points: 5 },
-        { addNo: holders.third.addNo, points: 3 },
-        { addNo: holders.aGrade.addNo, points: 0 },
-        { addNo: holders.bGrade.addNo, points: 0 }
+        { addNo: holders.first.addNo, name: holders.first.name, points: 7 },
+        { addNo: holders.second.addNo, name: holders.second.name, points: 5 },
+        { addNo: holders.third.addNo, name: holders.third.name, points: 3 },
+        { addNo: holders.aGrade.addNo, name: holders.aGrade.name, points: 0 },
+        { addNo: holders.bGrade.addNo, name: holders.bGrade.name, points: 0 }
       ];
 
+      // Step C: Safely update student points
       for (const holder of pointSchema) {
-        if (holder.addNo && !holder.addNo.includes("Not Found")) {
+        // Validate that an AddNo exists AND the auto-resolver didn't flag it as Not Found
+        if (holder.addNo && !holder.name.includes("⚠️")) {
           const { data: student } = await SupaBaseFunction
             .from("StudentsBox")
             .select("Resluted_Count, Total_Point_Anjuman, Grand_Total_Points")
@@ -136,7 +181,7 @@ export default function CreateResult() {
             await SupaBaseFunction
               .from("StudentsBox")
               .update({
-                Resluted_Count: (student.Resluted_Count || 0) + 1,
+                Resluted_Count: (student.Resluted_Count || 0) + 1, // Note: Typo matching your schema
                 Total_Point_Anjuman: (student.Total_Point_Anjuman || 0) + holder.points,
                 Grand_Total_Points: (student.Grand_Total_Points || 0) + holder.points
               })
@@ -145,24 +190,20 @@ export default function CreateResult() {
         }
       }
 
-      // Step C: Mark program as completed
+      // Step D: Mark program as completed
       await SupaBaseFunction
         .from("ProgrammesBox")
         .update({ IsResulted: true })
         .eq("Program_Code", selectedProgram);
 
+      // Success UI update
       setStatusMsg({ type: "success", text: "🎉 Result saved and student scores updated successfully!" });
       
       // Clean form state definitions
       setProgrammes(prev => prev.filter(p => p.Program_Code !== selectedProgram));
       setSelectedProgram("");
-      setHolders({
-        first: { addNo: "", name: "" },
-        second: { addNo: "", name: "" },
-        third: { addNo: "", name: "" },
-        aGrade: { addNo: "", name: "" },
-        bGrade: { addNo: "", name: "" },
-      });
+      setHolders(INITIAL_HOLDERS);
+      setParticipants([]);
 
     } catch (err) {
       setStatusMsg({ type: "error", text: err.message || "An error occurred while saving." });
@@ -207,7 +248,7 @@ export default function CreateResult() {
                 <option value="">-- Choose Programme --</option>
                 {programmes.map((p) => (
                   <option key={p.Program_Code} value={p.Program_Code}>
-                    {p.Programme_Title || p.Program_Code}
+                    {p.Program_Title || p.Program_Code}
                   </option>
                 ))}
               </select>
@@ -218,6 +259,24 @@ export default function CreateResult() {
             <>
               <hr style={styles.divider} />
               
+              {/* Participants List UI */}
+              <div style={styles.participantsBox}>
+                <label style={styles.label}>Registered Candidates (AddNo)</label>
+                {loadingParticipants ? (
+                  <p style={styles.participantsText}>Loading...</p>
+                ) : participants.length > 0 ? (
+                  <div style={styles.participantsList}>
+                    {participants.map((p) => (
+                      <span key={p.CandidateUUiD || p.Candidate_Code} style={styles.participantBadge}>
+                        {p.Candidate_Code}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={styles.participantsText}>No candidates found for this programme.</p>
+                )}
+              </div>
+
               {/* Positions Panel Fields Layout */}
               {[
                 { id: "first", label: "🥇 First Holder (7 Pts)" },
@@ -366,5 +425,31 @@ const styles = {
     fontSize: "14px",
     fontWeight: "500",
     textAlign: "center"
+  },
+  participantsBox: {
+    backgroundColor: "#f8fafc",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "8px",
+    padding: "12px 16px",
+    marginBottom: "8px"
+  },
+  participantsText: {
+    fontSize: "13px",
+    color: "#64748b",
+    margin: "4px 0 0 0"
+  },
+  participantsList: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+    marginTop: "8px"
+  },
+  participantBadge: {
+    backgroundColor: "#e0e7ff",
+    color: "#3730a3",
+    padding: "4px 10px",
+    borderRadius: "16px",
+    fontSize: "12px",
+    fontWeight: "600"
   }
 };
