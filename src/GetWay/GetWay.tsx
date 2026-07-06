@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SupaBaseFunction } from "../lib/SupaBase";
+import { SupaBaseFunction } from "../lib/SupaBase"; // Ensure this path is correct
 
 export default function GetWay() {
   const navigate = useNavigate();
@@ -46,12 +46,14 @@ export default function GetWay() {
 
       if (updateError) throw updateError;
 
-      // Save user details to localStorage
+      // FIX: Save BOTH the user details AND the "userToken" so ProtectedRoute lets them in!
       localStorage.setItem("user", JSON.stringify({ ...actUser, IsAuthenticated: true }));
+      localStorage.setItem("userToken", "true"); // ProtectedRoute is looking for this!
+
       setMsgType("success");
       setMsg("Login successful! Redirecting...");
 
-      // Navigate once immediately using the user's ID in the URL path
+      // Navigate based on roles
       setTimeout(() => {
         if (actUser.UserRole === 'Admin') {
           navigate(`/admin-panel/${actUser.UserEmail}`);
@@ -95,7 +97,7 @@ export default function GetWay() {
 
         {/* Dynamic Alerts Banner */}
         {msg && (
-          <div className={`flex items-center gap-2 rounded-xl p-4 text-sm font-semibold border animate-in fade-in zoom-in-95 duration-200 ${
+          <div className={`flex items-center gap-2 rounded-xl p-4 text-sm font-semibold border transition-all duration-300 ${
             msgType === "success" 
               ? "bg-emerald-50 text-emerald-800 border-emerald-200" 
               : "bg-rose-50 text-rose-800 border-rose-200"
