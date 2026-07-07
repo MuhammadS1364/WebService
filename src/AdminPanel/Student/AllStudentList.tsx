@@ -50,23 +50,22 @@ export default function OurStudentsList() {
     }
   };
 
-// 1. Add this helper function at the top of your component
-const getDirectImageUrl = (url: string) => {
-  if (!url) return "";
-  // Check if it's a standard Google Drive link
-  if (url.includes("drive.google.com/file/d/")) {
-    const fileId = url.split("/d/")[1].split("/")[0];
-    return `https://drive.google.com/uc?export=view&id=${fileId}`;
-  }
-  // Check if it's an alternate Google Drive link format
-  if (url.includes("drive.google.com/open?id=")) {
-    const fileId = url.split("id=")[1];
-    return `https://drive.google.com/uc?export=view&id=${fileId}`;
-  }
-  // If it's already a direct link or from somewhere else, return as-is
-  return url;
-};
-
+  // Helper function to format Google Drive links properly for <img> tags
+  const getDirectImageUrl = (url: string) => {
+    if (!url) return "";
+    // Check if it's a standard Google Drive link
+    if (url.includes("drive.google.com/file/d/")) {
+      const fileId = url.split("/d/")[1].split("/")[0];
+      return `https://drive.google.com/uc?export=view&id=${fileId}`;
+    }
+    // Check if it's an alternate Google Drive link format
+    if (url.includes("drive.google.com/open?id=")) {
+      const fileId = url.split("id=")[1];
+      return `https://drive.google.com/uc?export=view&id=${fileId}`;
+    }
+    // If it's already a direct link or from somewhere else, return as-is
+    return url;
+  };
 
   // Trigger the fetch on component mount
   useEffect(() => {
@@ -196,16 +195,15 @@ const getDirectImageUrl = (url: string) => {
                     onChange={() => toggleStudentSelection(student.AddNo)}
                   />
                 </div>
-                  {console.log("My url is ",student.Student_Photo_Urls)}
+                
                 <div className="p-5 space-y-4">
                   <div className="flex items-start gap-3.5 pr-8">
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center relative">
                       {student.Student_Photo_Urls ? (
                         <img 
-                          src={student.Student_Photo_Urls} 
+                          src={getDirectImageUrl(student.Student_Photo_Urls)} 
                           alt={student.StudentName} 
                           className="h-full w-full object-cover"
-                          
                         />
                       ) : (
                         <svg className="h-6 w-6 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
