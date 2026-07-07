@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-// Ensure this path matches your actual Supabase client export
+// Ensure this path exactly matches your project structure
 import { SupaBaseFunction } from "../../lib/SupaBase";
 
-// 1. Define the User type based on your database schema
+// 1. Define the User type to eliminate all 'never' and 'any' errors
 export interface User {
-  UserId: string | number; // Accepts both UUIDs or numeric IDs
+  UserId: string | number; // Safely handles UUIDs or auto-incrementing integers
   UserEmail: string;
   UserRole: string;
   IsActive: boolean;
@@ -12,7 +12,7 @@ export interface User {
 }
 
 export default function AllUsersList() {
-  // 2. Explicitly type the states
+  // 2. Explicitly type your state to prevent never[] errors
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -37,10 +37,12 @@ export default function AllUsersList() {
           throw new Error(error.message);
         }
 
-        setUsers(data || []);
-      } catch (err: any) {
-        console.error("Error fetching users from SupaBaseFunction:", err.message);
-        setFetchError("Failed to load users. Please refresh the page to try again.");
+        // TypeScript now knows this is an array of User objects
+        setUsers(data as User[] || []);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+        console.error("Error fetching users:", errorMessage);
+        setFetchError("Failed to load users. Please check your connection.");
       } finally {
         setIsLoading(false);
       }
@@ -49,11 +51,11 @@ export default function AllUsersList() {
     fetchUsers();
   }, []);
 
-  // 4. Toggle Active Status Optimistically
+  // 4. Toggle Active Status with typed parameters
   const handleToggleActive = async (email: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
 
-    // Optimistic UI update
+    // Optimistic UI update: instantly update the UI before the DB finishes
     setUsers((prevUsers) => 
       prevUsers.map(user =>
         user.UserEmail === email ? { ...user, IsActive: newStatus } : user
@@ -67,28 +69,29 @@ export default function AllUsersList() {
         .eq('UserEmail', email);
 
       if (error) throw new Error(error.message);
-    } catch (err: any) {
-      console.error("Failed to update user status in Supabase:", err.message);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Update failed";
+      console.error("Failed to update user status:", errorMessage);
+      
       // Revert the UI update if the database call fails
       setUsers((prevUsers) => 
         prevUsers.map(user =>
           user.UserEmail === email ? { ...user, IsActive: currentStatus } : user
         )
       );
-      alert("Failed to update user status. Please check your connection and try again.");
+      alert("Failed to update user status. Please try again.");
     }
   };
 
-  // 5. Dynamically extract unique roles with strict type narrowing
+  // 5. Safely extract unique roles for the dropdown filter
   const uniqueRoles = useMemo(() => {
     const roles = users
       .map(user => user.UserRole)
-      .filter((role): role is string => Boolean(role)); // Strictly narrows type to string[]
-    
-    return [...new Set(roles)];
+      .filter((role): role is string => Boolean(role)); // TypeScript type-guard
+    return Array.from(new Set(roles)); // Modern way to remove duplicates
   }, [users]);
 
-  // 6. Combined Filter and Search Logic
+  // 6. Filter Users safely handling nulls
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const safeEmail = user.UserEmail?.toLowerCase() || "";
@@ -126,7 +129,7 @@ export default function AllUsersList() {
               placeholder="Search by email or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:w-64 transition-shadow"
+              className="w-full rounded-xl border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:w-64"
             />
             <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -189,7 +192,7 @@ export default function AllUsersList() {
                 {filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                      No users match your filters.
+                      No users match your criteria.
                     </td>
                   </tr>
                 ) : (
@@ -222,7 +225,6 @@ export default function AllUsersList() {
                         <button
                           role="switch"
                           aria-checked={user.IsActive}
-                          aria-label={`Toggle active status for ${user.UserEmail}`}
                           onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
                           className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                         >
@@ -240,7 +242,7 @@ export default function AllUsersList() {
           <div className="flex flex-col gap-4 md:hidden">
             {filteredUsers.length === 0 ? (
               <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 shadow-sm">
-                No users match your filters.
+                No users match your criteria.
               </div>
             ) : (
               filteredUsers.map((user) => (
@@ -268,7 +270,6 @@ export default function AllUsersList() {
                       <button
                         role="switch"
                         aria-checked={user.IsActive}
-                        aria-label={`Toggle active status for ${user.UserEmail}`}
                         onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
                         className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                       >

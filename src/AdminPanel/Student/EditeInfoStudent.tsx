@@ -12,6 +12,7 @@ interface ExcelStudentRow {
   FatherName?: string;
   CollegeName?: string;
   Class?: string;
+  [key: string]: string | number | undefined; // Index signature to allow dynamic mapping safely
 }
 
 interface UserAccountToCreate {
@@ -20,10 +21,20 @@ interface UserAccountToCreate {
   UserRole: string;
 }
 
+interface FormDataState {
+  AddNo: string;
+  StudentName: string;
+  StudentEmail: string;
+  Student_Photo_Urls: string;
+  FatherName: string;
+  CollegeName: string;
+  Class: string;
+}
+
 export default function EditStudentRecord() {
   const { StnAddNo } = useParams<{ StnAddNo: string }>();
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormDataState>({
     AddNo: "",
     StudentName: "",
     StudentEmail: "",
@@ -90,9 +101,10 @@ export default function EditStudentRecord() {
     fetchStudentRecord();
   }, [StnAddNo]);
 
-  // Explicitly typing Change and File upload triggers
+  // Fixes TS7006 & TS2339 by strictly typing the event target name mapping keys
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -148,7 +160,7 @@ export default function EditStudentRecord() {
       const { data: existingUser, error: checkError } = await SupaBaseFunction.from("UserTable")
         .select("UserEmail")
         .eq("UserEmail", formData.StudentEmail)
-        .maybeSingle(); // Switched to maybeSingle to avoid throw breaks
+        .maybeSingle(); 
 
       if (checkError) {
         throw new Error(`Error checking user account: ${checkError.message}`);
@@ -175,7 +187,7 @@ export default function EditStudentRecord() {
 
       if (updateError) throw new Error(`Profile Update Failed: ${updateError.message}`);
 
-      setFormData(prev => ({ ...prev, Student_Photo_Urls: finalPhotoUrl }));
+      setFormData((prev) => ({ ...prev, Student_Photo_Urls: finalPhotoUrl }));
       setPhotoFile(null);
       setPhotoInputMethod("url");
       
@@ -223,10 +235,12 @@ export default function EditStudentRecord() {
 
     reader.onload = async (event) => {
       try {
-        if (!event.target?.result) throw new Error("Could not read file data.");
+        // Fixes TS18047 & TS2769: Explicit assertion check for valid ArrayBuffer runtime target
+        if (!event.target || !event.target.result || typeof event.target.result === "string") {
+          throw new Error("Could not process file layout data framework.");
+        }
         
-        // Explicitly typed configuration array blocks to handle reader buffers
-        const data = new Uint8Array(event.target.result as ArrayBuffer);
+        const data = new Uint8Array(event.target.result);
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -239,6 +253,7 @@ export default function EditStudentRecord() {
         const uniqueEmails = new Set<string>();
         const usersToCreate: UserAccountToCreate[] = [];
 
+        // Fixes TS18046: explicitly cast elements on loop assignment block iteration
         importedData.forEach((row: ExcelStudentRow) => {
           if (row.StudentEmail && !uniqueEmails.has(row.StudentEmail)) {
             uniqueEmails.add(row.StudentEmail);
