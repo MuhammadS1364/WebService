@@ -2,15 +2,34 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 
+// 1. Define the exact shape of a Programme
+interface Programme {
+    id: string | number;
+    name: string;
+    programme_code: string;
+    registration_on: boolean;
+}
+
+// 2. Define the exact shape of a Candidate
+interface Candidate {
+    id: string | number;
+    name: string;
+    programme_code: string;
+    class_name: string;
+    category: string;
+    campus_name: string;
+}
+
 export default function WingResults() {
-    const { actWing } = useParams();
+    // 3. Strictly type the URL parameters
+    const { actWing } = useParams<{ actWing: string }>();
     
-    // State Management
-    const [searchQuery, setSearchQuery] = useState("");
-    const [programmes, setProgrammes] = useState([]);
-    const [candidates, setCandidates] = useState([]);
-    const [expandedProgrammes, setExpandedProgrammes] = useState(new Set());
-    const [loading, setLoading] = useState(true);
+    // 4. Apply interfaces to the useState hooks
+    const [searchQuery, setSearchQuery] = useState<string>("");
+    const [programmes, setProgrammes] = useState<Programme[]>([]);
+    const [candidates, setCandidates] = useState<Candidate[]>([]);
+    const [expandedProgrammes, setExpandedProgrammes] = useState<Set<string>>(new Set());
+    const [loading, setLoading] = useState<boolean>(true);
 
     // Fetch Data on Component Mount
     useEffect(() => {
@@ -22,16 +41,16 @@ export default function WingResults() {
     const fetchWingDetails = async () => {
         setLoading(true);
         try {
-            // 1. Fetch all programmes associated with this wing code
+            // Fetch all programmes associated with this wing code
             const { data: progData, error: progError } = await SupaBaseFunction
                 .from('programes')
                 .select('*')
                 .eq('wing_code', actWing);
 
             if (progError) throw progError;
-            setProgrammes(progData || []);
+            setProgrammes((progData as Programme[]) || []);
 
-            // 2. Extract programme codes to fetch related candidates
+            // Extract programme codes to fetch related candidates
             const progCodes = progData?.map(p => p.programme_code) || [];
             
             if (progCodes.length > 0) {
@@ -41,17 +60,19 @@ export default function WingResults() {
                     .in('programme_code', progCodes);
 
                 if (candError) throw candError;
-                setCandidates(candData || []);
+                setCandidates((candData as Candidate[]) || []);
             }
-        } catch (error) {
-            console.error("Error fetching data:", error);
+        } catch (error: unknown) {
+            // Safely handle unknown errors
+            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+            console.error("Error fetching data:", errorMessage);
         } finally {
             setLoading(false);
         }
     };
 
-    // Toggle Registration Status
-    const toggleRegistration = async (programmeId, currentStatus) => {
+    // 5. Add explicit types to function parameters
+    const toggleRegistration = async (programmeId: string | number, currentStatus: boolean) => {
         try {
             const newStatus = !currentStatus;
             
@@ -73,13 +94,13 @@ export default function WingResults() {
                 ));
                 console.error("Failed to update registration status", error);
             }
-        } catch (error) {
+        } catch (error: unknown) {
             console.error("Error toggling registration:", error);
         }
     };
 
-    // Toggle Accordion View for Candidates
-    const toggleExpand = (programmeCode) => {
+    // 6. Add explicit types to function parameters
+    const toggleExpand = (programmeCode: string) => {
         setExpandedProgrammes(prev => {
             const newSet = new Set(prev);
             if (newSet.has(programmeCode)) {
@@ -159,6 +180,7 @@ export default function WingResults() {
                                             <div className="flex items-center gap-3">
                                                 <span className="text-sm font-semibold text-slate-600">Registration</span>
                                                 <button 
+                                                    type="button"
                                                     onClick={() => toggleRegistration(prog.id, prog.registration_on)}
                                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${prog.registration_on ? 'bg-emerald-500' : 'bg-slate-300'}`}
                                                 >
@@ -167,6 +189,7 @@ export default function WingResults() {
                                             </div>
 
                                             <button 
+                                                type="button"
                                                 onClick={() => toggleExpand(prog.programme_code)}
                                                 className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-bold transition-colors border border-slate-200"
                                             >

@@ -1,6 +1,3 @@
-import { useState, useEffect } from "react";
-import { SupaBaseFunction } from "../../lib/SupaBase";
-
 import OverViewClipBox from "../../PublicDashboardComp/OverViewBox";
 import ProgrammesCalendar from "../../PublicProgrammesComponents/ProgramCelender";
 import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
@@ -10,14 +7,14 @@ export default function StudentDashboard() {
     <div className="mx-auto space-y-6">
       {/* Banner Section */}
       <ActiveUserCard
-        Panel={"Admin"}
-        UserName={"Admin"}
+        Panel="Admin"
+        UserName="Admin"
       />
 
       {/* Grid Container - Balanced 3-column rows on tablet/desktop views */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
         <OverViewClipBox
-          BoxTitle={"Total Students"}
+          BoxTitle="Total Students"
           BoxValue={10}
           BoxSvgLogo={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-graduation-cap w-5 h-5">
@@ -27,8 +24,9 @@ export default function StudentDashboard() {
             </svg>
           }
         />
+        
         <OverViewClipBox
-          BoxTitle={"Total Programmes"}
+          BoxTitle="Total Programmes"
           BoxValue={10}
           BoxSvgLogo={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-calendar-days w-5 h-5">
@@ -45,9 +43,10 @@ export default function StudentDashboard() {
             </svg>
           }
         />
+        
         {/* Changed title name to signify unique tracking data metrics */}
         <OverViewClipBox
-          BoxTitle={"Active Sessions"}
+          BoxTitle="Active Sessions"
           BoxValue={5}
           BoxSvgLogo={
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-graduation-cap w-5 h-5">

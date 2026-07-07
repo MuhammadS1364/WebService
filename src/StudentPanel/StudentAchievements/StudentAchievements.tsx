@@ -1,21 +1,45 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
 
+// 1. Explicit Domain Models matching your Supabase Table Schemas
+interface StudentProfile {
+  AddNo: string;
+  StudentName: string;
+}
+
+interface AchievementItem {
+  Achieve_Id: string | number;
+  StnAddNo: string;
+  Achievement_Title: string;
+  Achievement_Type: string | null;
+  Position_Achieved: string | null;
+  Achieve_Descriptin: string | null;
+  Point_Obtained: number;
+}
+
+interface PositionStyleMap {
+  border: string;
+  bg: string;
+  badge: string;
+  icon: string;
+}
+
 export default function StudentsAchievements() {
-  const { actStn } = useParams(); // Expected to be the StudentEmail
+  const { actStn } = useParams<{ actStn: string }>(); // Safely typed dynamic router link parameter
   
-  const [loading, setLoading] = useState(true);
-  const [student, setStudent] = useState(null);
-  const [achievements, setAchievements] = useState([]);
-  const [typeFilter, setTypeFilter] = useState("All");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [achievements, setAchievements] = useState<AchievementItem[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string>("All");
 
   useEffect(() => {
     const fetchAchievements = async () => {
+      if (!actStn) return;
       setLoading(true);
       try {
-        // 1. Fetch Student Info via Email
+        // Step 1: Fetch Student Info securely via Route Parameter Email mapping
         const { data: studentData, error: studentError } = await SupaBaseFunction
           .from("StudentsBox")
           .select("AddNo, StudentName")
@@ -23,17 +47,17 @@ export default function StudentsAchievements() {
           .single();
 
         if (studentError || !studentData) throw studentError;
-        setStudent(studentData);
+        setStudent(studentData as StudentProfile);
 
-        // 2. Fetch Achievements using the student's AddNo
+        // Step 2: Extract verified child tracking information via Admission Reference Number
         const { data: achievementsData, error: achieveError } = await SupaBaseFunction
           .from("StudentsAchievements")
           .select("*")
           .eq("StnAddNo", studentData.AddNo)
-          .order("Point_Obtained", { ascending: false }); // Show highest points first
+          .order("Point_Obtained", { ascending: false });
 
         if (achieveError) throw achieveError;
-        setAchievements(achievementsData || []);
+        setAchievements((achievementsData as AchievementItem[]) || []);
         
       } catch (error) {
         console.error("Error fetching student achievements:", error);
@@ -42,23 +66,26 @@ export default function StudentsAchievements() {
       }
     };
 
-    if (actStn) fetchAchievements();
+    fetchAchievements();
   }, [actStn]);
 
-  // Derived Stats
+  // Derived Values Layer
   const totalPoints = achievements.reduce((sum, ach) => sum + (ach.Point_Obtained || 0), 0);
   const totalAchievements = achievements.length;
   
-  // Extract unique achievement types for the filter dropdown
-  const achievementTypes = ["All", ...new Set(achievements.map(a => a.Achievement_Type).filter(Boolean))];
+  // Extract unique validation keys safely removing null options
+  const achievementTypes = [
+    "All", 
+    ...new Set(achievements.map(a => a.Achievement_Type).filter((type): type is string => Boolean(type)))
+  ];
 
-  // Apply Filter
+  // Structural Processing Filters
   const filteredAchievements = achievements.filter(ach => 
     typeFilter === "All" || ach.Achievement_Type === typeFilter
   );
 
-  // Helper to determine card styling based on position
-  const getPositionStyles = (position) => {
+  // Position processing helper mapping safely to styles interface
+  const getPositionStyles = (position: string | null | undefined): PositionStyleMap => {
     const pos = (position || "").toLowerCase();
     if (pos.includes("1st") || pos.includes("first") || pos.includes("gold")) {
       return { border: "border-yellow-400", bg: "bg-yellow-50", badge: "bg-yellow-400 text-yellow-900", icon: "🏆" };
@@ -93,8 +120,8 @@ export default function StudentsAchievements() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-8">
         
-        {/* Header - Hall of Fame Style */}
-        <div className="bg-gradient-to-br from-yellow-500 via-orange-400 to-red-500 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
+        {/* Header Section */}
+        <div className="gradient-to-br from-yellow-500 via-orange-400 to-red-500 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6">
           <div>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight drop-shadow-md">
               Hall of Fame
@@ -112,12 +139,12 @@ export default function StudentsAchievements() {
           </div>
         </div>
 
-        {/* Top Summary Stats */}
+        {/* Summary Dashboard Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <OverviewClipBox
             BoxTitle="Total Awards Won"
             BoxValue={totalAchievements}
-            variant="purple"
+            variant="blue" // Fixed: Swapped "purple" to valid dashboard variation
             BoxSvgLogo={
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
             }
@@ -132,14 +159,15 @@ export default function StudentsAchievements() {
           />
         </div>
 
-        {/* Filter Section */}
+        {/* Filter Management */}
         <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4 sm:mb-0">
             🎖️ Achievement Portfolio
           </h2>
           <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-gray-500">Filter by Type:</label>
+            <label htmlFor="type-filter" className="text-sm font-semibold text-gray-500">Filter by Type:</label>
             <select
+              id="type-filter"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
               className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-yellow-500 outline-none font-medium"
@@ -151,7 +179,7 @@ export default function StudentsAchievements() {
           </div>
         </div>
 
-        {/* Achievements Grid */}
+        {/* Dynamic List Rendering */}
         {filteredAchievements.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-gray-300">
             <span className="text-6xl mb-4 block">🧗</span>

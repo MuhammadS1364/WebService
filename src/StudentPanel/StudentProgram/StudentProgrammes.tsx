@@ -3,22 +3,48 @@ import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
 
+// 1. Define explicit structures matching your Supabase Database Schemas
+interface StudentProfile {
+  AddNo: string;
+  StudentName: string;
+  StudentEmail: string;
+}
+
+interface CandidateRegistration {
+  Program_Code: string;
+}
+
+interface ProgramItem {
+  Program_Code: string;
+  Program_Title: string;
+  Program_Poster?: string;
+  Description?: string;
+  Category: string | null;
+  IsConducted: boolean;
+  IsResultPublished: boolean;
+  Date?: string | Date;
+  Venue?: string;
+}
+
 export default function StudentProgrammes() {
-  const { actStn } = useParams(); // StudentEmail from the URL
+  // Explicitly type dynamic route parameters
+  const { actStn } = useParams<{ actStn: string }>(); 
   
-  const [loading, setLoading] = useState(true);
-  const [student, setStudent] = useState(null);
-  const [programs, setPrograms] = useState([]);
+  // 2. Attach clean explicit generics to hooks to wipe out 'never' type-casting bugs
+  const [loading, setLoading] = useState<boolean>(true);
+  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [programs, setPrograms] = useState<ProgramItem[]>([]);
   
-  // Filters
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All");
+  // Filters Layout Context State
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [categoryFilter, setCategoryFilter] = useState<string>("All");
 
   useEffect(() => {
     const fetchPrograms = async () => {
+      if (!actStn) return;
       setLoading(true);
       try {
-        // 1. Fetch Student AddNo via Email
+        // Step 1: Fetch Student AddNo via Email
         const { data: studentData, error: studentError } = await SupaBaseFunction
           .from("StudentsBox")
           .select("AddNo, StudentName, StudentEmail")
@@ -26,25 +52,28 @@ export default function StudentProgrammes() {
           .single();
 
         if (studentError || !studentData) throw studentError;
-        setStudent(studentData);
+        setStudent(studentData as StudentProfile);
 
-        // 2. Fetch all registered program codes for this student
-        const { data: registrations } = await SupaBaseFunction
+        // Step 2: Fetch all registered program codes for this student
+        const { data: registrations, error: regError } = await SupaBaseFunction
           .from("CandidateRegistrationTable")
           .select("Program_Code")
           .eq("Candidate_Code", studentData.AddNo);
 
-        const programCodes = registrations?.map((reg) => reg.Program_Code) || [];
+        if (regError) throw regError;
 
-        // 3. Fetch actual program details
+        const programCodes = (registrations as CandidateRegistration[])?.map((reg) => reg.Program_Code) || [];
+
+        // Step 3: Fetch actual program details
         if (programCodes.length > 0) {
-          const { data: programsData } = await SupaBaseFunction
+          const { data: programsData, error: progError } = await SupaBaseFunction
             .from("ProgrammesBox")
             .select("*")
             .in("Program_Code", programCodes)
-            .order("Date", { ascending: false }); // Show newest first
+            .order("Date", { ascending: false });
             
-          setPrograms(programsData || []);
+          if (progError) throw progError;
+          setPrograms((programsData as ProgramItem[]) || []);
         }
       } catch (error) {
         console.error("Error fetching student programs:", error);
@@ -53,16 +82,17 @@ export default function StudentProgrammes() {
       }
     };
 
-    if (actStn) fetchPrograms();
+    fetchPrograms();
   }, [actStn]);
 
-  // Derived state for stats and filtering
+  // Derived tracking calculations
   const conductedCount = programs.filter(p => p.IsConducted).length;
   const upcomingCount = programs.length - conductedCount;
   
-  const categories = ["All", ...new Set(programs.map(p => p.Category).filter(Boolean))];
+  // Prevent run-time assignment crashes by safely matching array conditions
+  const categories = ["All", ...new Set(programs.map(p => p.Category).filter((cat): cat is string => Boolean(cat)))];
 
-  // Apply filters
+  // Structural Processing Filters
   const filteredPrograms = programs.filter(prog => {
     const matchesCategory = categoryFilter === "All" || prog.Category === categoryFilter;
     let matchesStatus = true;
@@ -95,7 +125,7 @@ export default function StudentProgrammes() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
       <div className="max-w-6xl mx-auto space-y-8">
         
-        {/* Header */}
+        {/* Header Layout */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-gray-200 pb-6">
           <div>
             <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">My Event Portfolio</h1>
@@ -105,7 +135,7 @@ export default function StudentProgrammes() {
           </div>
         </div>
 
-        {/* Top Summary Stats */}
+        {/* Top Summary Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <OverviewClipBox
             BoxTitle="Total Enrolled"
@@ -133,14 +163,15 @@ export default function StudentProgrammes() {
           />
         </div>
 
-        {/* Filters Section */}
+        {/* Filters Action Control Section */}
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
+          <div className="flex space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 overflow-x-auto w-full md:w-auto">
             {["All", "Upcoming", "Completed", "Result Out"].map(status => (
               <button
                 key={status}
+                type="button"
                 onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
                   statusFilter === status 
                     ? "bg-white text-blue-700 shadow-sm border border-gray-200" 
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
@@ -151,12 +182,13 @@ export default function StudentProgrammes() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-500">Category:</label>
+          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+            <label htmlFor="category-select" className="text-sm font-medium text-gray-500 whitespace-nowrap">Category:</label>
             <select
+              id="category-select"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+              className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none font-medium"
             >
               {categories.map((cat, idx) => (
                 <option key={idx} value={cat}>{cat || "Uncategorized"}</option>
@@ -165,7 +197,7 @@ export default function StudentProgrammes() {
           </div>
         </div>
 
-        {/* Program Cards Grid */}
+        {/* Program Cards Grid Output */}
         {filteredPrograms.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-gray-300">
             <h3 className="text-xl font-bold text-gray-700">No Programs Found</h3>
@@ -177,8 +209,16 @@ export default function StudentProgrammes() {
                 key={prog.Program_Code} 
                 className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
               >
-                <div className="relative h-48 overflow-hidden">
-                  <img src={prog.Program_Poster} alt={prog.Program_Title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <div className="relative h-48 overflow-hidden bg-slate-100">
+                  {prog.Program_Poster ? (
+                    <img 
+                      src={prog.Program_Poster} 
+                      alt={prog.Program_Title} 
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">No Image Available</div>
+                  )}
                   <div className="absolute top-3 right-3 flex flex-col gap-2">
                     {prog.IsResultPublished && <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md">🏆 Result Out</span>}
                     <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-lg ${prog.IsConducted ? "bg-emerald-500/90 text-white" : "bg-amber-400/90 text-amber-950"}`}>
@@ -189,16 +229,18 @@ export default function StudentProgrammes() {
 
                 <div className="p-5 flex flex-col flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{prog.Category || "Event"}</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                      {prog.Category || "Event"}
+                    </span>
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">{prog.Program_Title}</h3>
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">{prog.Description}</p>
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">{prog.Description || "No registration description provided."}</p>
 
                   <div className="mt-auto border-t border-gray-50 pt-4 flex items-center justify-between text-xs font-medium text-gray-500">
-                    <div className="flex items-center gap-1">
+                    <div>
                       {prog.Date ? new Date(prog.Date).toLocaleDateString() : "TBA"}
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div>
                       {prog.Venue || "TBA"}
                     </div>
                   </div>

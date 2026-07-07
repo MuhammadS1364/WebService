@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
 
 export default function WingPanel() {
-
-    const {actWing} = useParams();
+    // METHOD FIX: Added strict typing to useParams so TypeScript knows 'actWing' is a string
+    const { actWing } = useParams<{ actWing: string }>();
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
@@ -19,8 +19,8 @@ export default function WingPanel() {
         navigate("/login");
     };
 
-    // Helper function for active link styling
-    const navLinkClasses = ({ isActive }) =>
+    // METHOD FIX: Added { isActive: boolean } type definition to satisfy TS7031
+    const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
         `block p-3 rounded-lg transition-all duration-200 ${isActive
             ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2"
             : "text-slate-300 hover:bg-slate-800 hover:text-white"
@@ -54,6 +54,7 @@ export default function WingPanel() {
                         >
                             Create Result
                         </NavLink>
+                        
                         <NavLink
                             to={`/wing-panel/${actWing}/create-program`}
                             onClick={() => setIsMenuOpen(false)}
@@ -82,6 +83,7 @@ export default function WingPanel() {
                         >
                             My Results
                         </NavLink>
+                        
                         <NavLink
                             to={`/wing-panel/${actWing}/wing-anylatics`}
                             onClick={() => setIsMenuOpen(false)}
@@ -94,6 +96,7 @@ export default function WingPanel() {
                     {/* Logout Button */}
                     <div className="pt-4 border-t border-slate-800 mt-4">
                         <button
+                            type="button"
                             onClick={handleLogout}
                             className="w-full text-left block p-3 rounded-lg hover:bg-red-500/10 transition text-red-400 hover:text-red-300 font-medium"
                         >
@@ -106,9 +109,10 @@ export default function WingPanel() {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
                 {/* Mobile Header - Visible only below 1025px */}
-                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm flex-shrink-0 border-b border-slate-200">
+                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm shrink-0 border-b border-slate-200">
                     <span className="font-bold text-slate-800">Wing Portal</span>
                     <button
+                        type="button"
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
                         className="p-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 transition-colors"
                     >

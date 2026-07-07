@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
 
 export default function StudentPanel() {
-   
-    const {actStn} = useParams();
+    // Type checking the param to be a safe string value context
+    const { actStn } = useParams<{ actStn: string }>();
 
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     const navigate = useNavigate();
     
-    const handleLogout = () => {
+    const handleLogout = (): void => {
         // 1. Clear the login data
         localStorage.removeItem("token");
 
@@ -19,8 +19,8 @@ export default function StudentPanel() {
         navigate("/login");
     };
 
-    // Helper function for active link styling
-    const navLinkClasses = ({ isActive }) =>
+    // Explicitly typed destructured context object for React Router's NavLink states
+    const navLinkClasses = ({ isActive }: { isActive: boolean }): string =>
         `block p-3 rounded-lg transition-all duration-200 ${
             isActive 
                 ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2" 
@@ -41,7 +41,7 @@ export default function StudentPanel() {
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3">Academics</p>
                         
                         <NavLink 
-                            to={`/student-panel/${actStn}/stn-dashboard`} 
+                            to={`/student-panel/${actStn || ''}/stn-dashboard`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -49,7 +49,7 @@ export default function StudentPanel() {
                         </NavLink>
                         
                         <NavLink 
-                            to={`/student-panel/${actStn}/all-programmes-list`} 
+                            to={`/student-panel/${actStn || ''}/all-programmes-list`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -62,7 +62,7 @@ export default function StudentPanel() {
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Program</p>
                         
                         <NavLink 
-                            to={`/student-panel/${actStn}/stn-program`} 
+                            to={`/student-panel/${actStn || ''}/stn-program`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -70,7 +70,7 @@ export default function StudentPanel() {
                         </NavLink>
                         
                         <NavLink 
-                            to={`/student-panel/${actStn}/stn-achievements-list`} 
+                            to={`/student-panel/${actStn || ''}/stn-achievements-list`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -78,14 +78,14 @@ export default function StudentPanel() {
                         </NavLink>
                         
                         <NavLink 
-                            to={`/student-panel/${actStn}/stn-outreach-list`} 
+                            to={`/student-panel/${actStn || ''}/stn-outreach-list`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
                             My Outreach
                         </NavLink>
                         <NavLink 
-                            to={`/student-panel/${actStn}/stn-anylatics`} 
+                            to={`/student-panel/${actStn || ''}/stn-anylatics`} 
                             onClick={() => setIsMenuOpen(false)} 
                             className={navLinkClasses}
                         >
@@ -96,6 +96,7 @@ export default function StudentPanel() {
                     {/* Logout Button */}
                     <div className="pt-4 border-t border-slate-800 mt-4">
                         <button
+                            type="button"
                             onClick={handleLogout}
                             className="w-full text-left block p-3 rounded-lg hover:bg-red-500/10 transition text-red-400 hover:text-red-300 font-medium"
                         >
@@ -108,11 +109,13 @@ export default function StudentPanel() {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
                 {/* Mobile Header - Visible only below 1025px */}
-                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm flex-shrink-0 border-b border-slate-200">
+                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm shrink-0 border-b border-slate-200">
                     <span className="font-bold text-slate-800">Student Portal</span>
                     <button 
+                        type="button"
                         onClick={() => setIsMenuOpen(!isMenuOpen)} 
                         className="p-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 transition-colors"
+                        aria-label="Toggle Navigation Menu"
                     >
                         {isMenuOpen ? (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>

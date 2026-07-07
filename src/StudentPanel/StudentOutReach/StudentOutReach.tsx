@@ -3,19 +3,39 @@ import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
 
+// 1. Define the shape of your Student data
+interface StudentInfo {
+  AddNo: string;
+  StudentName: string;
+}
+
+// 2. Define the shape of your Outreach records
+interface OutreachRecord {
+  OutReach_Id: string;
+  OutReach_Type: string;
+  OutReach_Title: string;
+  OutReach_Descriptin: string; // Keeping original spelling from your DB
+  Point_Obtained: number;
+  created_at: string;
+}
+
 export default function StudentsOutReach() {
-  const { actStn } = useParams(); // Expected to be the StudentEmail
+  const { actStn } = useParams<{ actStn: string }>(); 
   
-  const [loading, setLoading] = useState(true);
-  const [student, setStudent] = useState(null);
-  const [outreachRecords, setOutreachRecords] = useState([]);
-  const [typeFilter, setTypeFilter] = useState("All");
+  const [loading, setLoading] = useState<boolean>(true);
+  
+  // 3. Apply the interfaces to the useState hooks
+  const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [outreachRecords, setOutreachRecords] = useState<OutreachRecord[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string>("All");
 
   useEffect(() => {
     const fetchOutreach = async () => {
+      if (!actStn) return;
+      
       setLoading(true);
       try {
-        // 1. Fetch Student Info via Email
+        // Fetch Student Info via Email
         const { data: studentData, error: studentError } = await SupaBaseFunction
           .from("StudentsBox")
           .select("AddNo, StudentName")
@@ -23,9 +43,9 @@ export default function StudentsOutReach() {
           .single();
 
         if (studentError || !studentData) throw studentError;
-        setStudent(studentData);
+        setStudent(studentData as StudentInfo);
 
-        // 2. Fetch Outreach Records using the student's AddNo
+        // Fetch Outreach Records using the student's AddNo
         const { data: outreachData, error: outreachError } = await SupaBaseFunction
           .from("StudentsOutReach")
           .select("*")
@@ -33,35 +53,41 @@ export default function StudentsOutReach() {
           .order("created_at", { ascending: false });
 
         if (outreachError) throw outreachError;
-        setOutreachRecords(outreachData || []);
+        setOutreachRecords((outreachData as OutreachRecord[]) || []);
         
-      } catch (error) {
-        console.error("Error fetching student outreach:", error);
+      } catch (error: unknown) {
+        // Safely handle unknown error types in TypeScript
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        console.error("Error fetching student outreach:", errorMessage);
       } finally {
         setLoading(false);
       }
     };
 
-    if (actStn) fetchOutreach();
+    fetchOutreach();
   }, [actStn]);
 
-  // Derived Stats
+  // Derived Stats safely typed
   const totalPoints = outreachRecords.reduce((sum, record) => sum + (record.Point_Obtained || 0), 0);
   const totalMissions = outreachRecords.length;
   
-  const outreachTypes = ["All", ...new Set(outreachRecords.map(o => o.OutReach_Type).filter(Boolean))];
+  // Safely extract unique types, casting filtered boolean array to strings
+  const outreachTypes = ["All", ...new Set(outreachRecords.map(o => o.OutReach_Type).filter(Boolean) as string[])];
 
   const filteredOutreach = outreachRecords.filter(record => 
     typeFilter === "All" || record.OutReach_Type === typeFilter
   );
 
-  const getTypeColor = (type) => {
+  // 4. Added explicit type for the function parameter
+  const getTypeColor = (type?: string | null) => {
     const defaultColor = "bg-teal-50 text-teal-700 border-teal-200";
     if (!type) return defaultColor;
+    
     const charCode = type.charCodeAt(0);
     if (charCode % 4 === 0) return "bg-cyan-50 text-cyan-700 border-cyan-200";
     if (charCode % 4 === 1) return "bg-blue-50 text-blue-700 border-blue-200";
     if (charCode % 4 === 2) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    
     return defaultColor;
   };
 
@@ -87,7 +113,7 @@ export default function StudentsOutReach() {
       <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-700 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+        <div className="gradient-to-r from-teal-600 via-cyan-600 to-blue-700 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
           <div className="relative z-10">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Global Footprint</h1>
             <p className="text-teal-100 mt-2 text-lg">

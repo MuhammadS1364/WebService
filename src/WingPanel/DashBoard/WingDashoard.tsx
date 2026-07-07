@@ -1,25 +1,20 @@
-
-
-import { useState, useEffect } from "react";
-import { SupaBaseFunction } from "../../lib/SupaBase";
-
 import OverViewClipBox from "../../PublicDashboardComp/OverViewBox";
 import ProgrammesCalendar from "../../PublicProgrammesComponents/ProgramCelender";
 import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
 
 export default function WingDashboard() {
     return (
-        <div className="mx-auto">
+        <div className="mx-auto space-y-6">
             {/* Banner Section */}
             <ActiveUserCard
-                Panel={"Wing"}
-                UserName={"Art wing"}
+                Panel="Wing"
+                UserName="Art wing"
             />
 
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Grid Container - Fully responsive */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <OverViewClipBox
-                    BoxTitle={"Total Students"}
+                    BoxTitle="Total Students"
                     BoxValue={10}
                     BoxSvgLogo={
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-graduation-cap w-5 h-5">
@@ -30,9 +25,11 @@ export default function WingDashboard() {
                     }
                 />
             </div>
-            <div className="mx-auto">
+            
+            {/* Calendar Section Wrapper */}
+            <div className="w-full">
                 <ProgrammesCalendar />
             </div>
         </div>
-    )
+    );
 }

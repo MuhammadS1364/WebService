@@ -112,6 +112,7 @@ export default function WingAnalytics() {
     fetchWingAndProgrammes();
   }, [actWing]);
 
+  // Derived state processing block using useMemo
   const { filteredProgrammes, categories, stats } = useMemo(() => {
     let filtered = programmes.filter(p => 
       (p.Program_Title && p.Program_Title.toLowerCase().includes(searchQuery.toLowerCase())) || 
@@ -153,8 +154,6 @@ export default function WingAnalytics() {
 
   return (
     <div className="mx-auto max-w-[1600px] p-4 font-sans text-slate-800 bg-slate-50 min-h-screen">
-      {/* Header, Metrics, Charts and Table remain in the same structure... */}
-      {/* (The JSX below is the same as your provided code, now fully typed) */}
       
       {/* --- HEADER --- */}
       <div className="mb-8 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 xl:flex-row xl:items-center xl:justify-between">
@@ -166,15 +165,40 @@ export default function WingAnalytics() {
           </p>
         </div>
 
+        {/* --- FILTERS & SEARCH CONTROLS --- */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-wrap">
-          <input
-            type="text"
-            placeholder="Search programs..."
-            value={searchQuery}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 sm:w-64"
-          />
+          <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            {(["All", "Published", "Pending"] as const).map((status) => (
+              <button
+                key={status}
+                type="button"
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  statusFilter === status
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Search programs..."
+              value={searchQuery}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10"
+            />
+          </div>
+
           <select
+            id="category-filter"
             value={categoryFilter}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCategoryFilter(e.target.value)}
             className="rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-4 text-sm font-medium text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 cursor-pointer"
@@ -185,7 +209,7 @@ export default function WingAnalytics() {
         </div>
       </div>
 
-      {/* --- METRICS (Using OverViewClipBox) --- */}
+      {/* --- METRICS LAYER --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <OverViewClipBox BoxTitle="Total Programmes" BoxValue={totalProgramsCount} color="indigo" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>} />
         <OverViewClipBox BoxTitle="Total Registrations" BoxValue={wingData?.Total_Registrations || 0} color="blue" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} />
@@ -193,7 +217,84 @@ export default function WingAnalytics() {
         <OverViewClipBox BoxTitle="Total Points" BoxValue={(wingData?.Total_Points || 0) + (wingData?.Bonus_Points || 0)} color="amber" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>} />
       </div>
 
-      {/* --- REMAINDER OF UI REMAINS IDENTICAL TO YOUR PROVIDED CODE --- */}
+      {/* --- VISUAL ANALYTICS: CHARTS & TABLES DATA LAYER --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        
+        {/* Category breakdown visual representation block using state properties */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-1">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="font-bold text-slate-900 text-base">Category Distribution</h2>
+            <span className="text-xs bg-slate-100 text-slate-600 font-bold px-2.5 py-1 rounded-md">{completionPercentage}% Published</span>
+          </div>
+          <div className="space-y-4">
+            {stats.categoryStats.map((item) => (
+              <div key={item.name} className="space-y-1.5">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-slate-700 truncate max-w-45">{item.name}</span>
+                  <span className="text-slate-500">{item.totalReg} Regs</span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
+                    style={{ width: `${(item.totalReg / stats.maxReg) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            {stats.categoryStats.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-6">No data matrix found</p>
+            )}
+          </div>
+        </div>
+
+        {/* Program Tracking Grid Output */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 lg:col-span-2 overflow-hidden">
+          <div className="p-6 border-b border-slate-100">
+            <h2 className="font-bold text-slate-900 text-base">Programs Registry Matrix</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-400 font-bold text-[11px] uppercase tracking-wider border-b border-slate-100">
+                  <th className="py-3.5 px-6">Code / Title</th>
+                  <th className="py-3.5 px-6">Category</th>
+                  <th className="py-3.5 px-6">Group</th>
+                  <th className="py-3.5 px-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {filteredProgrammes.map((prog) => (
+                  <tr key={prog.Program_Code} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-4 px-6">
+                      <div className="font-semibold text-slate-900">{prog.Program_Title}</div>
+                      <div className="text-xs text-slate-400 font-mono mt-0.5">{prog.Program_Code}</div>
+                    </td>
+                    <td className="py-4 px-6 text-slate-500 font-medium">{prog.Category || "Event"}</td>
+                    <td className="py-4 px-6 text-slate-500 font-medium">{prog.Group}</td>
+                    <td className="py-4 px-6">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
+                        prog.IsResultPublished 
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                          : "bg-slate-50 text-slate-600 border border-slate-200"
+                      }`}>
+                        {prog.IsResultPublished ? "Published" : "Pending"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {filteredProgrammes.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-12 text-center text-sm text-slate-400 font-medium">
+                      No matching records found in this view context.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }
