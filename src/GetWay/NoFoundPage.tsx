@@ -1,12 +1,10 @@
 import { Link } from 'react-router-dom';
-import { useState, CSSProperties } from 'react';
+import { useState, type CSSProperties } from 'react';
 
 export default function NotFoundPage() {
-  // Using React state to safely handle hover effects instead of direct DOM mutation
   const [isHomeHovered, setIsHomeHovered] = useState(false);
   const [isLoginHovered, setIsLoginHovered] = useState(false);
 
-  // METHOD FIX: Typed the styles object as a dictionary of React CSS properties
   const styles: Record<string, CSSProperties> = {
     container: {
       minHeight: '100vh',
@@ -29,7 +27,7 @@ export default function NotFoundPage() {
     },
     errorCode: {
       fontSize: '80px',
-      fontWeight: '800', // Note: React CSSProperties allows '800' (string) or 800 (number)
+      fontWeight: '800', 
       margin: '0',
       background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       WebkitBackgroundClip: 'text',
@@ -50,7 +48,7 @@ export default function NotFoundPage() {
       display: 'flex',
       gap: '15px',
       justifyContent: 'center',
-      flexWrap: 'wrap', // No more errors here!
+      flexWrap: 'wrap', 
     },
     primaryBtn: {
       padding: '12px 24px',
