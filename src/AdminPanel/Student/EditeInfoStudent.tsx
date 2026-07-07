@@ -101,6 +101,14 @@ export default function EditStudentRecord() {
     }
   };
 
+  // Helper handler to securely trigger file click event safely
+  const triggerImportClick = () => {
+    const element = document.getElementById("fileUpload");
+    if (element) {
+      element.click();
+    }
+  };
+
   // ----------------------------------------
   // SAVE CHANGES (UPDATE METHOD)
   // ----------------------------------------
@@ -222,6 +230,7 @@ export default function EditStudentRecord() {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
+        // Added clean interface mapping right here to satisfy TS runtime parsing checks
         const importedData = XLSX.utils.sheet_to_json<ExcelStudentRow>(worksheet);
         if (importedData.length === 0) throw new Error("The file is empty.");
 
@@ -230,7 +239,7 @@ export default function EditStudentRecord() {
         const uniqueEmails = new Set<string>();
         const usersToCreate: UserAccountToCreate[] = [];
 
-        importedData.forEach((row) => {
+        importedData.forEach((row: ExcelStudentRow) => {
           if (row.StudentEmail && !uniqueEmails.has(row.StudentEmail)) {
             uniqueEmails.add(row.StudentEmail);
             usersToCreate.push({
@@ -250,7 +259,7 @@ export default function EditStudentRecord() {
 
         setMessage({ type: "", text: "Inserting Students..." });
 
-        const studentsToInsert = importedData.map((row) => ({
+        const studentsToInsert = importedData.map((row: ExcelStudentRow) => ({
           AddNo: row.AddNo,
           StudentName: row.StudentName,
           StudentEmail: row.StudentEmail,
@@ -309,7 +318,7 @@ export default function EditStudentRecord() {
           />
           <button
             type="button"
-            onClick={() => document.getElementById("fileUpload")?.click()}
+            onClick={triggerImportClick}
             className="flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-semibold shadow-sm"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>

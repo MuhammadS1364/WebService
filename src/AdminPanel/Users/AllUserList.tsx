@@ -1,10 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 
-export default function AllUsersList() {
+// 1. Define the User type based on the properties used in your component
+export interface User {
+  UserId: string; // Change to 'number' if your IDs are numeric
+  UserEmail: string;
+  UserRole: string;
+  IsActive: boolean;
+  IsAuthenticated: boolean;
+}
 
-  // State for users, UI controls, and loading/error handling
-  const [users, setUsers] = useState([]);
+export default function AllUsersList() {
+  // 2. Explicitly type the state as an array of User objects
+  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filter States
@@ -34,7 +42,7 @@ export default function AllUsersList() {
   }, []);
 
   // 2. Toggle Active Status in SupaBaseFunction
-  const handleToggleActive = async (email, currentStatus) => {
+  const handleToggleActive = async (email: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
 
     // Optimistic UI update using functional state to prevent stale closures
@@ -66,7 +74,8 @@ export default function AllUsersList() {
   // 4. Combined Filter and Search Logic
   const filteredUsers = users.filter((user) => {
     const safeEmail = user.UserEmail || "";
-    const safeId = user.UserId || "";
+    // Note: Converted to string in case UserId is a number in your database
+    const safeId = user.UserId ? String(user.UserId) : "";
     
     // Search check (Safe against null values)
     const matchesSearch = safeEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
