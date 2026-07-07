@@ -95,8 +95,9 @@ export default function StudentAnalytics() {
           .eq("StnAddNo", addNo);
         setAchievements(achievementsData || []);
 
-      } catch (error) {
-        console.error("Error fetching student analytics:", error);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        console.error("Error fetching student analytics:", errorMessage);
       } finally {
         setLoading(false);
       }
@@ -131,7 +132,7 @@ export default function StudentAnalytics() {
       <div className=" mx-auto space-y-8">
         
         {/* Header Hero */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row items-center gap-6">
+        <div className="gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row items-center gap-6">
           <img 
             src={student.Student_Photo_Urls} 
             alt={student.StudentName} 
@@ -146,7 +147,7 @@ export default function StudentAnalytics() {
           </div>
           <div className="bg-white text-indigo-900 rounded-2xl p-6 text-center shadow-lg transform transition hover:scale-105">
             <p className="text-sm font-bold text-gray-500 uppercase">Grand Total Points</p>
-            <p className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+            <p className="text-5xl font-black bg-clip-text text-transparent gradient-to-r from-indigo-600 to-purple-600">
               {student.Grand_Total_Points}
             </p>
           </div>
@@ -157,7 +158,9 @@ export default function StudentAnalytics() {
           <OverviewClipBox BoxTitle="Events Registered" BoxValue={student.Registration_Count} variant="blue" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} />
           <OverviewClipBox BoxTitle="Outreach Activities" BoxValue={student.OutReach_Count} variant="orange" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
           <OverviewClipBox BoxTitle="Total Achievements" BoxValue={student.Achievements_Counts} variant="emerald" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>} />
-          <OverviewClipBox BoxTitle="Anjuman Points" BoxValue={student.Total_Point_Anjuman} variant="purple" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>} />
+          
+          {/* METHOD FIX: Changed invalid 'purple' variant to allowed 'rose' variant */}
+          <OverviewClipBox BoxTitle="Anjuman Points" BoxValue={student.Total_Point_Anjuman} variant="rose" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>} />
         </div>
 
         {/* Content Layout */}
@@ -166,14 +169,14 @@ export default function StudentAnalytics() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">My Registered Programs</h2>
               <select value={programFilter} onChange={(e) => setProgramFilter(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-700 rounded-xl px-4 py-2">
-                {programGroups.map((group, idx) => <option key={idx} value={group}>{group || "Uncategorized"}</option>)}
+                {programGroups.map((group) => <option key={group} value={group}>{group || "Uncategorized"}</option>)}
               </select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredPrograms.map((prog) => (
                 <div key={prog.Program_Code} className="border border-gray-100 rounded-2xl overflow-hidden bg-gray-50">
-                  <img src={prog.Program_Poster} alt={prog.Program_Title} className="w-full max-h-[500px] object-cover" />
+                  <img src={prog.Program_Poster} alt={prog.Program_Title} className="w-full max-h-125 object-cover" />
                   <div className="p-4">
                     <div className="text-xs font-bold text-indigo-600 mb-1 uppercase tracking-wider">{prog.Category || "Event"}</div>
                     <h3 className="font-bold text-gray-900 truncate">{prog.Program_Title}</h3>

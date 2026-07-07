@@ -2,30 +2,50 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; 
 
+// 1. Production-grade Schema Type Declarations matching your Supabase row fields
+interface ProgramData {
+  Program_Code: string;
+  Program_Title: string | null;
+  Program_Poster: string | null;
+  Group: string | null;
+  WingCode: string | null;
+  Category: string | null;
+  AccademicYear: string | null;
+  Description: string | null;
+  OutComes: string | null;
+  Date: string | null;
+  Venue: string | null;
+  IsApproved: boolean;
+  IsResulted: boolean;
+  IsOpenRegistration: boolean;
+}
+
 export default function ProgrammesRegistrationCard() {
-  const { actStn } = useParams();
+  const { actStn } = useParams<{ actStn: string }>();
   const navigate = useNavigate();
   
-  const [programmes, setProgrammes] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Explicitly assign structural parameters to the component state hooks
+  const [programmes, setProgrammes] = useState<ProgramData[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch and Filter Data
+  // Fetch and Filter Data Layer
   useEffect(() => {
     const fetchProgrammes = async () => {
       try {
         setIsLoading(true);
-        const { data, error } = await SupaBaseFunction
+        const { data, error: fetchError } = await SupaBaseFunction
           .from('ProgrammesBox')
           .select('*')
           .eq('IsConducted', false)  // Filter: Not conducted yet
           .order('Date', { ascending: true }); 
 
-        if (error) throw error;
-        setProgrammes(data || []);
-      } catch (err) {
-        console.error("Fetch Error:", err.message);
-        setError(err.message);
+        if (fetchError) throw fetchError;
+        setProgrammes((data as ProgramData[]) || []);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "An unexpected data fetching anomaly occurred.";
+        console.error("Fetch Error:", errorMessage);
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -34,7 +54,7 @@ export default function ProgrammesRegistrationCard() {
     fetchProgrammes();
   }, []);
 
-  // UI States
+  // UI States Handling Exception Blockers
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[50vh]">
@@ -49,7 +69,7 @@ export default function ProgrammesRegistrationCard() {
 
   return (
     <div className="md:p-5 bg-gray-50 min-h-screen">
-      <div className="max-w-[1200px] mx-auto">
+      <div className="max-w-300 mx-auto">
         <h2 className="text-3xl font-extrabold text-gray-900 mb-8">
           Upcoming Programmes
         </h2>
@@ -59,21 +79,24 @@ export default function ProgrammesRegistrationCard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             
-            {/* Loop through the fetched data */}
+            {/* Loop structurally over safe records */}
             {programmes.map((program, index) => (
               
               <div 
                 key={program.Program_Code || index} 
-                className="w-full max-w-[360px] mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden font-sans hover:shadow-md transition-shadow"
+                className="w-full max-w-90 mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden font-sans hover:shadow-md transition-shadow"
               >
                 
                 {/* --- Image Section --- */}
                 <div className="relative h-48 w-full bg-gray-200">
                   <img
                     src={program.Program_Poster || "https://via.placeholder.com/400x200?text=No+Image"}
-                    alt={program.Program_Title}
+                    alt={program.Program_Title || "Program Presentation Art"}
                     className="w-full h-full object-cover"
-                    onError={(e) => { e.target.src = "https://via.placeholder.com/400x200?text=No+Image" }}
+                    onError={(e) => { 
+                      // Fixed target assertion blocking any property errors
+                      (e.currentTarget as HTMLImageElement).src = "https://via.placeholder.com/400x200?text=No+Image"; 
+                    }}
                   />
                   {program.Group && (
                     <div className="absolute top-3 left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm">
@@ -83,7 +106,7 @@ export default function ProgrammesRegistrationCard() {
                 </div>
 
                 {/* --- Body Section --- */}
-                <div className="p-5 flex flex-col gap-4 flex-grow">
+                <div className="p-5 flex flex-col gap-4 grow">
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900 leading-tight line-clamp-2">
                       {program.Program_Title || "Untitled Program"}
@@ -112,7 +135,7 @@ export default function ProgrammesRegistrationCard() {
 
                   {/* Description */}
                   <p className="text-[15px] text-gray-600 leading-relaxed line-clamp-3">
-                    {program.Description}
+                    {program.Description || "No registration details supplied."}
                   </p>
 
                   {/* Expected Outcome */}
@@ -133,7 +156,7 @@ export default function ProgrammesRegistrationCard() {
                     </div>
                     <div className="flex flex-col w-1/2 pl-4">
                       <span className="text-xs font-medium text-gray-500 mb-1">Venue</span>
-                      <span className="text-sm font-semibold text-gray-900 truncate" title={program.Venue}>
+                      <span className="text-sm font-semibold text-gray-900 truncate" title={program.Venue ?? "To Be Announced"}>
                         {program.Venue || "TBA"}
                       </span>
                     </div>
@@ -156,6 +179,7 @@ export default function ProgrammesRegistrationCard() {
                 {/* --- Footer Button --- */}
                 <div className="px-5 pb-5 pt-2 mt-auto">
                   <button
+                    type="button"
                     onClick={() => {
                       if (program.IsOpenRegistration && program.Program_Code && actStn) {
                         navigate(`/student-panel/${actStn}/candidate-registration/${program.Program_Code}`);

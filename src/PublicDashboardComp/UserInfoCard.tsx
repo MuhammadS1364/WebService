@@ -1,5 +1,17 @@
+interface ActiveUserCardProps {
+  Panel: string;
+  UserName: string;
+}
 
-export default function ActiveUserCard({ Panel, UserName }) {
+export default function ActiveUserCard({ Panel, UserName }: ActiveUserCardProps) {
+  // Master adjustment: Dynamic greeting calculation engine based on execution time
+  const getGreeting = (): string => {
+    const hours = new Date().getHours();
+    if (hours < 12) return "☀️ Good Morning";
+    if (hours < 17) return "🌤️ Good Afternoon";
+    return "🌙 Good Evening";
+  };
+
   return (
     <div className="relative overflow-hidden bg-green-100 p-8 shadow-xl rounded-2xl m-2">
 
@@ -22,7 +34,7 @@ export default function ActiveUserCard({ Panel, UserName }) {
         <div>
           <div className="flex items-center gap-3 mb-3">
             <span className="text-sm font-medium text-black/80">
-              ☀️ Good Morning
+              {getGreeting()}
             </span>
 
             <span className="rounded-full bg-black/10 backdrop-blur-md border border-white/40 px-4 py-1 text-xs font-semibold tracking-wide text-gray-800">
@@ -40,7 +52,7 @@ export default function ActiveUserCard({ Panel, UserName }) {
         </div>
 
         {/* Avatar */}
-        <div className="hidden md:flex h-24 w-24 items-center justify-center rounded-full bg-white/30 backdrop-blur-xl border border-white/40 text-4xl shadow-lg">
+        <div className="hidden md:flex h-24 w-24 items-center justify-center rounded-full bg-white/30 backdrop-blur-xl border border-white/40 text-4xl shadow-lg select-none">
           👤
         </div>
 
