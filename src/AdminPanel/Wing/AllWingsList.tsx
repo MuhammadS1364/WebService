@@ -1,16 +1,28 @@
-
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 // Import your SupaBaseFunction client here. Ensure the path is correct.
 import { SupaBaseFunction } from "../../lib/SupaBase"; 
 
+// 1. Explicitly define the database row structure for TypeScript
+interface WingData {
+  WingTitle: string | null;
+  WingCode: string;
+  WingEmail?: string | null;
+  WingManager?: string | null;
+  WingConvener?: string | null;
+  WingAssistant?: string | null;
+  Total_Registrations?: number;
+  Total_Resulted?: number;
+  IsActive: boolean;
+}
+
 export default function AllWingsList() {
     const navigate = useNavigate();
     
-    // States for data, loading, error, and filters
-    const [wings, setWings] = useState([]);
+    // 2. Pass the WingData interface to typed states
+    const [wings, setWings] = useState<WingData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("All");
 
@@ -28,7 +40,7 @@ export default function AllWingsList() {
                 if (fetchError) throw fetchError;
                 
                 setWings(data || []);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Error fetching wings:", err);
                 setError("Failed to load wings data. Please try again.");
             } finally {
@@ -108,7 +120,7 @@ export default function AllWingsList() {
             {/* --- ERROR MESSAGE --- */}
             {error && (
                 <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 flex items-center gap-3">
-                    <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                     <p className="text-sm font-medium">{error}</p>
                 </div>
             )}
@@ -214,7 +226,7 @@ export default function AllWingsList() {
                         </div>
                     ))}
 
-                    {/* Empty State (If search yields no results) */}
+                    {/* Empty State */}
                     {filteredWings.length === 0 && (
                         <div className="col-span-full py-12 text-center">
                             <svg className="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>

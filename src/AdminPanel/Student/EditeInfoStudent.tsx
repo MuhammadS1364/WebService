@@ -1,10 +1,27 @@
 import { useState, useEffect } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 
+// Explicit definition for Excel Row Structure
+interface ExcelStudentRow {
+  AddNo: string | number;
+  StudentName: string;
+  StudentEmail: string;
+  FatherName?: string;
+  CollegeName?: string;
+  Class?: string;
+}
+
+interface UserAccountToCreate {
+  UserEmail: string;
+  UserPassword: string | number;
+  UserRole: string;
+}
+
 export default function EditStudentRecord() {
-  const { StnAddNo } = useParams();
+  const { StnAddNo } = useParams<{ StnAddNo: string }>();
 
   const [formData, setFormData] = useState({
     AddNo: "",
@@ -17,8 +34,8 @@ export default function EditStudentRecord() {
   });
 
   // Photo Upload States
-  const [photoInputMethod, setPhotoInputMethod] = useState("url"); // 'url' or 'file'
-  const [photoFile, setPhotoFile] = useState(null);
+  const [photoInputMethod, setPhotoInputMethod] = useState<"url" | "file">("url");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [imageError, setImageError] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -59,11 +76,11 @@ export default function EditStudentRecord() {
             Class: data.Class || "",
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Fetch Error:", error);
         setMessage({
           type: "error",
-          text: `Failed to load student data: ${error.message}`,
+          text: `Failed to load student data: ${error.message || error}`,
         });
       } finally {
         setFetching(false);
@@ -73,21 +90,21 @@ export default function EditStudentRecord() {
     fetchStudentRecord();
   }, [StnAddNo]);
 
-  const handleChange = (e) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setPhotoFile(e.target.files[0]);
-      setImageError(""); // Clear any previous image errors
+      setImageError(""); 
     }
   };
 
   // ----------------------------------------
   // SAVE CHANGES (UPDATE METHOD)
   // ----------------------------------------
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setMessage({ type: "", text: "" });
@@ -96,13 +113,11 @@ export default function EditStudentRecord() {
     let finalPhotoUrl = formData.Student_Photo_Urls;
 
     try {
-      // 1. Handle Image Upload if 'Upload File' is selected
       if (photoInputMethod === "file" && photoFile) {
         try {
           const fileExt = photoFile.name.split(".").pop();
           const fileName = `${StnAddNo}-${Math.random()}.${fileExt}`;
           
-          // NOTE: Replace 'student-photos' with your actual Supabase storage bucket name
           const { error: uploadError } = await SupaBaseFunction.storage
             .from("student-photos") 
             .upload(fileName, photoFile);
@@ -114,15 +129,14 @@ export default function EditStudentRecord() {
             .getPublicUrl(fileName);
 
           finalPhotoUrl = publicUrlData.publicUrl;
-        } catch (imgError) {
+        } catch (imgError: any) {
           console.error("Image Upload Error:", imgError);
           setImageError("Image upload failed! Please switch to the 'Image URL' option and paste a direct link instead.");
           setLoading(false);
-          return; // Halt form submission so the user can fix the image
+          return;
         }
       }
 
-      // 2. Ensure User Account is synchronized with the new/existing email
       let { data: existingUser, error: checkError } = await SupaBaseFunction.from("UserTable")
         .select("UserEmail")
         .eq("UserEmail", formData.StudentEmail)
@@ -132,7 +146,6 @@ export default function EditStudentRecord() {
         throw new Error(`Error checking user account: ${checkError.message}`);
       }
 
-      // If email was changed and doesn't exist in UserTable yet, create it
       if (!existingUser) {
         const { error: createError } = await SupaBaseFunction.from("UserTable").insert([
           { UserEmail: formData.StudentEmail, UserPassword: formData.AddNo, UserRole: "Student" },
@@ -140,12 +153,11 @@ export default function EditStudentRecord() {
         if (createError) throw new Error(`User Account Sync Failed: ${createError.message}`);
       }
 
-      // 3. Update Student Profile Information
       const { error: updateError } = await SupaBaseFunction.from("StudentsBox")
         .update({
           StudentName: formData.StudentName,
           StudentEmail: formData.StudentEmail,
-          Student_Photo_Urls: finalPhotoUrl, // Use the processed URL
+          Student_Photo_Urls: finalPhotoUrl,
           FatherName: formData.FatherName,
           CollegeName: formData.CollegeName,
           Class: formData.Class,
@@ -155,14 +167,13 @@ export default function EditStudentRecord() {
 
       if (updateError) throw new Error(`Profile Update Failed: ${updateError.message}`);
 
-      // Update local state to reflect the new photo URL if a file was uploaded
       setFormData(prev => ({ ...prev, Student_Photo_Urls: finalPhotoUrl }));
       setPhotoFile(null);
-      setPhotoInputMethod("url"); // Reset back to URL view
+      setPhotoInputMethod("url");
       
       setMessage({ type: "success", text: "Student records updated successfully!" });
-    } catch (error) {
-      setMessage({ type: "error", text: error.message });
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.message || error });
     } finally {
       setLoading(false);
     }
@@ -186,17 +197,17 @@ export default function EditStudentRecord() {
       XLSX.writeFile(workbook, "Students_Export.xlsx");
 
       setMessage({ type: "success", text: "Data exported successfully!" });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Export Error:", error);
-      setMessage({ type: "error", text: `Export failed: ${error.message}` });
+      setMessage({ type: "error", text: `Export failed: ${error.message || error}` });
     }
   };
 
   // ----------------------------------------
   // IMPORT DATA
   // ----------------------------------------
-  const handleImport = async (e) => {
-    const file = e.target.files[0];
+  const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setMessage({ type: "", text: "Reading file..." });
@@ -204,21 +215,23 @@ export default function EditStudentRecord() {
 
     reader.onload = async (event) => {
       try {
-        const data = new Uint8Array(event.target.result);
+        if (!event.target?.result) throw new Error("Could not read file data.");
+        
+        const data = new Uint8Array(event.target.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        const importedData = XLSX.utils.sheet_to_json(worksheet);
+        const importedData = XLSX.utils.sheet_to_json<ExcelStudentRow>(worksheet);
         if (importedData.length === 0) throw new Error("The file is empty.");
 
         setMessage({ type: "", text: "Syncing User Accounts..." });
 
-        const uniqueEmails = new Set();
-        const usersToCreate = [];
+        const uniqueEmails = new Set<string>();
+        const usersToCreate: UserAccountToCreate[] = [];
 
         importedData.forEach((row) => {
-          if (!uniqueEmails.has(row.StudentEmail)) {
+          if (row.StudentEmail && !uniqueEmails.has(row.StudentEmail)) {
             uniqueEmails.add(row.StudentEmail);
             usersToCreate.push({
               UserEmail: row.StudentEmail,
@@ -255,12 +268,12 @@ export default function EditStudentRecord() {
         if (studentError) throw new Error(`Student Insert Failed: ${studentError.message}`);
 
         setMessage({ type: "success", text: `Successfully imported ${studentsToInsert.length} students!` });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Import Error:", error);
-        setMessage({ type: "error", text: `Import failed: ${error.message}` });
+        setMessage({ type: "error", text: `Import failed: ${error.message || error}` });
       }
 
-      e.target.value = null;
+      e.target.value = "";
     };
 
     reader.readAsArrayBuffer(file);
@@ -296,7 +309,7 @@ export default function EditStudentRecord() {
           />
           <button
             type="button"
-            onClick={() => document.getElementById("fileUpload").click()}
+            onClick={() => document.getElementById("fileUpload")?.click()}
             className="flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-semibold shadow-sm"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
@@ -353,70 +366,28 @@ export default function EditStudentRecord() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Student Name *</label>
-            <input
-              type="text"
-              name="StudentName"
-              required
-              value={formData.StudentName}
-              onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-              placeholder="e.g. John Doe"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Student Email *</label>
-            <input
-              type="email"
-              name="StudentEmail"
-              required
-              value={formData.StudentEmail}
-              onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-              placeholder="john@example.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Class *</label>
-            <input
-              type="text"
-              name="Class"
-              required
-              value={formData.Class}
-              onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Father's Name</label>
-            <input
-              type="text"
-              name="FatherName"
-              value={formData.FatherName}
-              onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">College/School Name</label>
-            <input
-              type="text"
-              name="CollegeName"
-              value={formData.CollegeName}
-              onChange={handleChange}
-              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-            />
-          </div>
+          {"StudentName StudentEmail Class FatherName CollegeName".split(" ").map((field) => (
+            <div key={field}>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">
+                {field === "StudentName" ? "Student Name *" : field === "StudentEmail" ? "Student Email *" : field === "Class" ? "Class *" : field === "FatherName" ? "Father's Name" : "College/School Name"}
+              </label>
+              <input
+                type={field === "StudentEmail" ? "email" : "text"}
+                name={field}
+                required={["StudentName", "StudentEmail", "Class"].includes(field)}
+                value={(formData as any)[field]}
+                onChange={handleChange}
+                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                placeholder={field === "StudentEmail" ? "john@example.com" : field === "StudentName" ? "e.g. John Doe" : ""}
+              />
+            </div>
+          ))}
         </div>
 
-        {/* ------------------------------- */}
-        {/* PHOTO UPLOAD SECTION            */}
-        {/* ------------------------------- */}
+        {/* PHOTO UPLOAD SECTION */}
         <div className="mt-8 p-5 bg-slate-50 border border-slate-200 rounded-xl">
           <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wide">Student Photo</h3>
           
-          {/* Toggle Radio Buttons */}
           <div className="flex items-center space-x-6 mb-4">
             <label className="flex items-center cursor-pointer">
               <input 
@@ -442,7 +413,6 @@ export default function EditStudentRecord() {
             </label>
           </div>
 
-          {/* Conditional Input Fields */}
           {photoInputMethod === "url" ? (
             <div>
               <input
@@ -473,10 +443,9 @@ export default function EditStudentRecord() {
             </div>
           )}
 
-          {/* Image Upload Error Fallback Suggestion */}
           {imageError && (
              <div className="mt-3 p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-start text-sm">
-               <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+               <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                <span>{imageError}</span>
              </div>
           )}
