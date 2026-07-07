@@ -12,65 +12,80 @@ export default function NotFoundPage() {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #EEF2F3 0%, #8E9EAB 100%)',
-      fontFamily: '"Segoe UI", Roboto, "Helvetica Neue", sans-serif',
+      // Clean, airy, modern light background
+      background: 'linear-gradient(135deg, #f6f8fd 0%, #f1f5f9 100%)',
+      fontFamily: '"Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
       padding: '20px',
-      textAlign: 'center',
     },
     card: {
-      background: 'white',
-      padding: '50px',
-      borderRadius: '20px',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-      maxWidth: '500px',
+      background: 'rgba(255, 255, 255, 0.95)',
+      backdropFilter: 'blur(10px)',
+      padding: '60px 40px',
+      borderRadius: '32px', // Much friendlier, softer corners
+      // Deep, smooth, modern floating shadow
+      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0,0,0,0.02)',
+      maxWidth: '480px',
       width: '100%',
+      textAlign: 'center',
     },
     errorCode: {
-      fontSize: '80px',
-      fontWeight: '800', 
+      fontSize: '120px', // Massive and bold
+      fontWeight: '900',
       margin: '0',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      lineHeight: '1',
+      // Vibrant, eye-catching Indigo to Pink gradient
+      background: 'linear-gradient(135deg, #4F46E5 0%, #EC4899 100%)',
       WebkitBackgroundClip: 'text',
       WebkitTextFillColor: 'transparent',
+      letterSpacing: '-5px', // Trendy tight spacing
+      marginBottom: '16px',
     },
     title: {
-      fontSize: '24px',
-      color: '#333',
-      margin: '10px 0 20px 0',
+      fontSize: '28px',
+      color: '#111827',
+      fontWeight: '700',
+      margin: '0 0 16px 0',
     },
     description: {
-      color: '#666',
+      color: '#6B7280',
       fontSize: '16px',
-      lineHeight: '1.5',
-      marginBottom: '30px',
+      lineHeight: '1.6',
+      marginBottom: '40px',
     },
     buttonContainer: {
       display: 'flex',
-      gap: '15px',
+      gap: '16px',
       justifyContent: 'center',
-      flexWrap: 'wrap', 
+      flexWrap: 'wrap',
     },
     primaryBtn: {
-      padding: '12px 24px',
-      backgroundColor: '#667eea',
+      padding: '14px 32px',
+      background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
       color: 'white',
       textDecoration: 'none',
-      borderRadius: '8px',
+      borderRadius: '50px', // Pill-shaped buttons are highly clickable
       fontWeight: '600',
-      transition: 'all 0.3s ease',
-      boxShadow: '0 4px 6px rgba(102, 126, 234, 0.25)',
-      transform: isHomeHovered ? 'translateY(-2px)' : 'translateY(0)',
+      fontSize: '15px',
+      // Buttery smooth transition
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      // Dynamic glowing shadow on hover
+      boxShadow: isHomeHovered 
+        ? '0 10px 20px -10px rgba(124, 58, 237, 0.7)' 
+        : '0 4px 6px -1px rgba(124, 58, 237, 0.2)',
+      transform: isHomeHovered ? 'translateY(-3px)' : 'translateY(0)',
     },
     secondaryBtn: {
-      padding: '12px 24px',
-      backgroundColor: isLoginHovered ? '#f3f4f6' : 'transparent',
-      color: '#667eea',
+      padding: '14px 32px',
+      backgroundColor: isLoginHovered ? '#F3F4F6' : 'transparent',
+      color: isLoginHovered ? '#111827' : '#4B5563',
       textDecoration: 'none',
-      borderRadius: '8px',
+      borderRadius: '50px',
       fontWeight: '600',
-      border: '2px solid #667eea',
-      transition: 'all 0.3s ease',
-      transform: isLoginHovered ? 'translateY(-2px)' : 'translateY(0)',
+      fontSize: '15px',
+      border: '2px solid',
+      borderColor: isLoginHovered ? '#F3F4F6' : '#E5E7EB',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      transform: isLoginHovered ? 'translateY(-3px)' : 'translateY(0)',
     }
   };
 
@@ -84,7 +99,7 @@ export default function NotFoundPage() {
         </p>
         <div style={styles.buttonContainer}>
           <Link 
-            to="/" 
+            to="/public-panel/dashboard" 
             style={styles.primaryBtn} 
             onMouseEnter={() => setIsHomeHovered(true)}
             onMouseLeave={() => setIsHomeHovered(false)}

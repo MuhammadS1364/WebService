@@ -132,7 +132,7 @@ export default function StudentAnalytics() {
       <div className=" mx-auto space-y-8">
         
         {/* Header Hero */}
-        <div className="gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row items-center gap-6">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row items-center gap-6">
           <img 
             src={student.Student_Photo_Urls} 
             alt={student.StudentName} 
@@ -147,7 +147,7 @@ export default function StudentAnalytics() {
           </div>
           <div className="bg-white text-indigo-900 rounded-2xl p-6 text-center shadow-lg transform transition hover:scale-105">
             <p className="text-sm font-bold text-gray-500 uppercase">Grand Total Points</p>
-            <p className="text-5xl font-black bg-clip-text text-transparent gradient-to-r from-indigo-600 to-purple-600">
+            <p className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
               {student.Grand_Total_Points}
             </p>
           </div>

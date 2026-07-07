@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
+import SiteFooter from '../../PublicHome/SiteFooter';
 
 export default function OutReachPanel() {
-    const { actOutReach } = useParams<{ actOutReach: string }>(); 
+    const { actOutReach } = useParams<{ actOutReach: string }>();
     const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     const navigate = useNavigate();
-    
+
     const handleLogout = (): void => {
         localStorage.removeItem("token");
         setIsMenuOpen(false);
@@ -14,10 +15,9 @@ export default function OutReachPanel() {
 
     // Explicit structural type signature targeting React Router NavLink callback options
     const navLinkClasses = ({ isActive }: { isActive: boolean }): string =>
-        `block p-3 rounded-lg transition-all duration-200 ${
-            isActive 
-                ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2" 
-                : "text-slate-300 hover:bg-slate-800 hover:text-white"
+        `block p-3 rounded-lg transition-all duration-200 ${isActive
+            ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2"
+            : "text-slate-300 hover:bg-slate-800 hover:text-white"
         }`;
 
     const safeActOutReach = actOutReach ?? "";
@@ -60,13 +60,19 @@ export default function OutReachPanel() {
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         )}
                     </button>
-                </header> 
+                </header>
 
-                {/* Dynamic Route Content */}
-                <main className="flex-1 overflow-y-auto">
-                    <div className="w-full p-3 mx-auto">
+                {/* Main Content Layout Container */}
+                <main className="flex-1 flex flex-col min-h-screen overflow-y-auto">
+
+                    {/* Dynamic Route Content Area - flex-1 pushes footer down */}
+                    <div className="flex-1 p-4 md:p-8 w-full mx-auto max-w-7xl">
                         <Outlet />
                     </div>
+
+                    {/* Site Footer - Natural, clean placement inside the layout scroll flow */}
+                    <SiteFooter />
+
                 </main>
             </div>
 

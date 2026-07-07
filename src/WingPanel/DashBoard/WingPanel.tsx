@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
+import SiteFooter from '../../PublicHome/SiteFooter';
 
 export default function WingPanel() {
     // METHOD FIX: Added strict typing to useParams so TypeScript knows 'actWing' is a string
@@ -54,7 +55,7 @@ export default function WingPanel() {
                         >
                             Create Result
                         </NavLink>
-                        
+
                         <NavLink
                             to={`/wing-panel/${actWing}/create-program`}
                             onClick={() => setIsMenuOpen(false)}
@@ -83,7 +84,7 @@ export default function WingPanel() {
                         >
                             My Results
                         </NavLink>
-                        
+
                         <NavLink
                             to={`/wing-panel/${actWing}/wing-anylatics`}
                             onClick={() => setIsMenuOpen(false)}
@@ -124,11 +125,17 @@ export default function WingPanel() {
                     </button>
                 </header>
 
-               {/* Dynamic Route Content */}
-                <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-                    <div className=" mx-auto">
+                {/* Main Content Layout Container */}
+                <main className="flex-1 flex flex-col min-h-screen overflow-y-auto">
+
+                    {/* Dynamic Route Content Area - flex-1 pushes footer down */}
+                    <div className="flex-1 p-4 md:p-8 w-full mx-auto max-w-7xl">
                         <Outlet />
                     </div>
+
+                    {/* Site Footer - Natural, clean placement inside the layout scroll flow */}
+                    <SiteFooter />
+
                 </main>
             </div>
 

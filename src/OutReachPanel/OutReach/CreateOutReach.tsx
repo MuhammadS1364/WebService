@@ -46,7 +46,7 @@ export default function CreateOutReach() {
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    setStatus((prev) => ({ ...prev, error: "", success: "" })); // Clear alerts on type
+    setStatus((prev) => ({ ...prev, error: "", success: "" })); 
   };
 
   // 1. Auto-Search for Student Name (Triggered on blur)
@@ -66,15 +66,14 @@ export default function CreateOutReach() {
         .eq("AddNo", addNo)
         .single();
 
-      if (error || !data) {
-        throw new Error("Student not found. Please check the Admission Number.");
-      }
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("Student not found. Please check the Admission Number.");
 
       setFormData((prev) => ({ ...prev, studentName: data.StudentName }));
       setStatus((prev) => ({ ...prev, searching: false }));
     } catch (err) {
       setFormData((prev) => ({ ...prev, studentName: "" }));
-      const message = err instanceof Error ? err.message : "Unknown error";
+      const message = err instanceof Error ? err.message : (err as any)?.message || "Unknown error";
       setStatus((prev) => ({ ...prev, searching: false, error: message }));
     }
   };
@@ -91,8 +90,8 @@ export default function CreateOutReach() {
     setStatus((prev) => ({ ...prev, loading: true, error: "", success: "" }));
     const pointsGained = POSITION_POINTS[formData.position] || 0;
     
-    // Fixed: Use ISO string for database timestamp compatibility
-    const currentTimestamp = new Date().toISOString(); 
+    // FIXED: Stripping date elements to construct a valid "HH:MM:SS" syntax for your PostgreSQL "time" column
+    const currentTimestamp = new Date().toISOString().split('T')[1].slice(0, 8); 
 
     try {
       // Step A: Check for existing duplicate
@@ -101,7 +100,7 @@ export default function CreateOutReach() {
         .eq("StnAddNo", formData.stnAddNo)
         .ilike("OutReach_Title", formData.title); 
 
-      if (searchError) throw searchError;
+      if (searchError) throw new Error(searchError.message);
 
       if (existingData && existingData.length > 0) {
         throw new Error(`Duplicate Entry: Student already has an outreach record titled "${formData.title}".`);
@@ -114,12 +113,12 @@ export default function CreateOutReach() {
         OutReach_Title: formData.title,
         OutReach_Type: formData.type,
         Position_Achieved: formData.position,
-        OutReach_Descriptin: formData.description, // Keeping your original spelling
+        OutReach_Descriptin: formData.description, 
         Point_Obtained: pointsGained,
         StnAddNo: formData.stnAddNo,
       });
 
-      if (insertError) throw insertError;
+      if (insertError) throw new Error(insertError.message);
 
       // Step C: Fetch Current StudentBox Stats
       const { data: studentStats, error: statError } = await SupaBaseFunction.from("StudentsBox")
@@ -127,7 +126,7 @@ export default function CreateOutReach() {
         .eq("AddNo", formData.stnAddNo)
         .single();
 
-      if (statError) throw statError;
+      if (statError) throw new Error(statError.message);
 
       // Step D: Update StudentsBox counters
       const { error: updateError } = await SupaBaseFunction.from("StudentsBox")
@@ -138,12 +137,13 @@ export default function CreateOutReach() {
         })
         .eq("AddNo", formData.stnAddNo);
 
-      if (updateError) throw updateError;
+      if (updateError) throw new Error(updateError.message);
 
       // Success Reset
       setStatus({ loading: false, searching: false, error: "", success: "Outreach successfully recorded!" });
       setFormData({
-        ...formData,
+        stnAddNo: "",
+        studentName: "",
         holder: "",
         title: "",
         type: "PPT Presentation",
@@ -152,12 +152,12 @@ export default function CreateOutReach() {
       });
 
     } catch (err) {
-      const message = err instanceof Error ? err.message : "An error occurred while saving.";
+      const message = err instanceof Error ? err.message : (err as any)?.message || "An error occurred while saving.";
       setStatus((prev) => ({ ...prev, loading: false, error: message }));
     }
   };
 
-  // Shared Input Styles for consistent UI
+  // Shared UI Styles
   const inputClassName = "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-200 placeholder:text-slate-400";
   const labelClassName = "block text-sm font-semibold text-slate-700 mb-2";
 
@@ -175,12 +175,12 @@ export default function CreateOutReach() {
 
         {/* Notifications */}
         {status.error && (
-          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-xl shadow-sm animate-fade-in">
+          <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded-r-xl shadow-sm">
             <p className="font-medium">{status.error}</p>
           </div>
         )}
         {status.success && (
-          <div className="mb-6 p-4 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-700 rounded-r-xl shadow-sm animate-fade-in">
+          <div className="mb-6 p-4 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-700 rounded-r-xl shadow-sm">
             <p className="font-medium">{status.success}</p>
           </div>
         )}
@@ -220,7 +220,6 @@ export default function CreateOutReach() {
                           : "bg-slate-100 border-slate-200 text-slate-500"
                     } cursor-not-allowed outline-none transition-colors`}
                   />
-                  {/* Success Indicator Icon */}
                   {formData.studentName && !status.searching && !status.error && (
                     <div className="absolute right-4 top-3.5 text-emerald-500">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -242,7 +241,7 @@ export default function CreateOutReach() {
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="E.g., National Science Seminar 2024"
+                placeholder="E.g., National Science Seminar"
                 className={inputClassName}
                 required
               />

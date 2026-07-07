@@ -113,7 +113,7 @@ export default function StudentsOutReach() {
       <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Header */}
-        <div className="gradient-to-r from-teal-600 via-cyan-600 to-blue-700 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+        <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-700 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
           <div className="relative z-10">
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Global Footprint</h1>
             <p className="text-teal-100 mt-2 text-lg">

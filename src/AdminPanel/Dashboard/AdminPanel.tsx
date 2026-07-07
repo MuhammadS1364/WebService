@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
+import SiteFooter from '../../PublicHome/SiteFooter';
 
 export default function AdminPanel() {
     const { actUser } = useParams();
-    
+
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
 
@@ -37,6 +38,9 @@ export default function AdminPanel() {
                     <NavLink to={`/admin-panel/${actUser}/create-program`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Create Programme
                     </NavLink>
+                    <NavLink to={`/admin-panel/${actUser}/create-highlight`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        Create HighLight
+                    </NavLink>
                     <NavLink to={`/admin-panel/${actUser}/programmes-card`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Programmes Card
                     </NavLink>
@@ -46,7 +50,7 @@ export default function AdminPanel() {
 
                     <div className='flex flex-col space-y-1'>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Students & Users</p>
-                        <NavLink to={`/admin-panel/${actUser}/edit-student`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                        <NavLink to={`/admin-panel/${actUser}/edite-student/:StnAddNo`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Edit Student
                         </NavLink>
                         <NavLink to={`/admin-panel/${actUser}/all-students`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
@@ -57,6 +61,9 @@ export default function AdminPanel() {
                         </NavLink>
                         <NavLink to={`/admin-panel/${actUser}/new-student`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Create Student
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/all-donation`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            All Donation
                         </NavLink>
                     </div>
 
@@ -92,11 +99,17 @@ export default function AdminPanel() {
                     </button>
                 </header>
 
-                {/* Dynamic Route Content */}
-                <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-                    <div className="w-full mx-auto">
+                {/* Main Content Layout Container */}
+                <main className="flex-1 flex flex-col min-h-screen overflow-y-auto">
+
+                    {/* Dynamic Route Content Area - flex-1 pushes footer down */}
+                    <div className="flex-1 p-4 md:p-8 w-full mx-auto max-w-7xl">
                         <Outlet />
                     </div>
+
+                    {/* Site Footer - Natural, clean placement inside the layout scroll flow */}
+                    <SiteFooter />
+
                 </main>
             </div>
 

@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import type { ChangeEvent } from "react";
 // Ensure this path aligns perfectly with your setup
@@ -18,7 +17,7 @@ interface WingData {
 }
 
 export default function AllWingsList() {
-    const navigate = useNavigate();
+    
     
     // 2. State hooks initialized with precise TypeScript generic definitions
     const [wings, setWings] = useState<WingData[]>([]);
@@ -64,9 +63,7 @@ export default function AllWingsList() {
         };
     }, []);
 
-    const BackToDashBoard = (): void => {
-        navigate(-1);
-    };
+
 
     // Strongly typed form input event targets
     const handleSearchChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -99,14 +96,7 @@ export default function AllWingsList() {
             <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Our Wings</h1>
-                    <button 
-                        type="button"
-                        className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-600 ring-1 ring-inset ring-indigo-500/20 hover:bg-indigo-100 transition-colors w-fit flex items-center gap-1.5"
-                        onClick={BackToDashBoard}
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back To Dashboard
-                    </button>
+                    
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

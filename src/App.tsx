@@ -3,7 +3,6 @@ import { Routes, Route } from 'react-router-dom';
 import NotFoundPage from './GetWay/NoFoundPage';
 import ProtectedRoute from './GetWay/ProtectedRoute';
 
-
 import GetWay from './GetWay/GetWay';
 
 // Admin Special components
@@ -42,14 +41,32 @@ import OutReachPanel from './OutReachPanel/DashBoard/OutReachPanel';
 import OutReachDashboard from './OutReachPanel/DashBoard/OutReachDashboard';
 import CreateAchievements from './OutReachPanel/OutReach/CreateAchievements';
 import CreateOutReach from './OutReachPanel/OutReach/CreateOutReach';
+import OutReachAndAchievements from './PublicHome/OutReachAndAchievements/OutReachAndAchievements';
+import PublicHomePanel from './PublicHome/PublicHomePanel';
+import PublicPageDashboard from './PublicHome/PublicDashboard';
+import OurHighLights from './PublicHome/OutReachAndAchievements/OurHighlights';
+import CreateHighLight from './AdminPanel/OurHighLight/CreateHighLight';
+import CreateDonationForUs from './PublicHome/OutReachAndAchievements/CreateDonation';
+import AllDonators from './AdminPanel/Donation/AllDonationList';
 
 export default function App() {
   return (
     <>
       <Routes>
         {/* PUBLIC ROUTES (No Login Required) */}
-        <Route path='/login' index element={<GetWay />} />
-        <Route path='/cand/:P_Code' element={<CandidateRegistration />} />
+        <Route path='/login' element={<GetWay />} />
+
+        {/* FIXED: Removed leading slashes from nested children and cleaned up 'index' attributes */}
+        <Route path='/public-panel' element={<PublicHomePanel />} >
+          <Route index element={<PublicPageDashboard />} /> {/* This renders automatically at /public-panel */}
+          <Route path='dashboard' element={<PublicPageDashboard />} />
+          <Route path='our-hightligths-evens' element={<OurHighLights />} />
+          <Route path='our-wing-list' element={<AllWingsList />} />
+          <Route path='our-programmes' element={<AllProgrammesList />} />
+          <Route path='our-achievements' element={<OutReachAndAchievements />} />
+          <Route path='programmes-calendar' element={<ProgrammesCalendar />} />
+          <Route path='donate-us' element={<CreateDonationForUs />} />
+        </Route>
 
         {/* ADMIN PANEL (Protected) */}
         <Route path='/admin-panel/:actUser' element={
@@ -57,9 +74,9 @@ export default function App() {
             <AdminPanel />
           </ProtectedRoute>
         }>
+          <Route index element={<AdminDashboard />} />
           <Route path='Programmes-List' element={<AllProgrammesList />} />
-          <Route  index element={<AdminDashboard />} />
-          <Route path='dashBoard' index element={<AdminDashboard />} />
+          <Route path='dashBoard' element={<AdminDashboard />} />
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />
           <Route path='programmes-celender' element={<ProgrammesCalendar />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
@@ -70,6 +87,8 @@ export default function App() {
           <Route path='all-users' element={<AllUsersList />} />
           <Route path='all-wings-list' element={<AllWingsList />} />
           <Route path='create-wing' element={<CreateNewWing />} />
+          <Route path='create-highlight' element={<CreateHighLight />} />
+          <Route path='all-donation' element={<AllDonators />} />
         </Route>
 
         {/* STUDENT PANEL (Protected) */}
