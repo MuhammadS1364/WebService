@@ -158,7 +158,7 @@ export default function AllUsersList() {
               <tbody className="divide-y divide-gray-100">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500">No users found.</td>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No users found.</td>
                   </tr>
                 ) : (
                   filteredUsers.map((user) => (
@@ -180,7 +180,7 @@ export default function AllUsersList() {
                       <td className="px-6 py-4 text-center">
                         <button
                           onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
-                          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                         >
                           <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
@@ -204,7 +204,7 @@ export default function AllUsersList() {
                   <div className="flex justify-between items-start">
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-gray-900 break-all">{user.UserEmail}</span>
-                      <span className="font-mono text-xs text-gray-500 mt-1 truncate max-w-[200px]">ID: {user.UserId}</span>
+                      <span className="font-mono text-xs text-gray-500 mt-1 truncate max-w-52">ID: {user.UserId}</span>
                     </div>
                     <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                       {user.UserRole || 'N/A'}
@@ -223,7 +223,7 @@ export default function AllUsersList() {
                       <span className="text-sm text-gray-600 font-medium">Active:</span>
                       <button
                         onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                       >
                         <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>

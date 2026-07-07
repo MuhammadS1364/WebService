@@ -30,7 +30,6 @@ export default function OurStudentsList() {
     try {
       setLoading(true);
 
-      // Fetch everything, including the Photo URLs, directly from Supabase in one go
       const { data: supabaseData, error: dbError } = await SupaBaseFunction
         .from("StudentsBox")
         .select(`
@@ -43,31 +42,27 @@ export default function OurStudentsList() {
       if (dbError) throw dbError;
 
       setStudents(supabaseData || []);
-    } catch (err: any) {
-      alert(`Sync Error: ${err.message}`);
+    } catch (err) {
+      const error = err as Error;
+      alert(`Sync Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper function to format Google Drive links properly for <img> tags
   const getDirectImageUrl = (url: string) => {
     if (!url) return "";
-    // Check if it's a standard Google Drive link
     if (url.includes("drive.google.com/file/d/")) {
       const fileId = url.split("/d/")[1].split("/")[0];
       return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
-    // Check if it's an alternate Google Drive link format
     if (url.includes("drive.google.com/open?id=")) {
       const fileId = url.split("id=")[1];
       return `https://drive.google.com/uc?export=view&id=${fileId}`;
     }
-    // If it's already a direct link or from somewhere else, return as-is
     return url;
   };
 
-  // Trigger the fetch on component mount
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -98,8 +93,9 @@ export default function OurStudentsList() {
       setStudents((prev) => prev.filter((stn) => !selectedStudents.includes(stn.AddNo)));
       setSelectedStudents([]); 
       alert("Deleted successfully.");
-    } catch (err: any) {
-      alert(`Failed: ${err.message}`);
+    } catch (err) {
+      const error = err as Error;
+      alert(`Failed: ${error.message}`);
     } finally {
       setIsBulkLoading(false);
     }
@@ -112,8 +108,9 @@ export default function OurStudentsList() {
       if (error) throw error;
       setStudents((prev) => prev.map((stn) => selectedStudents.includes(stn.AddNo) ? { ...stn, IsActive: isActive } : stn));
       setSelectedStudents([]); 
-    } catch (err: any) {
-      alert(`Update Failed: ${err.message}`);
+    } catch (err) {
+      const error = err as Error;
+      alert(`Update Failed: ${error.message}`);
     } finally {
       setIsBulkLoading(false);
     }
@@ -126,8 +123,9 @@ export default function OurStudentsList() {
       const { error } = await SupaBaseFunction.from("StudentsBox").delete().eq("AddNo", stnAddNo);
       if (error) throw error;
       setStudents((prev) => prev.filter((stn) => stn.AddNo !== stnAddNo));
-    } catch (err: any) {
-      alert(`Error: ${err.message}`);
+    } catch (err) {
+      const error = err as Error;
+      alert(`Error: ${error.message}`);
     } finally {
       setActionLoading(null);
     }
@@ -135,7 +133,7 @@ export default function OurStudentsList() {
 
   if (loading) {
     return (
-      <div className="flex min-h-[300px] items-center justify-center text-sm font-semibold text-[#64748B]">
+      <div className="flex min-h-72 items-center justify-center text-sm font-semibold text-[#64748B]">
         Syncing directory database records...
       </div>
     );
@@ -143,7 +141,6 @@ export default function OurStudentsList() {
 
   return (
     <div className="w-full space-y-6 p-1">
-      {/* Upper Control Bar */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-[#E2E8F0] pb-3 gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-[#0F172A]">Registered Directory</h2>

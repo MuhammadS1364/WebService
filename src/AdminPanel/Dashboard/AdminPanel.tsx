@@ -81,7 +81,7 @@ export default function AdminPanel() {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
                 {/* Mobile Header - Visible only below 1025px */}
-                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm flex-shrink-0 border-b border-slate-200">
+                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm shrink-0 border-b border-slate-200">
                     <span className="font-bold text-slate-800">AdminPro</span>
                     <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 transition-colors">
                         {isMenuOpen ? (

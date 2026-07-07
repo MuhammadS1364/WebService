@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect} from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 
@@ -63,7 +63,7 @@ export default function WingProgrammes() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-800">
       <div className="max-w-6xl mx-auto">
         {/* Fancy Header */}
-        <div className="relative bg-slate-900 rounded-[2rem] p-8 mb-8 text-white overflow-hidden shadow-2xl">
+        <div className="relative bg-slate-900 rounded-2 p-8 mb-8 text-white overflow-hidden shadow-2xl">
           <div className="relative z-10">
             <h1 className="text-3xl font-black italic tracking-tighter uppercase">{wingData?.WingTitle}</h1>
             <p className="text-slate-400 font-medium">Programme & Candidate Management Dashboard</p>
