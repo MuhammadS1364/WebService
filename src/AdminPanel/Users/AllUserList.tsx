@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
+// Ensure this path matches your actual Supabase client export
 import { SupaBaseFunction } from "../../lib/SupaBase";
 
-// 1. Define the User type based on the properties used in your component
+// 1. Define the User type based on your database schema
 export interface User {
-  UserId: string; // Change to 'number' if your IDs are numeric
+  UserId: string | number; // Accepts both UUIDs or numeric IDs
   UserEmail: string;
   UserRole: string;
   IsActive: boolean;
@@ -11,87 +12,103 @@ export interface User {
 }
 
 export default function AllUsersList() {
-  // 2. Explicitly type the state as an array of User objects
+  // 2. Explicitly type the states
   const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Filter States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [roleFilter, setRoleFilter] = useState("All");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [roleFilter, setRoleFilter] = useState<string>("All");
 
-  // 1. Fetch Users from Supabase
+  // 3. Fetch Users from Supabase
   useEffect(() => {
     const fetchUsers = async () => {
       setIsLoading(true);
+      setFetchError(null);
 
-      const { data, error } = await SupaBaseFunction
-        .from('UserTable')
-        .select('*');
+      try {
+        const { data, error } = await SupaBaseFunction
+          .from('UserTable')
+          .select('*');
 
-      if (error) {
-        console.error("Error fetching users from SupaBaseFunction:", error.message);
-      } else {
+        if (error) {
+          throw new Error(error.message);
+        }
+
         setUsers(data || []);
+      } catch (err: any) {
+        console.error("Error fetching users from SupaBaseFunction:", err.message);
+        setFetchError("Failed to load users. Please refresh the page to try again.");
+      } finally {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     };
 
     fetchUsers();
   }, []);
 
-  // 2. Toggle Active Status in SupaBaseFunction
+  // 4. Toggle Active Status Optimistically
   const handleToggleActive = async (email: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
 
-    // Optimistic UI update using functional state to prevent stale closures
-    setUsers((prevUsers) => prevUsers.map(user =>
-      user.UserEmail === email ? { ...user, IsActive: newStatus } : user
-    ));
+    // Optimistic UI update
+    setUsers((prevUsers) => 
+      prevUsers.map(user =>
+        user.UserEmail === email ? { ...user, IsActive: newStatus } : user
+      )
+    );
 
-    const { error } = await SupaBaseFunction
-      .from('UserTable')
-      .update({ IsActive: newStatus })
-      .eq('UserEmail', email);
+    try {
+      const { error } = await SupaBaseFunction
+        .from('UserTable')
+        .update({ IsActive: newStatus })
+        .eq('UserEmail', email);
 
-    if (error) {
-      console.error("Failed to update user status in Supabase:", error.message);
+      if (error) throw new Error(error.message);
+    } catch (err: any) {
+      console.error("Failed to update user status in Supabase:", err.message);
       // Revert the UI update if the database call fails
-      setUsers((prevUsers) => prevUsers.map(user =>
-        user.UserEmail === email ? { ...user, IsActive: currentStatus } : user
-      ));
-      alert("Failed to update user status. Please try again.");
+      setUsers((prevUsers) => 
+        prevUsers.map(user =>
+          user.UserEmail === email ? { ...user, IsActive: currentStatus } : user
+        )
+      );
+      alert("Failed to update user status. Please check your connection and try again.");
     }
   };
 
-  // 3. Dynamically extract unique roles for the dropdown
+  // 5. Dynamically extract unique roles with strict type narrowing
   const uniqueRoles = useMemo(() => {
-    const roles = users.map(user => user.UserRole).filter(Boolean); // Filter out any undefined/null roles
-    return [...new Set(roles)]; // Removes duplicates
+    const roles = users
+      .map(user => user.UserRole)
+      .filter((role): role is string => Boolean(role)); // Strictly narrows type to string[]
+    
+    return [...new Set(roles)];
   }, [users]);
 
-  // 4. Combined Filter and Search Logic
-  const filteredUsers = users.filter((user) => {
-    const safeEmail = user.UserEmail || "";
-    // Note: Converted to string in case UserId is a number in your database
-    const safeId = user.UserId ? String(user.UserId) : "";
-    
-    // Search check (Safe against null values)
-    const matchesSearch = safeEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      safeId.toLowerCase().includes(searchQuery.toLowerCase());
+  // 6. Combined Filter and Search Logic
+  const filteredUsers = useMemo(() => {
+    return users.filter((user) => {
+      const safeEmail = user.UserEmail?.toLowerCase() || "";
+      const safeId = user.UserId ? String(user.UserId).toLowerCase() : "";
+      const query = searchQuery.toLowerCase().trim();
+      
+      // Search check
+      const matchesSearch = safeEmail.includes(query) || safeId.includes(query);
 
-    // Status check
-    const matchesStatus = statusFilter === "All" ||
-      (statusFilter === "Active" && user.IsActive) ||
-      (statusFilter === "Inactive" && !user.IsActive);
+      // Status check
+      const matchesStatus = statusFilter === "All" ||
+        (statusFilter === "Active" && user.IsActive) ||
+        (statusFilter === "Inactive" && !user.IsActive);
 
-    // Role check
-    const matchesRole = roleFilter === "All" || user.UserRole === roleFilter;
+      // Role check
+      const matchesRole = roleFilter === "All" || user.UserRole === roleFilter;
 
-    // Must match all active filters
-    return matchesSearch && matchesStatus && matchesRole;
-  });
+      return matchesSearch && matchesStatus && matchesRole;
+    });
+  }, [users, searchQuery, statusFilter, roleFilter]);
 
   return (
     <div className="mx-auto max-w-[1600px] p-4 font-sans text-gray-800">
@@ -109,10 +126,10 @@ export default function AllUsersList() {
               placeholder="Search by email or ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:w-64"
+              className="w-full rounded-xl border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:w-64 transition-shadow"
             />
             <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
 
@@ -120,7 +137,7 @@ export default function AllUsersList() {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="rounded-xl border border-gray-300 py-2 px-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="rounded-xl border border-gray-300 py-2 px-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer"
           >
             <option value="All">All Roles</option>
             {uniqueRoles.map((role) => (
@@ -132,7 +149,7 @@ export default function AllUsersList() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border border-gray-300 py-2 px-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="rounded-xl border border-gray-300 py-2 px-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 cursor-pointer"
           >
             <option value="All">All Statuses</option>
             <option value="Active">Active Only</option>
@@ -141,7 +158,7 @@ export default function AllUsersList() {
         </div>
       </div>
 
-      {/* Loading State Spinner/Message */}
+      {/* Main Content Area */}
       {isLoading ? (
         <div className="flex justify-center items-center py-20 text-gray-500">
           <svg className="animate-spin -ml-1 mr-3 h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -149,6 +166,10 @@ export default function AllUsersList() {
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
           Loading users...
+        </div>
+      ) : fetchError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-8 text-center text-red-600 shadow-sm">
+          {fetchError}
         </div>
       ) : (
         <>
@@ -167,13 +188,19 @@ export default function AllUsersList() {
               <tbody className="divide-y divide-gray-100">
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No users found.</td>
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                      No users match your filters.
+                    </td>
                   </tr>
                 ) : (
                   filteredUsers.map((user) => (
-                    <tr key={user.UserEmail || user.UserId} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-xs text-gray-500 truncate ">{user.UserId}</td>
-                      <td className="px-6 py-4 font-medium text-gray-900">{user.UserEmail}</td>
+                    <tr key={user.UserId} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 font-mono text-xs text-gray-500 truncate max-w-38" title={String(user.UserId)}>
+                        {user.UserId}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-gray-900 truncate max-w-50" title={user.UserEmail}>
+                        {user.UserEmail}
+                      </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                           {user.UserRole || 'N/A'}
@@ -181,13 +208,21 @@ export default function AllUsersList() {
                       </td>
                       <td className="px-6 py-4">
                         {user.IsAuthenticated ? (
-                          <span className="text-green-600 font-medium">Verified</span>
+                          <span className="inline-flex items-center text-green-600 font-medium">
+                            <svg className="mr-1.5 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            Verified
+                          </span>
                         ) : (
                           <span className="text-gray-400">Unverified</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button
+                          role="switch"
+                          aria-checked={user.IsActive}
+                          aria-label={`Toggle active status for ${user.UserEmail}`}
                           onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
                           className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                         >
@@ -205,15 +240,15 @@ export default function AllUsersList() {
           <div className="flex flex-col gap-4 md:hidden">
             {filteredUsers.length === 0 ? (
               <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500 shadow-sm">
-                No users found.
+                No users match your filters.
               </div>
             ) : (
               filteredUsers.map((user) => (
-                <div key={user.UserEmail || user.UserId} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div key={user.UserId} className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                   <div className="flex justify-between items-start">
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-gray-900 break-all">{user.UserEmail}</span>
-                      <span className="font-mono text-xs text-gray-500 mt-1 truncate max-w-52">ID: {user.UserId}</span>
+                      <span className="font-mono text-xs text-gray-500 mt-1 truncate max-w-50">ID: {user.UserId}</span>
                     </div>
                     <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                       {user.UserRole || 'N/A'}
@@ -228,11 +263,14 @@ export default function AllUsersList() {
                         <span className="text-gray-400">Unverified</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <span className="text-sm text-gray-600 font-medium">Active:</span>
                       <button
+                        role="switch"
+                        aria-checked={user.IsActive}
+                        aria-label={`Toggle active status for ${user.UserEmail}`}
                         onClick={() => handleToggleActive(user.UserEmail, user.IsActive)}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${user.IsActive ? 'bg-green-500' : 'bg-gray-200'}`}
                       >
                         <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${user.IsActive ? 'translate-x-5' : 'translate-x-0'}`} />
                       </button>

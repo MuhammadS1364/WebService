@@ -90,6 +90,7 @@ export default function EditStudentRecord() {
     fetchStudentRecord();
   }, [StnAddNo]);
 
+  // Explicitly typing Change and File upload triggers
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -101,7 +102,6 @@ export default function EditStudentRecord() {
     }
   };
 
-  // Helper handler to securely trigger file click event safely
   const triggerImportClick = () => {
     const element = document.getElementById("fileUpload");
     if (element) {
@@ -145,12 +145,12 @@ export default function EditStudentRecord() {
         }
       }
 
-      let { data: existingUser, error: checkError } = await SupaBaseFunction.from("UserTable")
+      const { data: existingUser, error: checkError } = await SupaBaseFunction.from("UserTable")
         .select("UserEmail")
         .eq("UserEmail", formData.StudentEmail)
-        .single();
+        .maybeSingle(); // Switched to maybeSingle to avoid throw breaks
 
-      if (checkError && checkError.code !== "PGRST116") {
+      if (checkError) {
         throw new Error(`Error checking user account: ${checkError.message}`);
       }
 
@@ -225,12 +225,12 @@ export default function EditStudentRecord() {
       try {
         if (!event.target?.result) throw new Error("Could not read file data.");
         
+        // Explicitly typed configuration array blocks to handle reader buffers
         const data = new Uint8Array(event.target.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        // Added clean interface mapping right here to satisfy TS runtime parsing checks
         const importedData = XLSX.utils.sheet_to_json<ExcelStudentRow>(worksheet);
         if (importedData.length === 0) throw new Error("The file is empty.");
 
@@ -375,7 +375,7 @@ export default function EditStudentRecord() {
             />
           </div>
 
-          {"StudentName StudentEmail Class FatherName CollegeName".split(" ").map((field) => (
+          {(["StudentName", "StudentEmail", "Class", "FatherName", "CollegeName"] as const).map((field) => (
             <div key={field}>
               <label className="block text-sm font-semibold text-slate-700 mb-1">
                 {field === "StudentName" ? "Student Name *" : field === "StudentEmail" ? "Student Email *" : field === "Class" ? "Class *" : field === "FatherName" ? "Father's Name" : "College/School Name"}
@@ -384,7 +384,7 @@ export default function EditStudentRecord() {
                 type={field === "StudentEmail" ? "email" : "text"}
                 name={field}
                 required={["StudentName", "StudentEmail", "Class"].includes(field)}
-                value={(formData as any)[field]}
+                value={formData[field]}
                 onChange={handleChange}
                 className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                 placeholder={field === "StudentEmail" ? "john@example.com" : field === "StudentName" ? "e.g. John Doe" : ""}
