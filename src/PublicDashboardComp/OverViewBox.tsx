@@ -1,21 +1,29 @@
+import type { ReactNode } from "react";
+
+// Explicit structural definitions for the component props
+interface OverviewClipBoxProps {
+  BoxTitle: string;
+  BoxValue: string | number;
+  BoxSvgLogo: ReactNode;
+  variant?: "emerald" | "blue" | "amber" | "rose";
+}
 
 export default function OverviewClipBox({ 
   BoxTitle, 
   BoxValue, 
   BoxSvgLogo, 
   variant = "emerald" 
-}) {
+}: OverviewClipBoxProps) {
   
-  // Dynamic color configuration mapper
-  // Note: Boosted dark mode opacities slightly for better contrast against slate-900
-  const colorThemes = {
+  // Dynamic color configuration mapper explicitly typed to match variant keys
+  const colorThemes: Record<NonNullable<OverviewClipBoxProps["variant"]>, string> = {
     emerald: "from-emerald-100/60 to-emerald-50/40 text-emerald-600 dark:from-emerald-900/40 dark:to-emerald-900/20 dark:text-emerald-400",
     blue: "from-blue-100/60 to-blue-50/40 text-blue-600 dark:from-blue-900/40 dark:to-blue-900/20 dark:text-blue-400",
     amber: "from-amber-100/60 to-amber-50/40 text-amber-600 dark:from-amber-900/40 dark:to-amber-900/20 dark:text-amber-400",
     rose: "from-rose-100/60 to-rose-50/40 text-rose-600 dark:from-rose-900/40 dark:to-rose-900/20 dark:text-rose-400",
   };
 
-  // Fallback to emerald if an invalid variant is passed
+  // Safe runtime evaluation with exact type safety
   const activeTheme = colorThemes[variant] || colorThemes.emerald;
 
   return (

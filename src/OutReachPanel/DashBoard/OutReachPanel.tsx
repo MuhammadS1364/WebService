@@ -1,23 +1,26 @@
 import { useState } from 'react';
-import { NavLink, useNavigate, useLocation, Outlet, useParams } from 'react-router-dom';
+import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
 
 export default function OutReachPanel() {
-    const {actOutReach} = useParams(); 
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const { actOutReach } = useParams<{ actOutReach: string }>(); 
+    const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
     const navigate = useNavigate();
     
-    const handleLogout = () => {
+    const handleLogout = (): void => {
         localStorage.removeItem("token");
         setIsMenuOpen(false);
         navigate("/login");
     };
 
-    const navLinkClasses = ({ isActive }) =>
+    // Explicit structural type signature targeting React Router NavLink callback options
+    const navLinkClasses = ({ isActive }: { isActive: boolean }): string =>
         `block p-3 rounded-lg transition-all duration-200 ${
             isActive 
                 ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2" 
                 : "text-slate-300 hover:bg-slate-800 hover:text-white"
         }`;
+
+    const safeActOutReach = actOutReach ?? "";
 
     return (
         <div className="flex h-screen w-screen overflow-hidden bg-slate-50">
@@ -27,18 +30,18 @@ export default function OutReachPanel() {
                     OutReach<span className="text-blue-500">DashBoard</span>
                 </div>
                 <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100%-80px)]">
-                    <NavLink to={`/outreach-panel/${actOutReach}/dashboard`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/outreach-panel/${safeActOutReach}/dashboard`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Programmes List
                     </NavLink>
-                    <NavLink to={`/outreach-panel/${actOutReach}/create-outreach`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/outreach-panel/${safeActOutReach}/create-outreach`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Create OutReach
                     </NavLink>
-                    <NavLink to={`/outreach-panel/${actOutReach}/create-achievements`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                    <NavLink to={`/outreach-panel/${safeActOutReach}/create-achievements`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Create Achievement
                     </NavLink>
 
                     <div className="pt-4 border-t border-slate-800 mt-4">
-                        <button onClick={handleLogout} className="w-full text-left block p-3 rounded-lg hover:bg-red-500/10 transition text-red-400 hover:text-red-300 font-medium">
+                        <button type="button" onClick={handleLogout} className="w-full text-left block p-3 rounded-lg hover:bg-red-500/10 transition text-red-400 hover:text-red-300 font-medium">
                             Logout
                         </button>
                     </div>
@@ -48,9 +51,9 @@ export default function OutReachPanel() {
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
                 {/* Mobile Header - Visible only below 1025px */}
-                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm flex-shrink-0 border-b border-slate-200">
+                <header className="min-[1025px]:hidden flex items-center justify-between p-4 bg-white shadow-sm shrink-0 border-b border-slate-200">
                     <span className="font-bold text-slate-800">OutReach Block</span>
-                    <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 transition-colors">
+                    <button type="button" onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 bg-slate-100 text-slate-600 rounded-md hover:bg-slate-200 transition-colors">
                         {isMenuOpen ? (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         ) : (

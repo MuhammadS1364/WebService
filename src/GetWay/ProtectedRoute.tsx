@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
-import { ReactNode } from 'react';
+// METHOD FIX: Added 'type' keyword to comply with verbatimModuleSyntax
+import type { ReactNode } from 'react';
 
 // Define the type for the props
 interface ProtectedRouteProps {
@@ -7,8 +8,8 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  // Replace this with your actual authentication logic. 
-  const isAuthenticated = localStorage.getItem("userToken"); 
+  // Safely check for authentication token and cast it to a boolean
+  const isAuthenticated = Boolean(localStorage.getItem("userToken")); 
 
   if (!isAuthenticated) {
     // Redirect them to the login page, and replace the current history state
