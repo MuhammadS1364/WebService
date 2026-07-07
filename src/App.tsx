@@ -55,6 +55,7 @@ export default function App() {
       <Routes>
         {/* PUBLIC ROUTES (No Login Required) */}
         <Route path='/login' index element={<GetWay />} />
+        <Route path='/cal' index element={<ProgrammesCalendar />} />
 
         {/* FIXED: Removed leading slashes from nested children and cleaned up 'index' attributes */}
         <Route path='/public-panel' element={<PublicHomePanel />} >
@@ -78,7 +79,7 @@ export default function App() {
           <Route path='Programmes-List' element={<AllProgrammesList />} />
           <Route path='dashBoard' element={<AdminDashboard />} />
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />
-          <Route path='programmes-celender' element={<ProgrammesCalendar />} />
+          <Route path='programmes-calendar' element={<ProgrammesCalendar />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
           <Route path='candidate-registration/:P_Code' element={<CandidateRegistration />} />
           <Route path='edite-student/:StnAddNo' element={<EditeStudentRecord />} />

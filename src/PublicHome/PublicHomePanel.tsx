@@ -30,6 +30,9 @@ export default function PublicHomePanel() {
                     <NavLink to={`/public-panel/donate-us`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
                         Donate Us
                     </NavLink>
+                    <NavLink to={`/public-panel/programmes-calendar`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
+                        Program Celender
+                    </NavLink>
                     <NavLink to={`/public-panel/our-hightligths-evens`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Highlights
                     </NavLink>
