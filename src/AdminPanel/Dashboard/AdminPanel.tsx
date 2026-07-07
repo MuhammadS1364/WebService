@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
 
 export default function AdminPanel() {
-    // Added a quick type for the URL parameter as a best practice
-    const { actUser } = useParams<{ actUser: string }>(); 
+    const { actUser } = useParams();
     
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
@@ -14,7 +13,7 @@ export default function AdminPanel() {
         navigate("/login");
     };
 
-    // Added the { isActive: boolean } type definition here
+    // Added type definition { isActive: boolean } to fix the TS7031 error
     const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
         `block p-3 rounded-lg transition-all duration-200 ${isActive
             ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2"
