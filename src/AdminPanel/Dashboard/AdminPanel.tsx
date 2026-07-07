@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { NavLink, useNavigate, Outlet, useParams } from 'react-router-dom';
 
 export default function AdminPanel() {
-    const { actUser } = useParams();
-
+    // Added a quick type for the URL parameter as a best practice
+    const { actUser } = useParams<{ actUser: string }>(); 
+    
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
 
@@ -13,7 +14,8 @@ export default function AdminPanel() {
         navigate("/login");
     };
 
-    const navLinkClasses = ({ isActive }) =>
+    // Added the { isActive: boolean } type definition here
+    const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
         `block p-3 rounded-lg transition-all duration-200 ${isActive
             ? "bg-slate-700 text-white font-medium shadow-sm border-l-4 border-blue-500 pl-2"
             : "text-slate-300 hover:bg-slate-800 hover:text-white"
