@@ -54,7 +54,7 @@ export default function App() {
     <>
       <Routes>
         {/* PUBLIC ROUTES (No Login Required) */}
-        <Route path='/login' element={<GetWay />} />
+        <Route path='/login' index element={<GetWay />} />
 
         {/* FIXED: Removed leading slashes from nested children and cleaned up 'index' attributes */}
         <Route path='/public-panel' element={<PublicHomePanel />} >
