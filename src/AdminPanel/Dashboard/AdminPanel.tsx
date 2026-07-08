@@ -77,6 +77,19 @@ export default function AdminPanel() {
                         </NavLink>
                     </div>
 
+                    <div className='flex flex-col space-y-1'>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Treasurer</p>
+                        <NavLink to={`/admin-panel/${actUser}/create-treasurer`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Create Treasurer
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/all-treasurer-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Treasurer List
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/economy-analytics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Treasurer List
+                        </NavLink>
+                    </div>
+
                     <div className="pt-4 border-t border-slate-800 mt-4">
                         <button onClick={handleLogout} className="w-full text-left block p-3 rounded-lg hover:bg-red-500/10 transition text-red-400 hover:text-red-300 font-medium">
                             Logout

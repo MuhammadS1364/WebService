@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/public-panel/dashboard",
+      "permanent": false
+    }
+  ]
+}

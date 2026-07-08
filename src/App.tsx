@@ -48,14 +48,21 @@ import OurHighLights from './PublicHome/OutReachAndAchievements/OurHighlights';
 import CreateHighLight from './AdminPanel/OurHighLight/CreateHighLight';
 import CreateDonationForUs from './PublicHome/OutReachAndAchievements/CreateDonation';
 import AllDonators from './AdminPanel/Donation/AllDonationList';
+import AllTreasurerList from './AdminPanel/Treasurer/AllTreasurerList';
+import CreateTreasurer from './AdminPanel/Treasurer/CreateTreasurer';
+import TreasurerPanel from './Treasurer/Dashboard/TreasurerPanel';
+import TreasurerDashboard from './Treasurer/Dashboard/TreasurerDashboard';
+import CreateExpanceOrIncome from './Treasurer/Expances/CreateExpance';
+import TreasureAnalatics from './Treasurer/Expances/TreasurerAnalytics';
+import ExpancesDetail from './AdminPanel/Treasurer/ExpanceDetail';
 
 export default function App() {
   return (
     <>
       <Routes>
         {/* PUBLIC ROUTES (No Login Required) */}
-        <Route path='/login' index element={<GetWay />} />
-        <Route path='/cal' index element={<ProgrammesCalendar />} />
+        <Route path='/login' element={<GetWay />} />
+        {/* <Route path='/cal' index element={<ProgrammesCalendar />} /> */}
 
         {/* FIXED: Removed leading slashes from nested children and cleaned up 'index' attributes */}
         <Route path='/public-panel' element={<PublicHomePanel />} >
@@ -90,6 +97,9 @@ export default function App() {
           <Route path='create-wing' element={<CreateNewWing />} />
           <Route path='create-highlight' element={<CreateHighLight />} />
           <Route path='all-donation' element={<AllDonators />} />
+          <Route path='create-treasurer' element={<CreateTreasurer />} />
+          <Route path='all-treasurer-list' element={<AllTreasurerList />} />
+          <Route path='economy-analytics' element={<ExpancesDetail />} />
         </Route>
 
         {/* STUDENT PANEL (Protected) */}
@@ -133,6 +143,18 @@ export default function App() {
           <Route path='dashboard' element={<OutReachDashboard />} />
           <Route path='create-achievements' element={<CreateAchievements />} />
           <Route path='create-outreach' element={<CreateOutReach />} />
+        </Route>
+
+        {/* Treasurer PANEL (Protected) */}
+        <Route path='/treasurer-panel/:actTreasurer' element={
+          <ProtectedRoute>
+            <TreasurerPanel />
+          </ProtectedRoute>
+        }>
+          <Route index element={<TreasurerDashboard />} />
+          <Route path='dashboard' element={<TreasurerDashboard />} />
+          <Route path='create-expance' element={<CreateExpanceOrIncome />} />
+          <Route path='treasurer-analytics' element={<TreasureAnalatics />} />
         </Route>
 
         {/* 404 ERROR PAGE (Catches all unknown URLs) */}

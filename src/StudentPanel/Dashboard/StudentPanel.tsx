@@ -89,7 +89,7 @@ export default function StudentPanel() {
                             onClick={() => setIsMenuOpen(false)}
                             className={navLinkClasses}
                         >
-                            Anylatics
+                            Analytics
                         </NavLink>
                     </div>
 
