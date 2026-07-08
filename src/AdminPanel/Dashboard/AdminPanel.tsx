@@ -50,9 +50,6 @@ export default function AdminPanel() {
 
                     <div className='flex flex-col space-y-1'>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Students & Users</p>
-                        <NavLink to={`/admin-panel/${actUser}/edite-student/:StnAddNo`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                            Edit Student
-                        </NavLink>
                         <NavLink to={`/admin-panel/${actUser}/all-students`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             All Students
                         </NavLink>

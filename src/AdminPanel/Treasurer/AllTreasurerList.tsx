@@ -127,7 +127,7 @@ export default function AllTreasurerList() {
       if (insertPayloads.length > 0) {
         setIsLoading(true);
         try {
-          const { error: insertError } = await supabase
+          const { error: insertError } = await SupaBaseFunction
             .from("TreasurerVolt")
             .insert(insertPayloads);
 

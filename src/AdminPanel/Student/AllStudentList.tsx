@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 interface StudentRecord {
+  
   AddNo: string;
   StudentName: string;
   StudentEmail: string;
@@ -17,6 +18,8 @@ interface StudentRecord {
 }
 
 export default function OurStudentsList() {
+  const {actUser} = useParams();
+
   const navigate = useNavigate();
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -263,7 +266,7 @@ export default function OurStudentsList() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate(`/admin-panel/${student.AddNo}/edite-record`)}
+                    onClick={() => navigate(`/admin-panel/${actUser}/edite-student/${student.AddNo}`)}
                     className="flex-1 rounded-lg bg-[#047857] py-2 text-center text-xs font-bold text-white shadow-sm hover:bg-[#065f46] transition-colors"
                   >
                     Update Profile
