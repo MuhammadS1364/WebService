@@ -5,5 +5,11 @@
       "destination": "/public-panel/dashboard",
       "permanent": false
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
