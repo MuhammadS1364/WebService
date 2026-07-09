@@ -26,7 +26,7 @@ export default function AdminPanel() {
             {/* Sidebar - Automatically stays fixed/hidden below 1025px, turns structural at 1025px+ */}
             <aside className={`h-full fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out min-[1025px]:relative min-[1025px]:translate-x-0 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-6 text-2xl font-bold border-b border-slate-800 tracking-tight">
-                    Admin<span className="text-blue-500">Dashboard</span>
+                    Admin<span className="text-blue-500"> Dashboard</span>
                 </div>
                 <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100%-80px)]">
                     <NavLink to={`/admin-panel/${actUser}/dashboard`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
@@ -118,7 +118,10 @@ export default function AdminPanel() {
                     </div>
 
                     {/* Site Footer - Natural, clean placement inside the layout scroll flow */}
-                    <SiteFooter />
+                    <div className="flex-1 p-4 md:p-8 w-full mx-auto max-w-7xl">
+
+                        <SiteFooter />
+                    </div>
 
                 </main>
             </div>

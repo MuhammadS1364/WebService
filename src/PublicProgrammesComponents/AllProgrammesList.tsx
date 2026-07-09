@@ -1,466 +1,680 @@
-import React, { useState, useEffect, useRef } from "react";
+// import React, { useState, useEffect, useRef } from "react";
+// import { SupaBaseFunction } from "../lib/SupaBase";
+
+// // Define the shape of your program records
+// interface Programme {
+//     Program_Code: string;
+//     Program_Title: string;
+//     WingCode?: string;
+//     WingTitle?: string;
+//     WingEmail?: string;
+//     Date?: string;
+//     Venue?: string;
+//     Category?: string;
+//     Group?: string;
+//     IsApproved?: boolean;
+// }
+
+// // Define the shape of your wing records for the lookup
+// interface WingData {
+//     WingCode: string;
+//     WingTitle: string;
+//     WingEmail: string;
+//     Total_Registrations?: number;
+// }
+
+// export default function AllProgrammesList() {
+//     const [viewMode, setViewMode] = useState<string>("list");
+//     const [searchQuery, setSearchQuery] = useState<string>("");
+    
+//     // Calendar Navigation States (Defaults to July 2026)
+//     const [currentYear, setCurrentYear] = useState<number>(2026);
+//     const [currentMonth, setCurrentMonth] = useState<number>(6); // 0-indexed: 6 = July
+//     const [selectedDate, setSelectedDate] = useState<string>("2026-07-05");
+
+//     // Data States
+//     const [programmes, setProgrammes] = useState<Programme[]>([]);
+//     const [isLoading, setIsLoading] = useState<boolean>(true);
+//     const [isMobile, setIsMobile] = useState<boolean>(false);
+//     const [isImporting, setIsImporting] = useState<boolean>(false);
+
+//     const fileInputRef = useRef<HTMLInputElement>(null);
+//     const [filters, setFilters] = useState({ wing: "All", category: "All", group: "All" });
+
+//     // Handle Mobile Responsiveness Layout
+//     useEffect(() => {
+//         const handleResize = () => setIsMobile(window.innerWidth < 650);
+//         handleResize();
+//         window.addEventListener("resize", handleResize);
+//         return () => window.removeEventListener("resize", handleResize);
+//     }, []);
+
+//     // --- FETCH PROGRAMMES DATA ---
+//     const fetchProgrammes = async () => {
+//         setIsLoading(true);
+//         try {
+//             let query = SupaBaseFunction.from("ProgrammesBox").select("*");
+
+//             // CRITICAL: If viewMode is calendar, restrict to selected date. Otherwise, fetch all records.
+//             if (viewMode === "calendar") {
+//                 query = query.eq("Date", selectedDate);
+//             }
+
+//             const { data: programmesData, error: progError } = await query;
+//             if (progError) throw progError;
+            
+//             if (!programmesData || programmesData.length === 0) {
+//                 setProgrammes([]);
+//                 return;
+//             }
+
+//             // Fetch structural details matching WingCode keys
+//             const wingCodes = [...new Set(programmesData.map((p: any) => p.WingCode).filter(Boolean))];
+//             let wingsData: WingData[] = [];
+            
+//             if (wingCodes.length > 0) {
+//                 const { data: wData, error: wingError } = await SupaBaseFunction
+//                     .from("Chs-WingS")
+//                     .select("WingCode, WingTitle, WingEmail")
+//                     .in("WingCode", wingCodes);
+
+//                 if (wingError) throw wingError;
+//                 wingsData = wData || [];
+//             }
+
+//             const mergedData: Programme[] = programmesData.map((prog: any) => {
+//                 const matchedWing = wingsData.find(w => w.WingCode === prog.WingCode);
+//                 return {
+//                     ...prog,
+//                     WingTitle: matchedWing ? matchedWing.WingTitle : null,
+//                     WingEmail: matchedWing ? matchedWing.WingEmail : null
+//                 };
+//             });
+
+//             setProgrammes(mergedData);
+//         } catch (err) {
+//             console.error("Error fetching data hooks:", err);
+//             setProgrammes([]);
+//         } finally {
+//             setIsLoading(false);
+//         }
+//     };
+
+//     // Re-trigger global query state logic upon view changes or date modifications
+//     useEffect(() => {
+//         fetchProgrammes();
+//     // eslint-disable-next-line react-hooks/exhaustive-deps
+//     }, [viewMode, selectedDate]);
+
+//     // Unique dynamic filter dropdown arrays extracted directly from compiled data
+//     const uniqueWings = ["All", ...new Set(programmes.map(p => p.WingTitle || p.WingCode).filter(Boolean))];
+//     const uniqueCategories = ["All", ...new Set(programmes.map(p => p.Category).filter(Boolean))];
+
+//     // --- CALENDAR NAVIGATION MATH HANDLERS ---
+//     const handlePrevMonth = () => {
+//         if (currentMonth === 0) {
+//             setCurrentMonth(11);
+//             setCurrentYear(prev => prev - 1);
+//         } else {
+//             setCurrentMonth(prev => prev - 1);
+//         }
+//     };
+
+//     const handleNextMonth = () => {
+//         if (currentMonth === 11) {
+//             setCurrentMonth(0);
+//             setCurrentYear(prev => prev + 1);
+//         } else {
+//             setCurrentMonth(prev => prev + 1);
+//         }
+//     };
+
+//     const monthNames = [
+//         "January", "February", "March", "April", "May", "June",
+//         "July", "August", "September", "October", "November", "December"
+//     ];
+
+//     // Generate accurate calendar grid array mappings
+//     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+//     const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+
+//     // --- APPROVE PROGRAMME ---
+//     const handleApprove = async (code: string) => {
+//         try {
+//             const { error } = await SupaBaseFunction
+//                 .from('ProgrammesBox')
+//                 .update({ IsApproved: true })
+//                 .eq('Program_Code', code);
+
+//             if (error) throw error;
+//             setProgrammes(prev => prev.map(p => p.Program_Code === code ? { ...p, IsApproved: true } : p));
+//         } catch (error) {
+//             const err = error as Error;
+//             console.error("Error setting approval state:", err.message);
+//         }
+//     };
+
+//     // --- EXPORT CSV ---
+//     const handleExport = () => {
+//         if (programmes.length === 0) return alert("No operational configurations to parse.");
+//         const headers = "Program_Code,Program_Title,WingCode,Date,Venue,Category,Group,IsApproved\n";
+//         const csvRows = programmes.map(p => `"${p.Program_Code}","${p.Program_Title}","${p.WingCode}","${p.Date}","${p.Venue}","${p.Category}","${p.Group}","${p.IsApproved}"`);
+//         const blob = new Blob([headers + csvRows.join("\n")], { type: 'text/csv' });
+//         const url = window.URL.createObjectURL(blob);
+//         const a = document.createElement('a');
+//         a.href = url;
+//         a.download = 'Programmes_System_Dump.csv';
+//         a.click();
+//     };
+
+//     // --- CSV PARSER & INCREMENT ENGINE ---
+//     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+//         const file = e.target.files?.[0];
+//         if (!file) return;
+
+//         setIsImporting(true);
+//         const reader = new FileReader();
+        
+//         reader.onload = async (event: ProgressEvent<FileReader>) => {
+//             const text = event.target?.result as string;
+//             if (!text) {
+//                 setIsImporting(false);
+//                 return;
+//             }
+
+//             const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+//             if (lines.length <= 1) {
+//                 setIsImporting(false);
+//                 return;
+//             }
+
+//             const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+//             const itemsToInsert: any[] = [];
+//             const wingRegistrationIncrements: Record<string, number> = {};
+
+//             for (let i = 1; i < lines.length; i++) {
+//                 const currentLine = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+//                 const rowData: Record<string, string> = {};
+                
+//                 headers.forEach((header, index) => {
+//                     let val = currentLine[index] ? currentLine[index].replace(/^"|"$/g, '').trim() : "";
+//                     rowData[header] = val;
+//                 });
+
+//                 if (rowData.Program_Code && rowData.Program_Title) {
+//                     itemsToInsert.push({
+//                         Program_Code: rowData.Program_Code,
+//                         Program_Title: rowData.Program_Title,
+//                         WingCode: rowData.WingCode || "",
+//                         Date: rowData.Date || new Date().toISOString().split('T')[0],
+//                         Venue: rowData.Venue || "",
+//                         Category: rowData.Category || "",
+//                         Group: rowData.Group || "",
+//                         IsApproved: rowData.IsApproved === "true" || false
+//                     });
+
+//                     if (rowData.WingCode) {
+//                         wingRegistrationIncrements[rowData.WingCode] = (wingRegistrationIncrements[rowData.WingCode] || 0) + 1;
+//                     }
+//                 }
+//             }
+
+//             try {
+//                 const { error: insertError } = await SupaBaseFunction.from("ProgrammesBox").insert(itemsToInsert);
+//                 if (insertError) throw insertError;
+
+//                 for (const wingCode of Object.keys(wingRegistrationIncrements)) {
+//                     const { data: wingRecords, error: fetchWingError } = await SupaBaseFunction
+//                         .from("Chs-WingS")
+//                         .select("WingCode, Total_Registrations")
+//                         .eq("WingCode", wingCode);
+
+//                     if (!fetchWingError && wingRecords && wingRecords.length > 0) {
+//                         const targetWing = wingRecords[0];
+//                         const incrementValue = wingRegistrationIncrements[wingCode];
+                        
+//                         await SupaBaseFunction
+//                             .from("Chs-WingS")
+//                             .update({ Total_Registrations: (targetWing.Total_Registrations || 0) + incrementValue })
+//                             .eq("WingCode", wingCode);
+//                     }
+//                 }
+
+//                 alert(`Successfully loaded ${itemsToInsert.length} components.`);
+//                 fetchProgrammes();
+//             } catch (err) {
+//                 console.error("Bulk process failure:", err);
+//             } finally {
+//                 setIsImporting(false);
+//                 if (fileInputRef.current) fileInputRef.current.value = "";
+//             }
+//         };
+//         reader.readAsText(file);
+//     };
+
+//     // --- FILTER & SEARCH IMPLEMENTATION ---
+//     const filteredProgrammes = programmes.filter(p => {
+//         const currentWing = p.WingTitle || p.WingCode || "";
+//         const matchesSearch = (p.Program_Title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+//             (p.Program_Code?.toLowerCase() || "").includes(searchQuery.toLowerCase());
+//         const matchesWing = filters.wing === "All" || currentWing === filters.wing;
+//         const matchesCategory = filters.category === "All" || p.Category === filters.category;
+
+//         return matchesSearch && matchesWing && matchesCategory;
+//     });
+
+//     return (
+//         <div className="mx-auto p-4 sm:p-6 lg:p-8 bg-slate-50 min-h-screen text-slate-800 font-sans">
+            
+//             {/* TOP ACTIONS CONTROL BANNER */}
+//             <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 pb-5 border-b border-slate-200">
+//                 <div>
+//                     <h1 className="text-3xl font-bold tracking-tight text-emerald-900">Programmes Repository</h1>
+//                     <p className="text-slate-500 text-sm mt-1">Viewing structural table metrics and automated allocation trackers</p>
+//                 </div>
+
+//                 <div className="flex flex-wrap items-center gap-3">
+//                     <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+                    
+//                     <button disabled={isImporting} onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg shadow-sm transition">
+//                         {isImporting ? "Processing..." : "↑ Import CSV"}
+//                     </button>
+//                     <button onClick={handleExport} className="px-3 py-2 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg shadow-sm transition">
+//                         ↓ Export Content
+//                     </button>
+
+//                     <div className="inline-flex bg-slate-200/70 p-1 rounded-lg">
+//                         <button className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${viewMode === 'list' ? 'bg-white text-emerald-950 shadow-sm' : 'text-slate-600'}`} onClick={() => setViewMode('list')}>☷ Full List</button>
+//                         <button className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${viewMode === 'calendar' ? 'bg-white text-emerald-950 shadow-sm' : 'text-slate-600'}`} onClick={() => setViewMode('calendar')}>📅 Calendar Grid</button>
+//                     </div>
+//                 </div>
+//             </header>
+
+//             {/* LIST FILTER BAR */}
+//             <div className="p-4 mb-4 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
+//                 <input 
+//                     type="text" 
+//                     placeholder="Search database schedules..." 
+//                     value={searchQuery} 
+//                     onChange={(e) => setSearchQuery(e.target.value)} 
+//                     className="w-full sm:max-w-xs px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+//                 />
+//                 <div className="flex w-full sm:w-auto gap-2 justify-end">
+//                     <select onChange={(e) => setFilters({ ...filters, wing: e.target.value })} className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-medium text-slate-600">
+//                         {uniqueWings.map((w: any) => <option key={w} value={w}>{w === "All" ? "All Wings" : w}</option>)}
+//                     </select>
+//                     <select onChange={(e) => setFilters({ ...filters, category: e.target.value })} className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-medium text-slate-600">
+//                         {uniqueCategories.map((c: any) => <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>)}
+//                     </select>
+//                 </div>
+//             </div>
+
+//             {/* DYNAMIC VIEW CONTAINER RENDERING ENGINE */}
+//             {viewMode === 'list' ? (
+//                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+//                     {!isMobile ? (
+//                         <table className="w-full text-left border-collapse">
+//                             <thead>
+//                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 tracking-wider uppercase">
+//                                     <th className="p-4">Program Code</th>
+//                                     <th className="p-4">Title</th>
+//                                     <th className="p-4">Assigned Wing</th>
+//                                     <th className="p-4">Venue Space</th>
+//                                     <th className="p-4">Scheduled Date</th>
+//                                     <th className="p-4">Status</th>
+//                                     <th className="p-4 text-right">Actions</th>
+//                                 </tr>
+//                             </thead>
+//                             <tbody className="divide-y divide-slate-100 text-sm">
+//                                 {isLoading ? (
+//                                     <tr><td colSpan={7} className="p-8 text-center text-slate-400">Syncing database registers...</td></tr>
+//                                 ) : filteredProgrammes.length > 0 ? (
+//                                     filteredProgrammes.map(prog => (
+//                                         <tr key={prog.Program_Code} className="hover:bg-slate-50/50 transition">
+//                                             <td className="p-4 font-mono font-bold text-slate-900">{prog.Program_Code}</td>
+//                                             <td className="p-4 font-medium text-slate-800">{prog.Program_Title}</td>
+//                                             <td className="p-4 text-slate-600">{prog.WingTitle || prog.WingCode || 'Unassigned'}</td>
+//                                             <td className="p-4 text-slate-700">{prog.Venue}</td>
+//                                             <td className="p-4 font-medium text-slate-600">{prog.Date}</td>
+//                                             <td className="p-4">
+//                                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${prog.IsApproved ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+//                                                     {prog.IsApproved ? 'Approved' : 'Pending'}
+//                                                 </span>
+//                                             </td>
+//                                             <td className="p-4 text-right">
+//                                                 {!prog.IsApproved && (
+//                                                     <button onClick={() => handleApprove(prog.Program_Code)} className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow-sm transition">
+//                                                         Approve
+//                                                     </button>
+//                                                 )}
+//                                             </td>
+//                                         </tr>
+//                                     ))
+//                                 ) : (
+//                                     <tr><td colSpan={7} className="p-12 text-center text-slate-400">No active parameters match your filters.</td></tr>
+//                                 )}
+//                             </tbody>
+//                         </table>
+//                     ) : (
+//                         /* MOBILE LAYOUT STRUCTURAL WRAPPER */
+//                         <div className="p-4 grid grid-cols-1 gap-4 bg-slate-50">
+//                             {filteredProgrammes.map(prog => (
+//                                 <div key={prog.Program_Code} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col gap-2">
+//                                     <div className="flex justify-between items-center">
+//                                         <span className="text-xs font-mono font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-700">{prog.Program_Code}</span>
+//                                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${prog.IsApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>{prog.IsApproved ? 'Approved' : 'Pending'}</span>
+//                                     </div>
+//                                     <h3 className="font-bold text-slate-900 mt-1">{prog.Program_Title}</h3>
+//                                     <div className="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-100">
+//                                         <p>📍 Venue: {prog.Venue}</p>
+//                                         <p>📆 Date: {prog.Date}</p>
+//                                         <p>🛡️ Wing: {prog.WingTitle || prog.WingCode}</p>
+//                                     </div>
+//                                     {!prog.IsApproved && (
+//                                         <button onClick={() => handleApprove(prog.Program_Code)} className="w-full mt-2 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded shadow">Approve Session</button>
+//                                     )}
+//                                 </div>
+//                             ))}
+//                         </div>
+//                     )}
+//                 </div>
+//             ) : (
+//                 /* CALENDAR GRID VIEW ENGINE INTERFACE */
+//                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+//                     <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+//                         <div className="flex items-center justify-between mb-6">
+//                             <h2 className="text-xl font-bold text-slate-900">{monthNames[currentMonth]} {currentYear}</h2>
+//                             <div className="flex items-center gap-1.5">
+//                                 <button onClick={handlePrevMonth} className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-bold transition">{"<"}</button>
+//                                 <button onClick={() => { const d=new Date(); setCurrentYear(d.getFullYear()); setCurrentMonth(d.getMonth()); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition">Current</button>
+//                                 <button onClick={handleNextMonth} className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-bold transition">{">"}</button>
+//                             </div>
+//                         </div>
+
+//                         <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+//                             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="py-1">{day}</div>)}
+//                         </div>
+                        
+//                         <div className="grid grid-cols-7 gap-2">
+//                             {/* Empty offset padding spaces */}
+//                             {[...Array(firstDayIndex)].map((_, i) => <div key={`empty-${i}`} className="aspect-square bg-slate-50/40 rounded-xl border border-dashed border-slate-100"></div>)}
+                            
+//                             {/* Core Calendar Loop rendering counter logic blocks */}
+//                             {[...Array(daysInMonth)].map((_, i) => {
+//                                 const dayNum = i + 1;
+//                                 const padMonth = (currentMonth + 1).toString().padStart(2, '0');
+//                                 const padDay = dayNum.toString().padStart(2, '0');
+//                                 const iterDateStr = `${currentYear}-${padMonth}-${padDay}`;
+                                
+//                                 const isSelected = selectedDate === iterDateStr;
+                                
+//                                 // Compute dynamic values directly out of database items
+//                                 const matchCount = programmes.filter(p => p.Date === iterDateStr).length;
+//                                 const hasPrograms = matchCount > 0;
+
+//                                 return (
+//                                     <button 
+//                                         key={dayNum} 
+//                                         onClick={() => setSelectedDate(iterDateStr)}
+//                                         className={`aspect-square relative flex flex-col justify-between p-2 rounded-xl transition border text-left ${isSelected ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-600/10' : 'bg-slate-50/70 hover:bg-slate-100 border-slate-100 text-slate-800'}`}
+//                                     >
+//                                         <div className="flex w-full justify-between items-start">
+//                                             <span className="text-sm font-bold">{dayNum}</span>
+//                                             {/* Dynamic Indicator Dot */}
+//                                             {hasPrograms && (
+//                                                 <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white animate-pulse' : 'bg-emerald-500'}`}></span>
+//                                             )}
+//                                         </div>
+//                                         {/* Dynamic Count Metric */}
+//                                         <span className={`text-[10px] font-medium tracking-tight block ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+//                                             {hasPrograms ? `${matchCount} Prog${matchCount > 1 ? 's' : ''}` : '\u00A0'}
+//                                         </span>
+//                                     </button>
+//                                 );
+//                             })}
+//                         </div>
+//                     </div>
+
+//                     {/* SIDE PANEL SCHEDULE MONITOR DISPLAY */}
+//                     <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
+//                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">🗓️ Target View Date: <span className="text-slate-800 font-mono font-bold block text-sm mt-0.5">{selectedDate}</span></h3>
+//                         <div className="flex-1 space-y-3 overflow-y-auto max-h-[440px] pr-1">
+//                             {filteredProgrammes.length > 0 ? (
+//                                 filteredProgrammes.map(prog => (
+//                                     <div key={prog.Program_Code} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2">
+//                                         <div>
+//                                             <h4 className="font-bold text-slate-900 text-sm leading-tight">{prog.Program_Title}</h4>
+//                                             <p className="text-xs text-slate-400 font-mono mt-1">{prog.Program_Code} • {prog.WingTitle || prog.WingCode || 'No Wing Assigned'}</p>
+//                                         </div>
+//                                         <div className="flex items-center justify-between mt-1 pt-2 border-t border-slate-200/60">
+//                                             <span className="text-xs text-slate-600 font-medium">📍 {prog.Venue}</span>
+//                                             {!prog.IsApproved && (
+//                                                 <button onClick={() => handleApprove(prog.Program_Code)} className="px-2 py-1 text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition">Approve</button>
+//                                             )}
+//                                         </div>
+//                                     </div>
+//                                 ))
+//                             ) : (
+//                                 <div className="text-center py-12 text-slate-400 text-sm">No localized program logs are tied to this calendar date coordinates.</div>
+//                             )}
+//                         </div>
+//                     </div>
+//                 </div>
+//             )}
+//         </div>
+//     );
+// }
+
+
+import { useState, useEffect, useMemo } from "react";
 import { SupaBaseFunction } from "../lib/SupaBase";
 
-// Define the shape of your program records
-interface Programme {
-    Program_Code: string;
-    Program_Title: string;
-    WingCode?: string;
-    WingTitle?: string;
-    WingEmail?: string;
-    Date?: string;
-    Venue?: string;
-    Category?: string;
-    Group?: string;
-    IsApproved?: boolean;
+export interface Programme {
+  Program_Title: string | null;
+  Program_Code: string;
+  WingCode: string | null;
+  Date: string | null;
+  Venue: string | null;
+  Group: string | null;
+  IsApproved: boolean;
+  IsOpenRegistration: boolean;
+  Program_Poster: string | null;
+  AccademicYear: string | null;
 }
 
-// Define the shape of your wing records for the lookup
-interface WingData {
-    WingCode: string;
-    WingTitle: string;
-    WingEmail: string;
-    Total_Registrations?: number;
+export interface Wing {
+  WingCode: string;
+  WingTitle: string | null;
 }
 
-export default function AllProgrammesList() {
-    const [viewMode, setViewMode] = useState<string>("list");
-    const [searchQuery, setSearchQuery] = useState<string>("");
-    
-    // Calendar Navigation States (Defaults to July 2026)
-    const [currentYear, setCurrentYear] = useState<number>(2026);
-    const [currentMonth, setCurrentMonth] = useState<number>(6); // 0-indexed: 6 = July
-    const [selectedDate, setSelectedDate] = useState<string>("2026-07-05");
+type ViewMode = "cards" | "calendar";
 
-    // Data States
-    const [programmes, setProgrammes] = useState<Programme[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [isMobile, setIsMobile] = useState<boolean>(false);
-    const [isImporting, setIsImporting] = useState<boolean>(false);
+const DEFAULT_POSTER = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80";
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const [filters, setFilters] = useState({ wing: "All", category: "All", group: "All" });
+export default function PublicProgrammesList() {
+  const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [wings, setWings] = useState<Wing[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("cards");
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [isLoading, setIsLoading] = useState(true);
 
-    // Handle Mobile Responsiveness Layout
-    useEffect(() => {
-        const handleResize = () => setIsMobile(window.innerWidth < 650);
-        handleResize();
-        window.addEventListener("resize", handleResize);
-        return () => window.removeEventListener("resize", handleResize);
-    }, []);
+  const [filters, setFilters] = useState({
+    AccademicYear: "", Group: "", Venue: "", WingCode: "",
+  });
 
-    // --- FETCH PROGRAMMES DATA ---
-    const fetchProgrammes = async () => {
-        setIsLoading(true);
-        try {
-            let query = SupaBaseFunction.from("ProgrammesBox").select("*");
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-            // CRITICAL: If viewMode is calendar, restrict to selected date. Otherwise, fetch all records.
-            if (viewMode === "calendar") {
-                query = query.eq("Date", selectedDate);
-            }
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      // For the public side, only fetch Approved programmes
+      const { data: progData } = await SupaBaseFunction.from("ProgrammesBox").select("*").eq('IsApproved', true).order("Date", { ascending: false });
+      const { data: wingData } = await SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle");
 
-            const { data: programmesData, error: progError } = await query;
-            if (progError) throw progError;
-            
-            if (!programmesData || programmesData.length === 0) {
-                setProgrammes([]);
-                return;
-            }
+      if (progData) setProgrammes(progData as Programme[]);
+      if (wingData) setWings(wingData as Wing[]);
+    } catch (error) {
+      console.error("Failed to load public data", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-            // Fetch structural details matching WingCode keys
-            const wingCodes = [...new Set(programmesData.map((p: any) => p.WingCode).filter(Boolean))];
-            let wingsData: WingData[] = [];
-            
-            if (wingCodes.length > 0) {
-                const { data: wData, error: wingError } = await SupaBaseFunction
-                    .from("Chs-WingS")
-                    .select("WingCode, WingTitle, WingEmail")
-                    .in("WingCode", wingCodes);
+  const getWingName = (wingCode: string | null): string => {
+    const wing = wings.find((w) => w.WingCode === wingCode);
+    return wing?.WingTitle || wingCode || "Unknown Wing";
+  };
 
-                if (wingError) throw wingError;
-                wingsData = wData || [];
-            }
-
-            const mergedData: Programme[] = programmesData.map((prog: any) => {
-                const matchedWing = wingsData.find(w => w.WingCode === prog.WingCode);
-                return {
-                    ...prog,
-                    WingTitle: matchedWing ? matchedWing.WingTitle : null,
-                    WingEmail: matchedWing ? matchedWing.WingEmail : null
-                };
-            });
-
-            setProgrammes(mergedData);
-        } catch (err) {
-            console.error("Error fetching data hooks:", err);
-            setProgrammes([]);
-        } finally {
-            setIsLoading(false);
-        }
+  const uniqueValues = useMemo(() => {
+    return {
+      AccademicYear: Array.from(new Set(programmes.map((p) => p.AccademicYear).filter(Boolean))) as string[],
+      Group: Array.from(new Set(programmes.map((p) => p.Group).filter(Boolean))) as string[],
+      Venue: Array.from(new Set(programmes.map((p) => p.Venue).filter(Boolean))) as string[],
+      WingCode: Array.from(new Set(programmes.map((p) => p.WingCode).filter(Boolean))) as string[],
     };
+  }, [programmes]);
 
-    // Re-trigger global query state logic upon view changes or date modifications
-    useEffect(() => {
-        fetchProgrammes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [viewMode, selectedDate]);
-
-    // Unique dynamic filter dropdown arrays extracted directly from compiled data
-    const uniqueWings = ["All", ...new Set(programmes.map(p => p.WingTitle || p.WingCode).filter(Boolean))];
-    const uniqueCategories = ["All", ...new Set(programmes.map(p => p.Category).filter(Boolean))];
-
-    // --- CALENDAR NAVIGATION MATH HANDLERS ---
-    const handlePrevMonth = () => {
-        if (currentMonth === 0) {
-            setCurrentMonth(11);
-            setCurrentYear(prev => prev - 1);
-        } else {
-            setCurrentMonth(prev => prev - 1);
-        }
-    };
-
-    const handleNextMonth = () => {
-        if (currentMonth === 11) {
-            setCurrentMonth(0);
-            setCurrentYear(prev => prev + 1);
-        } else {
-            setCurrentMonth(prev => prev + 1);
-        }
-    };
-
-    const monthNames = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    ];
-
-    // Generate accurate calendar grid array mappings
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
-
-    // --- APPROVE PROGRAMME ---
-    const handleApprove = async (code: string) => {
-        try {
-            const { error } = await SupaBaseFunction
-                .from('ProgrammesBox')
-                .update({ IsApproved: true })
-                .eq('Program_Code', code);
-
-            if (error) throw error;
-            setProgrammes(prev => prev.map(p => p.Program_Code === code ? { ...p, IsApproved: true } : p));
-        } catch (error) {
-            const err = error as Error;
-            console.error("Error setting approval state:", err.message);
-        }
-    };
-
-    // --- EXPORT CSV ---
-    const handleExport = () => {
-        if (programmes.length === 0) return alert("No operational configurations to parse.");
-        const headers = "Program_Code,Program_Title,WingCode,Date,Venue,Category,Group,IsApproved\n";
-        const csvRows = programmes.map(p => `"${p.Program_Code}","${p.Program_Title}","${p.WingCode}","${p.Date}","${p.Venue}","${p.Category}","${p.Group}","${p.IsApproved}"`);
-        const blob = new Blob([headers + csvRows.join("\n")], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'Programmes_System_Dump.csv';
-        a.click();
-    };
-
-    // --- CSV PARSER & INCREMENT ENGINE ---
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setIsImporting(true);
-        const reader = new FileReader();
-        
-        reader.onload = async (event: ProgressEvent<FileReader>) => {
-            const text = event.target?.result as string;
-            if (!text) {
-                setIsImporting(false);
-                return;
-            }
-
-            const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
-            if (lines.length <= 1) {
-                setIsImporting(false);
-                return;
-            }
-
-            const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
-            const itemsToInsert: any[] = [];
-            const wingRegistrationIncrements: Record<string, number> = {};
-
-            for (let i = 1; i < lines.length; i++) {
-                const currentLine = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-                const rowData: Record<string, string> = {};
-                
-                headers.forEach((header, index) => {
-                    let val = currentLine[index] ? currentLine[index].replace(/^"|"$/g, '').trim() : "";
-                    rowData[header] = val;
-                });
-
-                if (rowData.Program_Code && rowData.Program_Title) {
-                    itemsToInsert.push({
-                        Program_Code: rowData.Program_Code,
-                        Program_Title: rowData.Program_Title,
-                        WingCode: rowData.WingCode || "",
-                        Date: rowData.Date || new Date().toISOString().split('T')[0],
-                        Venue: rowData.Venue || "",
-                        Category: rowData.Category || "",
-                        Group: rowData.Group || "",
-                        IsApproved: rowData.IsApproved === "true" || false
-                    });
-
-                    if (rowData.WingCode) {
-                        wingRegistrationIncrements[rowData.WingCode] = (wingRegistrationIncrements[rowData.WingCode] || 0) + 1;
-                    }
-                }
-            }
-
-            try {
-                const { error: insertError } = await SupaBaseFunction.from("ProgrammesBox").insert(itemsToInsert);
-                if (insertError) throw insertError;
-
-                for (const wingCode of Object.keys(wingRegistrationIncrements)) {
-                    const { data: wingRecords, error: fetchWingError } = await SupaBaseFunction
-                        .from("Chs-WingS")
-                        .select("WingCode, Total_Registrations")
-                        .eq("WingCode", wingCode);
-
-                    if (!fetchWingError && wingRecords && wingRecords.length > 0) {
-                        const targetWing = wingRecords[0];
-                        const incrementValue = wingRegistrationIncrements[wingCode];
-                        
-                        await SupaBaseFunction
-                            .from("Chs-WingS")
-                            .update({ Total_Registrations: (targetWing.Total_Registrations || 0) + incrementValue })
-                            .eq("WingCode", wingCode);
-                    }
-                }
-
-                alert(`Successfully loaded ${itemsToInsert.length} components.`);
-                fetchProgrammes();
-            } catch (err) {
-                console.error("Bulk process failure:", err);
-            } finally {
-                setIsImporting(false);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-            }
-        };
-        reader.readAsText(file);
-    };
-
-    // --- FILTER & SEARCH IMPLEMENTATION ---
-    const filteredProgrammes = programmes.filter(p => {
-        const currentWing = p.WingTitle || p.WingCode || "";
-        const matchesSearch = (p.Program_Title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
-            (p.Program_Code?.toLowerCase() || "").includes(searchQuery.toLowerCase());
-        const matchesWing = filters.wing === "All" || currentWing === filters.wing;
-        const matchesCategory = filters.category === "All" || p.Category === filters.category;
-
-        return matchesSearch && matchesWing && matchesCategory;
+  const filteredProgrammes = useMemo(() => {
+    return programmes.filter((p) => {
+      return (
+        (!filters.AccademicYear || p.AccademicYear === filters.AccademicYear) &&
+        (!filters.Group || p.Group === filters.Group) &&
+        (!filters.Venue || p.Venue === filters.Venue) &&
+        (!filters.WingCode || p.WingCode === filters.WingCode)
+      );
     });
+  }, [programmes, filters]);
 
-    return (
-        <div className="mx-auto p-4 sm:p-6 lg:p-8 bg-slate-50 min-h-screen text-slate-800 font-sans">
-            
-            {/* TOP ACTIONS CONTROL BANNER */}
-            <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8 pb-5 border-b border-slate-200">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-emerald-900">Programmes Repository</h1>
-                    <p className="text-slate-500 text-sm mt-1">Viewing structural table metrics and automated allocation trackers</p>
+  const programsForSelectedDate = filteredProgrammes.filter((p) => p.Date === selectedDate);
+  const today = new Date();
+  const calendarDays = Array.from({ length: new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate() }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), i + 1);
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().split("T")[0];
+  });
+
+  return (
+    <div className="min-h-screen bg-[#f8fcf9] text-gray-800 p-4 md:p-8 font-sans">
+      
+      {/* HEADER & CONTROLS */}
+      <div className="max-w-7xl mx-auto mb-6 bg-white p-6 rounded-2xl shadow-sm border border-emerald-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Discover Events</h1>
+          <p className="text-sm text-gray-500 mt-1">Explore upcoming association activities and programmes.</p>
+        </div>
+        
+        <div className="bg-emerald-50/50 p-1 rounded-xl flex items-center border border-emerald-100/50">
+          <button onClick={() => setViewMode("cards")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'cards' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-emerald-600'}`}>Cards</button>
+          <button onClick={() => setViewMode("calendar")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-emerald-600'}`}>Calendar</button>
+        </div>
+      </div>
+
+      {/* PUBLIC FILTERS */}
+      <div className="max-w-7xl mx-auto mb-8 flex flex-wrap gap-3 items-center">
+        {(['AccademicYear', 'Group', 'Venue', 'WingCode'] as const).map((filterKey) => (
+          <select 
+            key={filterKey}
+            className="text-sm font-medium text-gray-700 border border-emerald-200/60 rounded-xl bg-white py-2 px-4 shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none hover:bg-emerald-50/30 cursor-pointer"
+            value={filters[filterKey]}
+            onChange={(e) => setFilters({...filters, [filterKey]: e.target.value})}
+          >
+            <option value="">All {filterKey.replace('Code', '')}s</option>
+            {uniqueValues[filterKey].map(val => (
+              <option key={val} value={val}>{filterKey === 'WingCode' ? getWingName(val) : val}</option>
+            ))}
+          </select>
+        ))}
+      </div>
+
+      {/* MAIN CONTENT AREA */}
+      <div className="max-w-7xl mx-auto">
+        {isLoading ? (
+          <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div></div>
+        ) : viewMode === "cards" ? (
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredProgrammes.map((prog) => (
+              <div key={prog.Program_Code} className="relative flex flex-col bg-white rounded-2xl overflow-hidden border border-emerald-100 shadow-sm hover:shadow-md transition-all">
+                <div className="h-48 w-full bg-emerald-50 relative">
+                  <img src={prog.Program_Poster || DEFAULT_POSTER} className="w-full h-full object-cover" alt="Poster" />
+                  <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+                    {/* <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase shadow-sm ${prog.IsOpenRegistration ? 'bg-white/90 text-emerald-800' : 'bg-red-500/90 text-white'}`}>
+                      {prog.IsOpenRegistration ? 'Reg Open' : 'Closed'}
+                    </span> */}
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <input type="file" accept=".csv" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-                    
-                    <button disabled={isImporting} onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg shadow-sm transition">
-                        {isImporting ? "Processing..." : "↑ Import CSV"}
-                    </button>
-                    <button onClick={handleExport} className="px-3 py-2 text-sm font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg shadow-sm transition">
-                        ↓ Export Content
-                    </button>
+                <div className="p-5 flex flex-col flex-grow">
+                  <h3 className="font-bold text-gray-900 text-lg leading-tight line-clamp-2">{prog.Program_Title}</h3>
+                  <div className="mt-auto space-y-2 text-sm pt-4">
+                    <div className="text-gray-700 font-semibold truncate">{getWingName(prog.WingCode)}</div>
+                    <div className="text-gray-500 font-medium">{prog.Date || "TBA"} • {prog.Venue || "TBA"}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {filteredProgrammes.length === 0 && (
+              <div className="col-span-full py-16 text-center bg-white rounded-2xl border border-emerald-100"><p className="text-gray-400 font-semibold text-lg">No events match your criteria.</p></div>
+            )}
+          </div>
 
-                    <div className="inline-flex bg-slate-200/70 p-1 rounded-lg">
-                        <button className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${viewMode === 'list' ? 'bg-white text-emerald-950 shadow-sm' : 'text-slate-600'}`} onClick={() => setViewMode('list')}>☷ Full List</button>
-                        <button className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${viewMode === 'calendar' ? 'bg-white text-emerald-950 shadow-sm' : 'text-slate-600'}`} onClick={() => setViewMode('calendar')}>📅 Calendar Grid</button>
+        ) : (
+          
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+            <div className="w-full lg:w-2/3 bg-white rounded-3xl shadow-sm border border-emerald-100 p-8">
+              <h2 className="text-2xl font-black text-gray-900 mb-8">{today.toLocaleString('default', { month: 'long', year: 'numeric' })}</h2>
+              <div className="grid grid-cols-7 gap-3 lg:gap-4">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-xs font-black uppercase tracking-widest text-emerald-400 pb-2">{day}</div>
+                ))}
+                
+                {calendarDays.map((dateString) => {
+                  const dayPrograms = filteredProgrammes.filter(p => p.Date === dateString);
+                  const isSelected = selectedDate === dateString;
+                  const hasEvents = dayPrograms.length > 0;
+                  
+                  return (
+                    <div key={dateString} onClick={() => setSelectedDate(dateString)} className={`min-h-25 p-3 rounded-2xl border-2 transition-all flex flex-col cursor-pointer ${isSelected ? 'border-emerald-500 bg-emerald-50/50' : hasEvents ? 'border-emerald-100 bg-white hover:border-emerald-300' : 'border-transparent bg-gray-50/50 hover:bg-gray-100'}`}>
+                      <span className={`text-sm font-black ${isSelected ? 'text-emerald-700' : hasEvents ? 'text-gray-900' : 'text-gray-400'}`}>{new Date(dateString).getDate()}</span>
+                      {hasEvents && (
+                        <div className="mt-auto flex flex-col gap-1">
+                          <span className="inline-flex w-full justify-center px-2 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-bold truncate">
+                            {dayPrograms.length} Event{dayPrograms.length > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                </div>
-            </header>
-
-            {/* LIST FILTER BAR */}
-            <div className="p-4 mb-4 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm">
-                <input 
-                    type="text" 
-                    placeholder="Search database schedules..." 
-                    value={searchQuery} 
-                    onChange={(e) => setSearchQuery(e.target.value)} 
-                    className="w-full sm:max-w-xs px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
-                />
-                <div className="flex w-full sm:w-auto gap-2 justify-end">
-                    <select onChange={(e) => setFilters({ ...filters, wing: e.target.value })} className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-medium text-slate-600">
-                        {uniqueWings.map((w: any) => <option key={w} value={w}>{w === "All" ? "All Wings" : w}</option>)}
-                    </select>
-                    <select onChange={(e) => setFilters({ ...filters, category: e.target.value })} className="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-xs font-medium text-slate-600">
-                        {uniqueCategories.map((c: any) => <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>)}
-                    </select>
-                </div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* DYNAMIC VIEW CONTAINER RENDERING ENGINE */}
-            {viewMode === 'list' ? (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    {!isMobile ? (
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 tracking-wider uppercase">
-                                    <th className="p-4">Program Code</th>
-                                    <th className="p-4">Title</th>
-                                    <th className="p-4">Assigned Wing</th>
-                                    <th className="p-4">Venue Space</th>
-                                    <th className="p-4">Scheduled Date</th>
-                                    <th className="p-4">Status</th>
-                                    <th className="p-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 text-sm">
-                                {isLoading ? (
-                                    <tr><td colSpan={7} className="p-8 text-center text-slate-400">Syncing database registers...</td></tr>
-                                ) : filteredProgrammes.length > 0 ? (
-                                    filteredProgrammes.map(prog => (
-                                        <tr key={prog.Program_Code} className="hover:bg-slate-50/50 transition">
-                                            <td className="p-4 font-mono font-bold text-slate-900">{prog.Program_Code}</td>
-                                            <td className="p-4 font-medium text-slate-800">{prog.Program_Title}</td>
-                                            <td className="p-4 text-slate-600">{prog.WingTitle || prog.WingCode || 'Unassigned'}</td>
-                                            <td className="p-4 text-slate-700">{prog.Venue}</td>
-                                            <td className="p-4 font-medium text-slate-600">{prog.Date}</td>
-                                            <td className="p-4">
-                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${prog.IsApproved ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                                                    {prog.IsApproved ? 'Approved' : 'Pending'}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-right">
-                                                {!prog.IsApproved && (
-                                                    <button onClick={() => handleApprove(prog.Program_Code)} className="px-3 py-1 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded shadow-sm transition">
-                                                        Approve
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr><td colSpan={7} className="p-12 text-center text-slate-400">No active parameters match your filters.</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    ) : (
-                        /* MOBILE LAYOUT STRUCTURAL WRAPPER */
-                        <div className="p-4 grid grid-cols-1 gap-4 bg-slate-50">
-                            {filteredProgrammes.map(prog => (
-                                <div key={prog.Program_Code} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col gap-2">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-xs font-mono font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-700">{prog.Program_Code}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${prog.IsApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>{prog.IsApproved ? 'Approved' : 'Pending'}</span>
-                                    </div>
-                                    <h3 className="font-bold text-slate-900 mt-1">{prog.Program_Title}</h3>
-                                    <div className="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-100">
-                                        <p>📍 Venue: {prog.Venue}</p>
-                                        <p>📆 Date: {prog.Date}</p>
-                                        <p>🛡️ Wing: {prog.WingTitle || prog.WingCode}</p>
-                                    </div>
-                                    {!prog.IsApproved && (
-                                        <button onClick={() => handleApprove(prog.Program_Code)} className="w-full mt-2 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded shadow">Approve Session</button>
-                                    )}
-                                </div>
-                            ))}
+            <div className="w-full lg:w-1/3 bg-white rounded-3xl shadow-sm border border-emerald-100 p-8 min-h-125">
+              <h3 className="text-xl font-black text-gray-900 pb-4 border-b-2 border-emerald-50 mb-6">{new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
+              <div className="space-y-4">
+                {programsForSelectedDate.length > 0 ? (
+                  programsForSelectedDate.map((prog) => (
+                    <div key={prog.Program_Code} className="p-5 rounded-2xl border-2 border-emerald-50 bg-white hover:border-emerald-200 transition-all flex flex-col gap-3">
+                      <div className="h-24 w-full bg-gray-100 rounded-lg overflow-hidden"><img src={prog.Program_Poster || DEFAULT_POSTER} className="w-full h-full object-cover" alt="Poster"/></div>
+                      <div>
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-bold text-gray-900">{prog.Program_Title}</h4>
+                          <span className={`px-2 py-1 rounded text-[10px] font-black uppercase ${prog.IsOpenRegistration ? 'bg-emerald-100 text-emerald-800' : 'bg-red-50 text-red-700'}`}>{prog.IsOpenRegistration ? 'Open' : 'Closed'}</span>
                         </div>
-                    )}
-                </div>
-            ) : (
-                /* CALENDAR GRID VIEW ENGINE INTERFACE */
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-slate-900">{monthNames[currentMonth]} {currentYear}</h2>
-                            <div className="flex items-center gap-1.5">
-                                <button onClick={handlePrevMonth} className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-bold transition">{"<"}</button>
-                                <button onClick={() => { const d=new Date(); setCurrentYear(d.getFullYear()); setCurrentMonth(d.getMonth()); setSelectedDate(d.toISOString().split('T')[0]); }} className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 transition">Current</button>
-                                <button onClick={handleNextMonth} className="px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-bold transition">{">"}</button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="py-1">{day}</div>)}
-                        </div>
-                        
-                        <div className="grid grid-cols-7 gap-2">
-                            {/* Empty offset padding spaces */}
-                            {[...Array(firstDayIndex)].map((_, i) => <div key={`empty-${i}`} className="aspect-square bg-slate-50/40 rounded-xl border border-dashed border-slate-100"></div>)}
-                            
-                            {/* Core Calendar Loop rendering counter logic blocks */}
-                            {[...Array(daysInMonth)].map((_, i) => {
-                                const dayNum = i + 1;
-                                const padMonth = (currentMonth + 1).toString().padStart(2, '0');
-                                const padDay = dayNum.toString().padStart(2, '0');
-                                const iterDateStr = `${currentYear}-${padMonth}-${padDay}`;
-                                
-                                const isSelected = selectedDate === iterDateStr;
-                                
-                                // Compute dynamic values directly out of database items
-                                const matchCount = programmes.filter(p => p.Date === iterDateStr).length;
-                                const hasPrograms = matchCount > 0;
-
-                                return (
-                                    <button 
-                                        key={dayNum} 
-                                        onClick={() => setSelectedDate(iterDateStr)}
-                                        className={`aspect-square relative flex flex-col justify-between p-2 rounded-xl transition border text-left ${isSelected ? 'bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-600/10' : 'bg-slate-50/70 hover:bg-slate-100 border-slate-100 text-slate-800'}`}
-                                    >
-                                        <div className="flex w-full justify-between items-start">
-                                            <span className="text-sm font-bold">{dayNum}</span>
-                                            {/* Dynamic Indicator Dot */}
-                                            {hasPrograms && (
-                                                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white animate-pulse' : 'bg-emerald-500'}`}></span>
-                                            )}
-                                        </div>
-                                        {/* Dynamic Count Metric */}
-                                        <span className={`text-[10px] font-medium tracking-tight block ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
-                                            {hasPrograms ? `${matchCount} Prog${matchCount > 1 ? 's' : ''}` : '\u00A0'}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <div className="text-xs text-gray-600 font-semibold">{getWingName(prog.WingCode)} | {prog.Venue || 'TBA'}</div>
+                      </div>
                     </div>
-
-                    {/* SIDE PANEL SCHEDULE MONITOR DISPLAY */}
-                    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">🗓️ Target View Date: <span className="text-slate-800 font-mono font-bold block text-sm mt-0.5">{selectedDate}</span></h3>
-                        <div className="flex-1 space-y-3 overflow-y-auto max-h-[440px] pr-1">
-                            {filteredProgrammes.length > 0 ? (
-                                filteredProgrammes.map(prog => (
-                                    <div key={prog.Program_Code} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2">
-                                        <div>
-                                            <h4 className="font-bold text-slate-900 text-sm leading-tight">{prog.Program_Title}</h4>
-                                            <p className="text-xs text-slate-400 font-mono mt-1">{prog.Program_Code} • {prog.WingTitle || prog.WingCode || 'No Wing Assigned'}</p>
-                                        </div>
-                                        <div className="flex items-center justify-between mt-1 pt-2 border-t border-slate-200/60">
-                                            <span className="text-xs text-slate-600 font-medium">📍 {prog.Venue}</span>
-                                            {!prog.IsApproved && (
-                                                <button onClick={() => handleApprove(prog.Program_Code)} className="px-2 py-1 text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition">Approve</button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))
-                            ) : (
-                                <div className="text-center py-12 text-slate-400 text-sm">No localized program logs are tied to this calendar date coordinates.</div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+                  ))
+                ) : (
+                  <div className="text-center py-16 px-4 bg-emerald-50/30 rounded-2xl border-2 border-dashed border-emerald-100"><p className="text-emerald-700/60 font-bold">No events today.</p></div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

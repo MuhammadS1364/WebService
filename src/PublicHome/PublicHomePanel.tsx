@@ -18,7 +18,7 @@ export default function PublicHomePanel() {
             {/* Sidebar - Automatically stays fixed/hidden below 1025px, turns structural at 1025px+ */}
             <aside className={`h-full fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out min-[1025px]:relative min-[1025px]:translate-x-0 ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                 <div className="p-6 text-2xl font-bold border-b border-slate-800 tracking-tight">
-                    Public<span className="text-blue-500">Dashboard</span>
+                    Public<span className="text-blue-500"> Dashboard</span>
                 </div>
                 <nav className="p-4 space-y-2 overflow-y-auto h-[calc(100%-80px)]">
                     <NavLink to={`/public-panel/dashboard`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
@@ -84,7 +84,7 @@ export default function PublicHomePanel() {
                             <div className="relative z-10 px-5 py-6 md:px-10 md:py-10 flex flex-col sm:flex-row items-center justify-between text-center sm:text-left gap-4">
                                 <div>
                                     <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-md mb-1">
-                                        Anjuman Huda
+                                        Anjuman Huda Niics (chs)
                                     </h1>
                                     <p className="text-emerald-50 text-sm md:text-base font-medium max-w-xl opacity-90">
                                         Empowering the community through knowledge, unity, and dedication.

@@ -8,10 +8,10 @@ import ProgrammesCalendar from "../PublicProgrammesComponents/ProgramCelender"
 
 export default function PublicPageDashboard() {
     return (
-       <div className="mx-auto px-4 overflow-hidden">
+        <div className="mx-auto px-4 overflow-hidden">
             {/* Banner Section */}
 
-{/* for  */}
+            {/* for  */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <OverviewClipBox
                     BoxTitle={"Total Students"}
@@ -110,7 +110,7 @@ export default function PublicPageDashboard() {
                 />
             </div>
             <div className="mx-auto">
-                <ProgrammesCalendar/>
+                <ProgrammesCalendar />
             </div>
         </div>
     )

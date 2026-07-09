@@ -47,7 +47,7 @@ export default function ActiveUserCard({ Panel, UserName }: ActiveUserCardProps)
           </h2>
 
           <p className="mt-3 text-xl text-gray-700 font-medium">
-            Anjuman-e-Huda (CHS)
+            Anjuman-e-Huda Niics (chs)
           </p>
         </div>
 

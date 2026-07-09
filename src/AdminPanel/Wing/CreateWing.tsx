@@ -24,7 +24,6 @@ export default function CreateNewWing() {
     wingAssistant: "",
     Description: "",
   });
-
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState({ text: "", type: "" });
 
@@ -245,8 +244,8 @@ export default function CreateNewWing() {
         {/* Status Messages */}
         {message.text && (
           <div className={`p-4 text-center font-medium ${message.type === "error" ? "bg-red-100 text-red-700" :
-              message.type === "success" ? "bg-green-100 text-green-700" :
-                "bg-blue-100 text-blue-700"
+            message.type === "success" ? "bg-green-100 text-green-700" :
+              "bg-blue-100 text-blue-700"
             }`}>
             {message.text}
           </div>

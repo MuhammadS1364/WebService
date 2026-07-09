@@ -55,6 +55,7 @@ import TreasurerDashboard from './Treasurer/Dashboard/TreasurerDashboard';
 import CreateExpanceOrIncome from './Treasurer/Expances/CreateExpance';
 import TreasureAnalatics from './Treasurer/Expances/TreasurerAnalytics';
 import ExpancesDetail from './AdminPanel/Treasurer/ExpanceDetail';
+import AdminProgrammesList from './AdminPanel/AdminProgrammesList/AdminProgrammesList';
 
 export default function App() {
   return (
@@ -83,7 +84,7 @@ export default function App() {
           </ProtectedRoute>
         }>
           <Route index element={<AdminDashboard />} />
-          <Route path='Programmes-List' element={<AllProgrammesList />} />
+          <Route path='Programmes-List' element={<AdminProgrammesList />} />
           <Route path='dashBoard' element={<AdminDashboard />} />
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />
           <Route path='programmes-calendar' element={<ProgrammesCalendar />} />
