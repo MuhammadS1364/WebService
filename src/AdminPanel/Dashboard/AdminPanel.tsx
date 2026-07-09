@@ -79,11 +79,15 @@ export default function AdminPanel() {
                         <NavLink to={`/admin-panel/${actUser}/create-treasurer`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Create Treasurer
                         </NavLink>
+                        
                         <NavLink to={`/admin-panel/${actUser}/all-treasurer-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Treasurer List
                         </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/bank-detail-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Bank Accounts List
+                        </NavLink>
                         <NavLink to={`/admin-panel/${actUser}/economy-analytics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                            Treasurer List
+                            Treasurer Analytics
                         </NavLink>
                     </div>
 

@@ -96,14 +96,21 @@ export default function PublicHomePanel() {
                     </div>
 
                     {/* 2. SCROLLABLE CONTENT AREA */}
-                    {/* flex-1 lets it take remaining space, overflow-y-auto adds the scrollbar here */}
-                    <div className="flex-1 p-1 md:p-8 w-full mx-auto overflow-x-auto">
-                        <Outlet />
+                    {/* FIX: Changed to overflow-y-auto for vertical scrolling */}
+                    <div className="flex-1 flex flex-col overflow-y-auto w-full">
+
+                        {/* Main Content (Pushes footer down) */}
+                        <div className="flex-1 p-1 md:p-8 w-full mx-auto">
+                            <Outlet />
+                        </div>
+
+                        {/* FIX: Removed flex-1 so it doesn't steal 50% of screen height */}
+                        {/* Added shrink-0 and moved inside the scroll area for better UX */}
+                        <div className="shrink-0 p-4 md:p-8 w-full mx-auto">
+                            <SiteFooter />
+                        </div>
+
                     </div>
-
-                    {/* Site Footer - Natural, clean placement inside the layout scroll flow */}
-                    <SiteFooter />
-
                 </main>
             </div>
 
