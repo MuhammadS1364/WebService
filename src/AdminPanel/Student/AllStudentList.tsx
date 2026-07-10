@@ -15,6 +15,8 @@ interface StudentRecord {
   Achievements_Counts: number;
   Grand_Total_Points: number;
   IsActive?: boolean; 
+  StnState: string;
+  StnDistrict: string;
 }
 
 export default function OurStudentsList() {
@@ -38,7 +40,7 @@ export default function OurStudentsList() {
         .select(`
           AddNo, StudentName, StudentEmail, Student_Photo_Urls,
           FatherName, CollegeName, Class, Total_Point_Anjuman, 
-          Achievements_Counts, Grand_Total_Points, IsActive
+          Achievements_Counts, Grand_Total_Points, IsActive, StnState, StnDistrict 
         `)
         .order("StudentName", { ascending: true });
 
@@ -233,10 +235,20 @@ export default function OurStudentsList() {
                       <span className="font-semibold text-[#64748B]">Father:</span>
                       <span className="truncate font-medium text-[#0F172A]">{student.FatherName || "N/A"}</span>
                     </div>
+
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold text-[#64748B]">Class Target:</span>
                       <span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#475569]">{student.Class || "N/A"}</span>
                     </div>
+                    
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-[#64748B]">State:</span>
+                      <span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#475569]">{student.StnState || "N/A"}   {student.StnDistrict || "N/A"}</span>
+                    </div>
+
+                    
+
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#F8FAFC] border border-[#F1F5F9] p-3 text-center">

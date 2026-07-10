@@ -193,6 +193,7 @@ export default function StudentRegistration() {
                         StnUserId: row.StudentEmail,
                         Class: row.Class ? String(row.Class) : "",
                         StnState: row.StnState ? String(row.StnState) : "",
+                        StnDistrict: row.StnDistrict ? String(row.StnDistrict) : "",
                     }]);
 
                     successCount++;
