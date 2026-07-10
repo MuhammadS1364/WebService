@@ -1,24 +1,27 @@
 import { useState, useEffect } from "react";
 import type { ChangeEvent } from "react";
 // Ensure this path aligns perfectly with your setup
-import { SupaBaseFunction } from "../../lib/SupaBase"; 
+import { SupaBaseFunction } from "../../lib/SupaBase";
+import { useParams } from "react-router-dom";
 
 // 1. Explicitly typed structure representing database schema
 interface WingData {
-  WingTitle: string | null;
-  WingCode: string;
-  WingEmail?: string | null;
-  WingManager?: string | null;
-  WingConvener?: string | null;
-  WingAssistant?: string | null;
-  Total_Registrations?: number | null;
-  Total_Resulted?: number | null;
-  IsActive: boolean;
+    WingTitle: string | null;
+    WingCode: string;
+    WingEmail?: string | null;
+    WingManager?: string | null;
+    WingConvener?: string | null;
+    WingAssistant?: string | null;
+    Total_Registrations?: number | null;
+    Total_Resulted?: number | null;
+    IsActive: boolean;
 }
 
 export default function AllWingsList() {
-    
-    
+
+    const { actUser } = useParams<{ actUser: string }>();
+    const decodedEmail = actUser ? decodeURIComponent(actUser) : null;
+
     // 2. State hooks initialized with precise TypeScript generic definitions
     const [wings, setWings] = useState<WingData[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -29,7 +32,7 @@ export default function AllWingsList() {
     // Fetch live rows from Supabase
     useEffect(() => {
         let isMounted = true;
-        
+
         const fetchWings = async () => {
             setIsLoading(true);
             setError(null);
@@ -40,7 +43,7 @@ export default function AllWingsList() {
                     .order('WingTitle', { ascending: true });
 
                 if (fetchError) throw fetchError;
-                
+
                 if (isMounted) {
                     setWings(data || []);
                 }
@@ -57,7 +60,7 @@ export default function AllWingsList() {
         };
 
         fetchWings();
-        
+
         return () => {
             isMounted = false;
         };
@@ -78,25 +81,25 @@ export default function AllWingsList() {
     const filteredWings = wings.filter((wing: WingData) => {
         const title = wing.WingTitle ?? "";
         const code = wing.WingCode ?? "";
-        
-        const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                              code.toLowerCase().includes(searchQuery.toLowerCase());
-                              
-        const matchesStatus = statusFilter === "All" || 
-                              (statusFilter === "Active" && wing.IsActive) || 
-                              (statusFilter === "Inactive" && !wing.IsActive);
-                              
+
+        const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            code.toLowerCase().includes(searchQuery.toLowerCase());
+
+        const matchesStatus = statusFilter === "All" ||
+            (statusFilter === "Active" && wing.IsActive) ||
+            (statusFilter === "Inactive" && !wing.IsActive);
+
         return matchesSearch && matchesStatus;
     });
 
     return (
         <div className="mx-auto max-w-[1600px] p-4 md:p-6 lg:p-8 bg-slate-50 min-h-screen font-sans">
-            
+
             {/* --- CONTROLS HEADER --- */}
             <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Our Wings</h1>
-                    
+
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -151,7 +154,7 @@ export default function AllWingsList() {
                 <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                     {filteredWings.map((wing: WingData) => (
                         <div key={wing.WingCode} className="group relative flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-indigo-200">
-                            
+
                             {/* Card Heading Header */}
                             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                                 <div className="flex items-start gap-3">
@@ -165,7 +168,7 @@ export default function AllWingsList() {
                                         </span>
                                     </div>
                                 </div>
-                                
+
                                 {/* Interaction Actions Buttons */}
                                 <div className="flex items-center gap-1">
                                     <button type="button" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
@@ -178,18 +181,25 @@ export default function AllWingsList() {
                             </div>
 
                             {/* Authentication Detail Wrapper */}
-                            <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
-                                <div className="flex flex-col space-y-1.5">
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="font-semibold text-slate-500">Login Email:</span>
-                                        <span className="font-mono text-slate-800">{wing.WingEmail ?? "N/A"}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-xs">
-                                        <span className="font-semibold text-slate-500">Password:</span>
-                                        <span className="font-mono text-slate-800">{wing.WingCode}</span>
+                            {decodedEmail ? (
+                                < div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                    <div className="flex flex-col space-y-1.5">
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-semibold text-slate-500">Login Email:</span>
+                                            <span className="font-mono text-slate-800">{wing.WingEmail ?? "N/A"}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="font-semibold text-slate-500">Password:</span>
+                                            <span className="font-mono text-slate-800">{wing.WingCode}</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            ) :
+                                <h3 className="text-lg  mt-3 font-bold text-slate-800 line-clamp-1">
+                                    Wing Managers
+                                </h3>
+
+                            }
 
                             {/* Assignment Hierarchies */}
                             <div className="mt-4 space-y-2 flex-1">
@@ -214,23 +224,22 @@ export default function AllWingsList() {
                                         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600">
                                             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                                         </div>
-                                        <span className="text-sm font-bold text-slate-700">{wing.Total_Registrations ?? 0}</span>
+                                        <span className="text-sm font-bold text-slate-700">{wing.Total_Registrations ?? 0} Registered</span>
                                     </div>
-                                    
+
                                     <div className="flex items-center gap-1.5" title="Total Resulted">
                                         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-50 text-emerald-600">
                                             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
                                         </div>
-                                        <span className="text-sm font-bold text-slate-700">{wing.Total_Resulted ?? 0}</span>
+                                        <span className="text-sm font-bold text-slate-700">{wing.Total_Resulted ?? 0} Resulted</span>
                                     </div>
                                 </div>
 
                                 {/* Active Configuration Badges */}
-                                <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                                    wing.IsActive 
-                                        ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20' 
-                                        : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-500/20'
-                                }`}>
+                                <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${wing.IsActive
+                                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20'
+                                    : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-500/20'
+                                    }`}>
                                     <div className={`h-1.5 w-1.5 rounded-full ${wing.IsActive ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
                                     {wing.IsActive ? 'Active' : 'Inactive'}
                                 </div>
@@ -247,7 +256,8 @@ export default function AllWingsList() {
                         </div>
                     )}
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }

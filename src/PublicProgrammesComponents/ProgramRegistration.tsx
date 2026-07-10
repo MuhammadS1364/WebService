@@ -5,7 +5,7 @@ import { APPS_SCRIPT_URL } from "../../src/lib/SupaBase";
 
 export default function ProgrammeRegistration() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Poster Upload States
   const [uploadMethod, setUploadMethod] = useState("url"); // "url" | "file"
   const [posterUrl, setPosterUrl] = useState("");
@@ -25,6 +25,7 @@ export default function ProgrammeRegistration() {
     IsApproved: false,
     IsResulted: false,
     IsResultPublished: false,
+    AccademicYear: "",
   });
 
   // --- PREDEFINED LISTS ---
@@ -118,12 +119,12 @@ export default function ProgrammeRegistration() {
           console.error("Upload process failed:", uploadFailError);
           setUploadError("⚠️ Image upload failed. Please switch to the 'Image URL' option above to continue.");
           setIsSubmitting(false);
-          return; 
+          return;
         }
       }
 
       const formatteddDate = formatProgramDate(formData.Date);
-      
+
       // 3. Prepare payload for Supabase database insertion
       // Remove WingName so we don't try to push it to the database
       const { WingName, ...restOfFormData } = formData;
@@ -133,7 +134,7 @@ export default function ProgrammeRegistration() {
         Program_Poster: driveFileUrl,
         WingCode: actWing.WingCode, // Use WingCode to match the schema
         Date: formatteddDate,
-        AccademicYear : "2026-27"
+
       };
 
       // 4. Insert programme data row
@@ -171,6 +172,7 @@ export default function ProgrammeRegistration() {
         IsApproved: false,
         IsResulted: false,
         IsResultPublished: false,
+        AccademicYear: "",
       });
       setPosterUrl("");
       setSelectedFile(null);
@@ -286,7 +288,7 @@ export default function ProgrammeRegistration() {
           </div>
 
           {/* Date & Venue Info */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-700">
                 Date <span className="text-red-500">*</span>
@@ -318,6 +320,22 @@ export default function ProgrammeRegistration() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Academic Year <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="AccademicYear"
+                required
+                placeholder="Example 2026-27"
+                value={formData.AccademicYear}
+                onChange={handleChange}
+                className="w-full rounded-lg border border-gray-300 p-3 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition"
+              />
+            </div>
+
           </div>
 
           {/* Poster Upload/URL Section */}
@@ -325,7 +343,7 @@ export default function ProgrammeRegistration() {
             <label className="mb-3 block text-sm font-semibold text-gray-700">
               Program Poster
             </label>
-            
+
             <div className="flex gap-4 mb-4">
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input
@@ -441,11 +459,10 @@ export default function ProgrammeRegistration() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`w-full rounded-xl py-4 text-lg font-bold text-white transition shadow-lg ${
-                isSubmitting
+              className={`w-full rounded-xl py-4 text-lg font-bold text-white transition shadow-lg ${isSubmitting
                   ? "cursor-not-allowed bg-blue-400 shadow-none"
                   : "bg-blue-600 hover:bg-blue-700 active:scale-[0.99] shadow-blue-600/20"
-              }`}
+                }`}
             >
               {isSubmitting ? "Registering & Uploading..." : "Register Program"}
             </button>

@@ -31,7 +31,7 @@ export default function PublicHomePanel() {
                         Donate Us
                     </NavLink>
                     <NavLink to={`/public-panel/programmes-calendar`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
-                        Program Celender
+                        Program Calender
                     </NavLink>
                     <NavLink to={`/public-panel/our-hightligths-evens`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Highlights

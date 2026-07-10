@@ -192,6 +192,7 @@ export default function StudentRegistration() {
                         CollegeName: row.CollegeName || "",
                         StnUserId: row.StudentEmail,
                         Class: row.Class ? String(row.Class) : "",
+                        StnState: row.StnState ? String(row.StnState) : "",
                     }]);
 
                     successCount++;
