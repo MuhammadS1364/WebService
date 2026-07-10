@@ -42,8 +42,11 @@ export default function ActiveUserCard({ Panel, UserName }: ActiveUserCardProps)
             </span>
           </div>
 
-          <h2 className="text-4xl font-bold text-gray-900">
-            Welcome back, {UserName}
+          <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
+            Welcome back,{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+              {UserName}
+            </span>
           </h2>
 
           <p className="mt-3 text-xl text-gray-700 font-medium">

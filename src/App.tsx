@@ -58,6 +58,7 @@ import ExpancesDetail from './AdminPanel/Treasurer/ExpanceDetail';
 import AdminProgrammesList from './AdminPanel/AdminProgrammesList/AdminProgrammesList';
 import CreateBankDeatils from './AdminPanel/Donation/CreateBankDeatil';
 import BankDetailsList from './AdminPanel/Donation/BankDetailsList';
+import OutReachAnaylatics from './OutReachPanel/Anaylatics/OutReachAnaylatics';
 
 export default function App() {
   return (
@@ -148,6 +149,9 @@ export default function App() {
           <Route path='dashboard' element={<OutReachDashboard />} />
           <Route path='create-achievements' element={<CreateAchievements />} />
           <Route path='create-outreach' element={<CreateOutReach />} />
+          <Route path='outreach-anaylatics' element={<OutReachAnaylatics />} />
+          <Route path='edite-outreach' element={<OutReachAnaylatics />} />
+          <Route path='edite-achievement/:Achieve_Id' element={<OutReachAnaylatics />} />
         </Route>
 
         {/* Treasurer PANEL (Protected) */}

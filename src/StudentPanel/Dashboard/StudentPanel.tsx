@@ -134,7 +134,10 @@ export default function StudentPanel() {
                     </div>
 
                     {/* Site Footer - Natural, clean placement inside the layout scroll flow */}
-                    <SiteFooter />
+                    <div className="flex-1 p-4 md:p-8 w-full mx-auto max-w-7xl">
+
+                        <SiteFooter />
+                    </div>
 
                 </main>
             </div>

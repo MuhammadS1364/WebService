@@ -84,6 +84,8 @@ export default function AdminDashBoard() {
             return total + Number(exp.how_mach ?? 0);
         }, 0);
     }, [expance]);
+
+    
     return (
         <div className="mx-auto px-4 overflow-hidden">
             {/* Banner Section */}
