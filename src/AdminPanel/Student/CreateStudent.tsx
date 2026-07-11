@@ -1,25 +1,21 @@
-import { useState } from "react";
-import { APPS_SCRIPT_URL, SupaBaseFunction } from "../../lib/SupaBase";
 
-// import axios from "axios"; // retained if you need it elsewhere
+import { useState } from "react";
+import { SupaBaseFunction } from "../../lib/SupaBase";
 import * as XLSX from "xlsx";
 
 export default function StudentRegistration() {
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
-    // --- NEW: Photo Upload States ---
-    const [uploadMethod, setUploadMethod] = useState("url"); // "url" | "file"
+    const [statusMessage, setStatusMessage] = useState("");
+
+    // --- Photo Upload States ---
+    const [uploadMethod, setUploadMethod] = useState("url");
     const [imageUrl, setImageUrl] = useState("");
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [uploadError, setUploadError] = useState("");
 
     const [formData, setFormData] = useState({
-        AddNo: "",
-        StudentName: "",
-        StudentEmail: "",
-        FatherName: "",
-        CollegeName: "",
-        Class: "",
+        AddNo: "", StudentName: "", StudentEmail: "", FatherName: "",
+        CollegeName: "", Class: "", StnState: "", StnDistrict: ""
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -27,216 +23,137 @@ export default function StudentRegistration() {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const convertToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = (error) => reject(error);
-        });
-    };
-
-    // Single Student Registration Manual Flow
+    // --- Main Submission Logic ---
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setIsSubmitting(true);
-        setUploadError(""); // Reset previous errors
+        setStatusMessage("Processing registration, please wait...");
+        setUploadError("");
 
         try {
-            // 1. Ensure No Duplicate Email exists in UserTable
+            // 1. Check if user exists
             const { data: existingUser, error: checkError } = await SupaBaseFunction
-                .from("UserTable")
-                .select("UserEmail")
-                .eq("UserEmail", formData.StudentEmail)
-                .maybeSingle();
+                .from("UserTable").select("UserEmail").eq("UserEmail", formData.StudentEmail).maybeSingle();
 
             if (checkError) throw checkError;
-            if (existingUser) {
-                throw new Error("This Email is already registered in the system!");
-            }
+            if (existingUser) throw new Error("This Email is already registered!");
 
-            // 2. Handle Photo Source (URL or File Upload)
             let finalPhotoUrl = "";
 
+            // 2. Handle Photo Upload
             if (uploadMethod === "url" && imageUrl.trim()) {
                 finalPhotoUrl = imageUrl.trim();
             } else if (uploadMethod === "file" && selectedFile) {
-                try {
-                    let base64File = await convertToBase64(selectedFile);
+                // Generate a unique file name
+                const fileExt = selectedFile.name.split('.').pop();
+                const fileName = `std_${formData.AddNo}_${Date.now()}.${fileExt}`;
+                const filePath = `${fileName}`;
 
-                    if (base64File.includes(",")) {
-                        base64File = base64File.split(",")[1];
-                    }
+                // Upload to Supabase Storage
+                const { error: uploadError } = await SupaBaseFunction.storage
+                    .from("StudentPhoto")
+                    .upload(filePath, selectedFile);
 
-                    const payloadData = {
-                        action: "upload",
-                        subFolderName: "NcMs-Students",
-                        file: base64File,
-                        filename: `STD_${formData.AddNo}_${selectedFile.name}`,
-                    };
+                if (uploadError) throw new Error("Storage Upload failed: " + uploadError.message);
 
-                    const response = await fetch(APPS_SCRIPT_URL, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "text/plain;charset=utf-8"
-                        },
-                        body: JSON.stringify(payloadData)
-                    });
+                // Get Public URL
+                const { data: publicUrlData } = SupaBaseFunction.storage
+                    .from("StudentPhoto")
+                    .getPublicUrl(filePath);
 
-                    const responseData = await response.json();
-
-                    if (responseData && (responseData.success || responseData.status === "success")) {
-                        finalPhotoUrl = responseData.fileUrl;
-                    } else {
-                        throw new Error("Google Drive upload failed: " + (responseData.error || responseData.message || "Unknown Error"));
-                    }
-                } catch (uploadFailError) {
-                    console.error("Upload process failed:", uploadFailError);
-                    setUploadError("⚠️ Image upload failed. Please switch to the 'Image URL' option to continue.");
-                    setIsSubmitting(false);
-                    return; // Halt submission
-                }
+                finalPhotoUrl = publicUrlData.publicUrl;
             }
 
-            // 3. Create User account first
-            const userPayload = {
+            // 3. Register user and save student data
+            await SupaBaseFunction.from("UserTable").insert([{
                 UserEmail: formData.StudentEmail,
                 UserPassword: formData.AddNo,
-                UserRole: "Student",
-            };
+                UserRole: "Student"
+            }]);
 
-            const { error: userTableError } = await SupaBaseFunction
-                .from("UserTable")
-                .insert([userPayload]);
-
-            if (userTableError) throw new Error(`User auth account mapping failed: ${userTableError.message}`);
-
-            // 4. Create Student Details Record inside StudentsBox
-            const studentPayload = {
-                AddNo: formData.AddNo,
-                StudentName: formData.StudentName,
-                StudentEmail: formData.StudentEmail,
-                FatherName: formData.FatherName,
-                CollegeName: formData.CollegeName,
+            await SupaBaseFunction.from("StudentsBox").insert([{
+                ...formData,
                 StnUserId: formData.StudentEmail,
-                Class: formData.Class,
-                ...(finalPhotoUrl && { Student_Photo_Urls: finalPhotoUrl }), // Only attach if a URL was resolved
-            };
+                Student_Photo_Urls: finalPhotoUrl
+            }]);
 
-            const { error: studentBoxError } = await SupaBaseFunction
-                .from("StudentsBox")
-                .insert([studentPayload]);
-
-            if (studentBoxError) throw new Error(`Student box mapping failed: ${studentBoxError.message}`);
-
-            alert("Success! User account verified and Student registered perfectly.");
-
-            // Reset Form Data
-            setFormData({ AddNo: "", StudentName: "", StudentEmail: "", FatherName: "", CollegeName: "", Class: "" });
+            setStatusMessage("✅ Success! Student registered successfully.");
+            setFormData({ AddNo: "", StudentName: "", StudentEmail: "", FatherName: "", CollegeName: "", Class: "", StnState: "", StnDistrict: "" });
             setImageUrl("");
             setSelectedFile(null);
-            setUploadError("");
-            const fileInput = document.getElementById("studentPhotoInput") as HTMLInputElement;
-            if (fileInput) fileInput.value = "";
-
         } catch (err: any) {
-            console.error(err);
-            alert(`Error: ${err.message}`);
+            setStatusMessage(`❌ Error: ${err.message}`);
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Bulk Import Feature (Skips Photos Automatically)
-    const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // --- Bulk Import ---
+    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        setIsSubmitting(true);
+        setStatusMessage("Importing data, please wait...");
 
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const bstr = evt.target?.result;
-                const wb = XLSX.read(bstr, { type: "binary" });
-                const wsname = wb.SheetNames[0];
-                const ws = wb.Sheets[wsname];
-                const data: any[] = XLSX.utils.sheet_to_json(ws);
-
+                const data: any[] = XLSX.utils.sheet_to_json(XLSX.read(evt.target?.result, { type: "binary" }).Sheets[Object.keys(XLSX.read(evt.target?.result, { type: "binary" }).Sheets)[0]]);
                 let successCount = 0;
-                let skippedCount = 0;
-
                 for (const row of data) {
                     if (!row.AddNo || !row.StudentEmail) continue;
-
-                    const { data: existing } = await SupaBaseFunction
-                        .from("UserTable")
-                        .select("UserEmail")
-                        .eq("UserEmail", row.StudentEmail)
-                        .maybeSingle();
-
-                    if (existing) {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    await SupaBaseFunction.from("UserTable").insert([{
-                        UserEmail: row.StudentEmail,
-                        UserPassword: String(row.AddNo),
-                        UserRole: "Student"
-                    }]);
-
-                    await SupaBaseFunction.from("StudentsBox").insert([{
-                        AddNo: String(row.AddNo),
-                        StudentName: row.StudentName || "",
-                        StudentEmail: row.StudentEmail,
-                        FatherName: row.FatherName || "",
-                        CollegeName: row.CollegeName || "",
-                        StnUserId: row.StudentEmail,
-                        Class: row.Class ? String(row.Class) : "",
-                        StnState: row.StnState ? String(row.StnState) : "",
-                        StnDistrict: row.StnDistrict ? String(row.StnDistrict) : "",
-                    }]);
-
+                    await SupaBaseFunction.from("UserTable").insert([{ UserEmail: row.StudentEmail, UserPassword: String(row.AddNo), UserRole: "Student" }]);
+                    await SupaBaseFunction.from("StudentsBox").insert([{ ...row, StnUserId: row.StudentEmail }]);
                     successCount++;
                 }
-
-                alert(`Bulk Registration Completed!\nSuccessfully Registered: ${successCount}\nSkipped (Duplicates): ${skippedCount}`);
+                setStatusMessage(`✅ Import completed! Registered: ${successCount}`);
             } catch (err: any) {
-                alert("Failed to parse file: " + err.message);
+                setStatusMessage("❌ Import failed: " + err.message);
+            } finally {
+                setIsSubmitting(false);
             }
         };
         reader.readAsBinaryString(file);
     };
 
+    // --- Export ---
     const handleExportData = async () => {
-        const { data, error } = await SupaBaseFunction.from("StudentsBox").select("*");
-        if (error) {
-            alert("Export failed: " + error.message);
-            return;
+        setIsSubmitting(true);
+        setStatusMessage("Exporting data, please wait...");
+        try {
+            const { data } = await SupaBaseFunction.from("StudentsBox").select("*");
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data || []), "Students");
+            XLSX.writeFile(wb, "StudentsExport.xlsx");
+            setStatusMessage("✅ Export successful!");
+        } catch {
+            setStatusMessage("❌ Export failed.");
+        } finally {
+            setIsSubmitting(false);
         }
-        const worksheet = XLSX.utils.json_to_sheet(data || []);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Registered Students");
-        XLSX.writeFile(workbook, "StudentsExport_List.xlsx");
     };
 
     return (
         <div className="mx-auto max-w-2xl p-6 space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-gray-50 p-4 border border-gray-200">
-                <div>
-                    <h3 className="font-bold text-gray-700">Bulk Actions (Excel/CSV)</h3>
-                    <p className="text-xs text-gray-500">Imports bypass drive photos automatically</p>
+            {statusMessage && (
+                <div className={`p-4 rounded-lg font-medium text-center ${statusMessage.includes("✅") ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    {statusMessage}
                 </div>
-                <div className="flex gap-2">
-                    <label className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs py-2 px-3 rounded-lg transition">
-                        Import Excel
-                        <input type="file" accept=".xlsx, .xls, .csv" onChange={handleImportExcel} className="hidden" />
-                    </label>
-                    <button onClick={handleExportData} className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs py-2 px-3 rounded-lg transition">
-                        Export Data
-                    </button>
-                </div>
+            )}
+
+            {/* Bulk Actions UI */}
+            <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl p-4 border border-gray-200">
+                <h2 className="text-4xl">Quick Action</h2>
+                <button disabled={isSubmitting} className="bg-emerald-600 text-white px-4 py-2 rounded-lg" onClick={() => document.getElementById('fileInput')?.click()}>
+                    {isSubmitting ? "Processing..." : "Import Excel"}
+                </button>
+                <input id="fileInput" type="file" className="hidden" onChange={handleImportExcel} />
+                <button disabled={isSubmitting} className="bg-indigo-600 text-white px-4 py-2 rounded-lg" onClick={handleExportData}>
+                    {isSubmitting ? "Processing..." : "Export Data"}
+                </button>
             </div>
 
+            {/* Registration Form UI remains here... */}
             <div className="rounded-2xl bg-white p-8 shadow-xl border border-gray-100">
                 <h2 className="mb-6 text-2xl font-bold text-gray-800">Student Registration & User Setup</h2>
 
@@ -244,29 +161,29 @@ export default function StudentRegistration() {
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Admission No (Will be Password) *</label>
-                            <input type="text" name="AddNo" required value={formData.AddNo} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
+                            <input type="text" placeholder="Student Addmission no U1364" name="AddNo" required value={formData.AddNo} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Student Name *</label>
-                            <input type="text" name="StudentName" required value={formData.StudentName} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
+                            <input type="text" placeholder="Student Name" name="StudentName" required value={formData.StudentName} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Email (Will be Login ID) *</label>
-                            <input type="email" name="StudentEmail" required value={formData.StudentEmail} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
+                            <input type="email" placeholder="Student Email" name="StudentEmail" required value={formData.StudentEmail} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Father's Name</label>
-                            <input type="text" name="FatherName" value={formData.FatherName} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
+                            <input type="text" placeholder="Student's Father Name" name="FatherName" value={formData.FatherName} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">College Name</label>
-                            <input type="text" name="CollegeName" value={formData.CollegeName} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
+                            <input type="text" placeholder="ex Darul Huda Islamic University" name="CollegeName" value={formData.CollegeName} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
                         </div>
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-1">Class</label>
@@ -292,6 +209,18 @@ export default function StudentRegistration() {
                             </select>
                         </div>
                     </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">State*</label>
+                            <input type="text" name="StnState" placeholder="Student's State" required value={formData.StnState} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">District*</label>
+                            <input type="text" name="StnDistrict" placeholder="Student District" required value={formData.StnDistrict} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
+                        </div>
+                    </div>
+
 
                     {/* NEW: Photo Upload/URL Section */}
                     <div className="rounded-lg border border-gray-200 p-4 bg-gray-50/50">
@@ -360,6 +289,9 @@ export default function StudentRegistration() {
                             </div>
                         )}
                     </div>
+
+
+
 
                     <button
                         type="submit"

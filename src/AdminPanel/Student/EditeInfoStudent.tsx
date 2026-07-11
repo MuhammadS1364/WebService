@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 
 // Explicit definition for Excel Row Structure
@@ -29,10 +29,15 @@ interface FormDataState {
   FatherName: string;
   CollegeName: string;
   Class: string;
+  StnState: string;
+  StnDistrict: string;
 }
 
 export default function EditStudentRecord() {
   const { StnAddNo } = useParams<{ StnAddNo: string }>();
+  const { actUser } = useParams<{ actUser: string }>();
+
+  const navigate = useNavigate();
 
   const [formData, setFormData] = useState<FormDataState>({
     AddNo: "",
@@ -42,6 +47,8 @@ export default function EditStudentRecord() {
     FatherName: "",
     CollegeName: "",
     Class: "",
+    StnState: "",
+    StnDistrict: ""
   });
 
   // Photo Upload States
@@ -85,6 +92,8 @@ export default function EditStudentRecord() {
             FatherName: data.FatherName || "",
             CollegeName: data.CollegeName || "",
             Class: data.Class || "",
+            StnState: data.StnState,
+            StnDistrict: data.StnDistrict
           });
         }
       } catch (error: any) {
@@ -110,7 +119,7 @@ export default function EditStudentRecord() {
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setPhotoFile(e.target.files[0]);
-      setImageError(""); 
+      setImageError("");
     }
   };
 
@@ -133,38 +142,30 @@ export default function EditStudentRecord() {
     let finalPhotoUrl = formData.Student_Photo_Urls;
 
     try {
+      // 1. Handle File Upload if selected
       if (photoInputMethod === "file" && photoFile) {
-        try {
-          const fileExt = photoFile.name.split(".").pop();
-          const fileName = `${StnAddNo}-${Math.random()}.${fileExt}`;
-          
-          const { error: uploadError } = await SupaBaseFunction.storage
-            .from("student-photos") 
-            .upload(fileName, photoFile);
+        const fileExt = photoFile.name.split(".").pop();
+        // Using a unique path based on AddNo
+        const filePath = `std_${formData.AddNo}_${Date.now()}.${fileExt}`;
 
-          if (uploadError) throw uploadError;
+        const { error: uploadError } = await SupaBaseFunction.storage
+          .from("StudentPhoto") // Changed from student-photos
+          .upload(filePath, photoFile);
 
-          const { data: publicUrlData } = SupaBaseFunction.storage
-            .from("student-photos")
-            .getPublicUrl(fileName);
+        if (uploadError) throw new Error("Upload failed: " + uploadError.message +" " + "Max 500kb only");
 
-          finalPhotoUrl = publicUrlData.publicUrl;
-        } catch (imgError: any) {
-          console.error("Image Upload Error:", imgError);
-          setImageError("Image upload failed! Please switch to the 'Image URL' option and paste a direct link instead.");
-          setLoading(false);
-          return;
-        }
+        const { data: publicUrlData } = SupaBaseFunction.storage
+          .from("StudentPhoto") // Changed from student-photos
+          .getPublicUrl(filePath);
+
+        finalPhotoUrl = publicUrlData.publicUrl;
       }
 
-      const { data: existingUser, error: checkError } = await SupaBaseFunction.from("UserTable")
+      // 2. Sync User Account
+      const { data: existingUser } = await SupaBaseFunction.from("UserTable")
         .select("UserEmail")
         .eq("UserEmail", formData.StudentEmail)
-        .maybeSingle(); 
-
-      if (checkError) {
-        throw new Error(`Error checking user account: ${checkError.message}`);
-      }
+        .maybeSingle();
 
       if (!existingUser) {
         const { error: createError } = await SupaBaseFunction.from("UserTable").insert([
@@ -173,6 +174,7 @@ export default function EditStudentRecord() {
         if (createError) throw new Error(`User Account Sync Failed: ${createError.message}`);
       }
 
+      // 3. Update Student Record
       const { error: updateError } = await SupaBaseFunction.from("StudentsBox")
         .update({
           StudentName: formData.StudentName,
@@ -182,23 +184,21 @@ export default function EditStudentRecord() {
           CollegeName: formData.CollegeName,
           Class: formData.Class,
           StnUserId: formData.StudentEmail,
+          StnState: formData.StnState,
+          StnDistrict: formData.StnDistrict,
         })
         .eq("AddNo", StnAddNo);
 
       if (updateError) throw new Error(`Profile Update Failed: ${updateError.message}`);
 
-      setFormData((prev) => ({ ...prev, Student_Photo_Urls: finalPhotoUrl }));
-      setPhotoFile(null);
-      setPhotoInputMethod("url");
-      
       setMessage({ type: "success", text: "Student records updated successfully!" });
+      navigate(`/admin-panel/${actUser}/all-students`);
     } catch (error: any) {
       setMessage({ type: "error", text: error.message || error });
     } finally {
       setLoading(false);
     }
   };
-
   // ----------------------------------------
   // EXPORT DATA
   // ----------------------------------------
@@ -239,7 +239,7 @@ export default function EditStudentRecord() {
         if (!event.target || !event.target.result || typeof event.target.result === "string") {
           throw new Error("Could not process file layout data framework.");
         }
-        
+
         const data = new Uint8Array(event.target.result);
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
@@ -282,6 +282,8 @@ export default function EditStudentRecord() {
           CollegeName: row.CollegeName || "",
           Class: row.Class || "",
           StnUserId: row.StudentEmail,
+          StnState: row.StnState,
+          StnDistrict: row.StnDistrict,
         }));
 
         const { error: studentError } = await SupaBaseFunction.from("StudentsBox").upsert(studentsToInsert, {
@@ -353,14 +355,13 @@ export default function EditStudentRecord() {
       {/* Global Message Alerts */}
       {message.text && (
         <div
-          className={`p-4 mb-6 rounded-lg border ${
-            message.type === "error"
-              ? "bg-red-50 border-red-200 text-red-700"
-              : "bg-emerald-50 border-emerald-200 text-emerald-800"
-          } flex items-start`}
+          className={`p-4 mb-6 rounded-lg border ${message.type === "error"
+            ? "bg-red-50 border-red-200 text-red-700"
+            : "bg-emerald-50 border-emerald-200 text-emerald-800"
+            } flex items-start`}
         >
           <svg className="w-5 h-5 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {message.type === "error" 
+            {message.type === "error"
               ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             }
@@ -375,7 +376,7 @@ export default function EditStudentRecord() {
       {/* Main Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
+
           {/* Read Only field */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-slate-500 mb-1">
@@ -390,7 +391,7 @@ export default function EditStudentRecord() {
             />
           </div>
 
-          {(["StudentName", "StudentEmail", "Class", "FatherName", "CollegeName"] as const).map((field) => (
+          {(["StudentName", "StudentEmail", "Class", "FatherName", "CollegeName", "StnDistrict", "StnState"] as const).map((field) => (
             <div key={field}>
               <label className="block text-sm font-semibold text-slate-700 mb-1">
                 {field === "StudentName" ? "Student Name *" : field === "StudentEmail" ? "Student Email *" : field === "Class" ? "Class *" : field === "FatherName" ? "Father's Name" : "College/School Name"}
@@ -411,27 +412,27 @@ export default function EditStudentRecord() {
         {/* PHOTO UPLOAD SECTION */}
         <div className="mt-8 p-5 bg-slate-50 border border-slate-200 rounded-xl">
           <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wide">Student Photo</h3>
-          
+
           <div className="flex items-center space-x-6 mb-4">
             <label className="flex items-center cursor-pointer">
-              <input 
-                type="radio" 
-                name="photoInputMethod" 
-                value="url" 
-                checked={photoInputMethod === "url"} 
-                onChange={() => setPhotoInputMethod("url")} 
-                className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500" 
+              <input
+                type="radio"
+                name="photoInputMethod"
+                value="url"
+                checked={photoInputMethod === "url"}
+                onChange={() => setPhotoInputMethod("url")}
+                className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
               />
               <span className="ml-2 text-sm font-medium text-slate-700">Image URL</span>
             </label>
             <label className="flex items-center cursor-pointer">
-              <input 
-                type="radio" 
-                name="photoInputMethod" 
-                value="file" 
-                checked={photoInputMethod === "file"} 
-                onChange={() => setPhotoInputMethod("file")} 
-                className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500" 
+              <input
+                type="radio"
+                name="photoInputMethod"
+                value="file"
+                checked={photoInputMethod === "file"}
+                onChange={() => setPhotoInputMethod("file")}
+                className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
               />
               <span className="ml-2 text-sm font-medium text-slate-700">Upload Image File</span>
             </label>
@@ -468,10 +469,10 @@ export default function EditStudentRecord() {
           )}
 
           {imageError && (
-             <div className="mt-3 p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-start text-sm">
-               <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-               <span>{imageError}</span>
-             </div>
+            <div className="mt-3 p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded-lg flex items-start text-sm">
+              <svg className="w-5 h-5 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+              <span>{imageError}</span>
+            </div>
           )}
         </div>
 
