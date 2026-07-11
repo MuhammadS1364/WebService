@@ -529,7 +529,7 @@ export default function ProgrammeRegistration() {
     "Organizing Board", "Out Reach Board", "Math & Science",
     "Gk & Social Studies", "English Wing", "Arabic Wing",
     "Urdu Wing", "English Debate", "Arabic Debate",
-    "Urdu Debate", "Media & It Cell"
+    "Urdu Debate", "Media & It Cell", "Core Committee"
   ];
 
   const groupOptions = [
