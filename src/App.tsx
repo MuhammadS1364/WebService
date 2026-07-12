@@ -60,6 +60,9 @@ import CreateBankDeatils from './AdminPanel/Donation/CreateBankDeatil';
 import BankDetailsList from './AdminPanel/Donation/BankDetailsList';
 import OutReachAnaylatics from './OutReachPanel/Anaylatics/OutReachAnaylatics';
 import PublicProgrammesList from './PublicProgrammesComponents/AllProgrammesList';
+import ProgrammesAnaylatics from './AdminPanel/Anaylatics/ProgrammesAnaylatics';
+import StudentsAnaylaticsGeneral from './AdminPanel/Anaylatics/StudentsAnaylatics';
+import GeneralWingsAnaylatics from './AdminPanel/Anaylatics/WingsAnaylatics';
 
 export default function App() {
   return (
@@ -107,6 +110,9 @@ export default function App() {
           <Route path='create-treasurer' element={<CreateTreasurer />} />
           <Route path='all-treasurer-list' element={<AllTreasurerList />} />
           <Route path='economy-analytics' element={<ExpancesDetail />} />
+          <Route path='program-general-anaylatics' element={<ProgrammesAnaylatics />} />
+          <Route path='student-general-anaylatics' element={<StudentsAnaylaticsGeneral />} />
+          <Route path='wing-general-anaylatics' element={<GeneralWingsAnaylatics />} />
         </Route>
 
         {/* STUDENT PANEL (Protected) */}

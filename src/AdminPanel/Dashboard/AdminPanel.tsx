@@ -89,6 +89,15 @@ export default function AdminPanel() {
                         <NavLink to={`/admin-panel/${actUser}/economy-analytics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Treasurer Analytics
                         </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/program-general-anaylatics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Program General Analytics
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/student-general-anaylatics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            student General Analytics
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/wing-general-anaylatics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            wing General Analytics
+                        </NavLink>
                     </div>
 
                     <div className="pt-4 border-t border-slate-800 mt-4">
