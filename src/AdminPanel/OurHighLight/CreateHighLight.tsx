@@ -130,7 +130,7 @@ export default function CreateHighLight() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 font-sans flex items-center justify-center">
+    <div className="min-h-screen rounded-4xl bg-slate-950 text-slate-100 p-6 md:p-12 font-sans flex items-center justify-center">
       <div className="w-full max-w-3xl bg-slate-900/40 backdrop-blur-md border border-slate-900 rounded-3xl p-6 md:p-10 shadow-2xl relative">
         
         <div className="absolute -top-10 -left-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />

@@ -59,6 +59,7 @@ import AdminProgrammesList from './AdminPanel/AdminProgrammesList/AdminProgramme
 import CreateBankDeatils from './AdminPanel/Donation/CreateBankDeatil';
 import BankDetailsList from './AdminPanel/Donation/BankDetailsList';
 import OutReachAnaylatics from './OutReachPanel/Anaylatics/OutReachAnaylatics';
+import PublicProgrammesList from './PublicProgrammesComponents/AllProgrammesList';
 
 export default function App() {
   return (
@@ -74,7 +75,7 @@ export default function App() {
           <Route path='dashboard' element={<PublicPageDashboard />} />
           <Route path='our-hightligths-evens' element={<OurHighLights />} />
           <Route path='our-wing-list' element={<AllWingsList />} />
-          <Route path='our-programmes' element={<AllProgrammesList />} />
+          <Route path='our-programmes' element={<PublicProgrammesList />} />
           <Route path='our-achievements' element={<OutReachAndAchievements />} />
           <Route path='programmes-calendar' element={<ProgrammesCalendar />} />
           <Route path='donate-us' element={<CreateDonationForUs />} />

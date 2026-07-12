@@ -98,15 +98,46 @@ export default function StudentRegistration() {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const data: any[] = XLSX.utils.sheet_to_json(XLSX.read(evt.target?.result, { type: "binary" }).Sheets[Object.keys(XLSX.read(evt.target?.result, { type: "binary" }).Sheets)[0]]);
+                const workbook = XLSX.read(evt.target?.result, { type: "binary" });
+                const sheetName = workbook.SheetNames[0];
+                const data: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
                 let successCount = 0;
+                let duplicateCount = 0;
+
                 for (const row of data) {
                     if (!row.AddNo || !row.StudentEmail) continue;
-                    await SupaBaseFunction.from("UserTable").insert([{ UserEmail: row.StudentEmail, UserPassword: String(row.AddNo), UserRole: "Student" }]);
-                    await SupaBaseFunction.from("StudentsBox").insert([{ ...row, StnUserId: row.StudentEmail }]);
+
+                    // Check if user already exists
+                    const { data: existingUser, error: checkError } = await SupaBaseFunction
+                        .from("UserTable")
+                        .select("UserEmail")
+                        .eq("UserEmail", row.StudentEmail)
+                        .maybeSingle();
+
+                    if (checkError) throw checkError;
+
+                    if (existingUser) {
+                        duplicateCount++;
+                        continue; // skip insert
+                    }
+
+                    // Insert new user
+                    await SupaBaseFunction.from("UserTable").insert([{
+                        UserEmail: row.StudentEmail,
+                        UserPassword: String(row.AddNo),
+                        UserRole: "Student"
+                    }]);
+
+                    await SupaBaseFunction.from("StudentsBox").insert([{
+                        ...row,
+                        StnUserId: row.StudentEmail
+                    }]);
+
                     successCount++;
                 }
-                setStatusMessage(`✅ Import completed! Registered: ${successCount}`);
+
+                setStatusMessage(`✅ Import completed! Registered: ${successCount}, Duplicates skipped: ${duplicateCount}`);
             } catch (err: any) {
                 setStatusMessage("❌ Import failed: " + err.message);
             } finally {
