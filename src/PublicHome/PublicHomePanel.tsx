@@ -84,7 +84,7 @@ export default function PublicHomePanel() {
                             <div className="relative z-10 px-5 py-6 md:px-10 md:py-10 flex flex-col sm:flex-row items-center justify-between text-center sm:text-left gap-4">
                                 <div>
                                     <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight drop-shadow-md mb-1">
-                                        Anjuman Huda Niics (chs)
+                                        Anjuman-e-Huda Niics (chs)
                                     </h1>
                                     <p className="text-emerald-50 text-sm md:text-base font-medium max-w-xl opacity-90">
                                         Empowering the community through knowledge, unity, and dedication.

@@ -4,7 +4,7 @@ export default function SiteFooter() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="relative bg-gradient-to-r rounded-4xl from-emerald-50 via-teal-50 to-sky-100 text-slate-700 border-t border-slate-200 overflow-hidden">
+    <footer className="relative bg-gradient-to-r max-h-70 rounded-4xl from-emerald-50 via-teal-50 to-sky-100 text-slate-700 border-t border-slate-200 overflow-hidden">
 
       {/* Background Watermark */}
       <div

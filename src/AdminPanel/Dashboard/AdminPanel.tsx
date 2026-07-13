@@ -74,10 +74,6 @@ export default function AdminPanel() {
                         <NavLink to={`/admin-panel/${actUser}/all-wings-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Wing List
                         </NavLink>
-                    </div>
-
-                    <div className='flex flex-col space-y-1'>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Treasurer</p>
                         <NavLink to={`/admin-panel/${actUser}/create-treasurer`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Create Treasurer
                         </NavLink>
@@ -88,17 +84,22 @@ export default function AdminPanel() {
                         <NavLink to={`/admin-panel/${actUser}/bank-detail-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Bank Accounts List
                         </NavLink>
+                    </div>
+
+                    <div className='flex flex-col space-y-1'>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Anaylatics</p>
+
                         <NavLink to={`/admin-panel/${actUser}/economy-analytics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Treasurer Analytics
                         </NavLink>
                         <NavLink to={`/admin-panel/${actUser}/program-general-anaylatics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                            Program General Analytics
+                            Programmes Analytics
                         </NavLink>
                         <NavLink to={`/admin-panel/${actUser}/student-general-anaylatics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                            student General Analytics
+                            Students Analytics
                         </NavLink>
                         <NavLink to={`/admin-panel/${actUser}/wing-general-anaylatics`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                            wing General Analytics
+                            Wings Analytics
                         </NavLink>
                     </div>
 
