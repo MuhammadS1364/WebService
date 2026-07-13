@@ -1261,8 +1261,444 @@
 // };
 
 
+// import React, { useState, useEffect } from "react";
+// // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
+// import { SupaBaseFunction } from "../../lib/SupaBase";
+// import {
+//   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+//   PieChart, Pie, Cell,
+//   LineChart, Line
+// } from "recharts";
+
+// // --- TypeScript Interfaces ---
+
+// export interface Programme {
+//   Program_Title: string | null;
+//   Program_Code: string;
+//   WingCode: string | null;
+//   Description: string | null;
+//   OutComes: string | null;
+//   Date: string | null;
+//   Venue: string | null;
+//   Category: string | null;
+//   Group: string | null;
+//   IsApproved: boolean | null;
+//   IsResulted: boolean | null;
+//   IsResultPublished: boolean | null;
+//   Total_Registration: number | null;
+//   IsOpenRegistration: boolean | null;
+//   Program_Poster: string | null;
+//   IsConducted: boolean | null;
+//   AccademicYear: string | null;
+//   Expected_Time: string | null;
+//   Collaborator: string | null;
+// }
+
+// export interface WingSummary {
+//   WingCode: string;
+//   WingTitle: string | null;
+// }
+
+// interface FilterState {
+//   AccademicYear: string;
+//   Group: string;
+//   Venue: string;
+//   WingCode: string;
+//   Collaborator: string;
+// }
+
+// interface FilterOptions {
+//   years: string[];
+//   groups: string[];
+//   venues: string[];
+//   collaborators: string[];
+// }
+
+// // Professional Indigo Theme for Programs
+// const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'];
+
+// export default function ProgrammesAnalytics() {
+//   // State Management
+//   const [programmes, setProgrammes] = useState<Programme[]>([]);
+//   const [wings, setWings] = useState<WingSummary[]>([]);
+//   const [filteredData, setFilteredData] = useState<Programme[]>([]);
+//   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
+//   const [loading, setLoading] = useState<boolean>(true);
+
+//   // Filters State
+//   const [filters, setFilters] = useState<FilterState>({
+//     AccademicYear: "",
+//     Group: "",
+//     Venue: "",
+//     WingCode: "",
+//     Collaborator: ""
+//   });
+
+//   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+//     years: [],
+//     groups: [],
+//     venues: [],
+//     collaborators: []
+//   });
+
+//   // 1. Fetch Data
+//   useEffect(() => {
+//     const fetchData = async () => {
+//       setLoading(true);
+//       try {
+//         const { data: progData, error: progError } = await SupaBaseFunction
+//           .from("ProgrammesBox")
+//           .select("*");
+
+//         const { data: wingData, error: wingError } = await SupaBaseFunction
+//           .from("Chs-WingS")
+//           .select("WingCode, WingTitle");
+
+//         if (progError) throw progError;
+//         if (wingError) throw wingError;
+
+//         const typedProgs = (progData as Programme[]) || [];
+//         const typedWings = (wingData as WingSummary[]) || [];
+
+//         setProgrammes(typedProgs);
+//         setWings(typedWings);
+
+//         // Extract unique, non-null filter options
+//         setFilterOptions({
+//           years: Array.from(new Set(typedProgs.map(p => p.AccademicYear).filter(Boolean))) as string[],
+//           groups: Array.from(new Set(typedProgs.map(p => p.Group).filter(Boolean))) as string[],
+//           venues: Array.from(new Set(typedProgs.map(p => p.Venue).filter(Boolean))) as string[],
+//           collaborators: Array.from(new Set(typedProgs.map(p => p.Collaborator).filter(Boolean))) as string[]
+//         });
+//       } catch (error) {
+//         console.error("Error fetching data:", error);
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+//     fetchData();
+//   }, []);
+
+//   // 2. Apply Filters
+//   useEffect(() => {
+//     let result = [...programmes];
+//     if (filters.AccademicYear) result = result.filter(p => p.AccademicYear === filters.AccademicYear);
+//     if (filters.Group) result = result.filter(p => p.Group === filters.Group);
+//     if (filters.Venue) result = result.filter(p => p.Venue === filters.Venue);
+//     if (filters.WingCode) result = result.filter(p => p.WingCode === filters.WingCode);
+//     if (filters.Collaborator) result = result.filter(p => p.Collaborator === filters.Collaborator);
+    
+//     setFilteredData(result);
+//   }, [filters, programmes]);
+
+//   // 3. Export Logic
+//   const handleExport = () => {
+//     const isFiltered = Object.values(filters).some(val => val !== "");
+//     const message = isFiltered 
+//       ? `You have active filters. Export ${filteredData.length} filtered rows?`
+//       : `Export all ${filteredData.length} rows?`;
+
+//     if (window.confirm(message)) {
+//       const headers = [
+//         "Program_Title", "Program_Code", "Wing_Name", "Date", "Venue", 
+//         "Category", "Group", "Academic_Year", "Total_Registration", "IsResulted"
+//       ];
+
+//       const csvContent = [
+//         headers.join(","),
+//         ...filteredData.map(row => {
+//           const wingName = wings.find(w => w.WingCode === row.WingCode)?.WingTitle || row.WingCode;
+//           return [
+//             `"${row.Program_Title || ''}"`,
+//             `"${row.Program_Code || ''}"`,
+//             `"${wingName || ''}"`,
+//             `"${row.Date || ''}"`,
+//             `"${row.Venue || ''}"`,
+//             `"${row.Category || ''}"`,
+//             `"${row.Group || ''}"`,
+//             `"${row.AccademicYear || ''}"`,
+//             row.Total_Registration || 0,
+//             row.IsResulted ? "Yes" : "No"
+//           ].join(",");
+//         })
+//       ].join("\n");
+
+//       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+//       const link = document.createElement("a");
+//       link.href = URL.createObjectURL(blob);
+//       link.download = `Program_Analytics_${new Date().toISOString().split('T')[0]}.csv`;
+//       link.style.visibility = 'hidden';
+//       document.body.appendChild(link);
+//       link.click();
+//       document.body.removeChild(link);
+//     }
+//   };
+
+//   const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+//     setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+//   };
+
+//   const getWingName = (code: string | null) => {
+//     if (!code) return "Unknown";
+//     return wings.find(w => w.WingCode === code)?.WingTitle || code;
+//   };
+
+//   // --- Analytics Data Processing ---
+
+//   const registrationsByWing = Object.values(
+//     filteredData.reduce<Record<string, { name: string; registrations: number }>>((acc, curr) => {
+//       const name = getWingName(curr.WingCode);
+//       if (!acc[name]) acc[name] = { name, registrations: 0 };
+//       acc[name].registrations += (curr.Total_Registration || 0);
+//       return acc;
+//     }, {})
+//   ).sort((a, b) => b.registrations - a.registrations).slice(0, 8);
+
+//   const categoryData = Object.values(
+//     filteredData.reduce<Record<string, { name: string; value: number }>>((acc, curr) => {
+//       const cat = curr.Category || "Uncategorized";
+//       if (!acc[cat]) acc[cat] = { name: cat, value: 0 };
+//       acc[cat].value += 1;
+//       return acc;
+//     }, {})
+//   );
+
+//   const timelineData = Object.values(
+//     filteredData.reduce<Record<string, { name: string; programs: number }>>((acc, curr) => {
+//       if (!curr.Date) return acc;
+//       const dateObj = new Date(curr.Date);
+//       // Skip invalid dates
+//       if (isNaN(dateObj.getTime())) return acc;
+      
+//       const month = dateObj.toLocaleString('default', { month: 'short', year: '2-digit' });
+//       if (!acc[month]) acc[month] = { name: month, programs: 0 };
+//       acc[month].programs += 1;
+//       return acc;
+//     }, {})
+//   ).sort((a, b) => new Date(`1 ${a.name}`).getTime() - new Date(`1 ${b.name}`).getTime());
+
+
+//   if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "#64748b", fontWeight: "600" }}>Loading Analytics...</div>;
+
+//   return (
+//     <div style={{ padding: "24px", backgroundColor: "#f8fafc", minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
+      
+//       {/* HEADER SECTION */}
+//       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+//         <div>
+//           <h2 style={{ margin: 0, fontSize: "24px", color: "#1e293b", fontWeight: 700 }}>Admin Program Analytics</h2>
+//           <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>Full control over programmes and schedules.</p>
+//         </div>
+        
+//         <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+//           <div style={{ display: "flex", backgroundColor: "#f1f5f9", borderRadius: "8px", padding: "4px" }}>
+//             <button 
+//               onClick={() => setActiveTab("List")} 
+//               style={{...tabStyleBase, backgroundColor: activeTab === "List" ? "#fff" : "transparent", color: activeTab === "List" ? "#0f172a" : "#64748b", boxShadow: activeTab === "List" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"}}
+//             >
+//               List
+//             </button>
+//             <button 
+//               onClick={() => setActiveTab("Analytics")} 
+//               style={{...tabStyleBase, backgroundColor: activeTab === "Analytics" ? "#fff" : "transparent", color: activeTab === "Analytics" ? "#0f172a" : "#64748b", boxShadow: activeTab === "Analytics" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"}}
+//             >
+//               Analytics
+//             </button>
+//           </div>
+//           <button onClick={handleExport} style={exportBtnStyle}>
+//             Export CSV ({filteredData.length})
+//           </button>
+//         </div>
+//       </div>
+
+//       {/* FILTER SECTION */}
+//       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px", marginBottom: "24px", backgroundColor: "#fff", padding: "16px", borderRadius: "12px", boxShadow: "0 2px 4px -1px rgba(0,0,0,0.05)" }}>
+//         <select name="AccademicYear" value={filters.AccademicYear} onChange={handleFilterChange} style={selectStyle}>
+//           <option value="">All Academic Years</option>
+//           {filterOptions.years.map(y => <option key={y} value={y}>{y}</option>)}
+//         </select>
+//         <select name="Group" value={filters.Group} onChange={handleFilterChange} style={selectStyle}>
+//           <option value="">All Groups</option>
+//           {filterOptions.groups.map(g => <option key={g} value={g}>{g}</option>)}
+//         </select>
+//         <select name="Venue" value={filters.Venue} onChange={handleFilterChange} style={selectStyle}>
+//           <option value="">All Venues</option>
+//           {filterOptions.venues.map(v => <option key={v} value={v}>{v}</option>)}
+//         </select>
+//         <select name="WingCode" value={filters.WingCode} onChange={handleFilterChange} style={selectStyle}>
+//           <option value="">All Wings</option>
+//           {wings.map(w => <option key={w.WingCode} value={w.WingCode}>{w.WingTitle}</option>)}
+//         </select>
+//         <select name="Collaborator" value={filters.Collaborator} onChange={handleFilterChange} style={selectStyle}>
+//           <option value="">All Collaborators</option>
+//           {filterOptions.collaborators.map(c => <option key={c} value={c}>{c}</option>)}
+//         </select>
+//       </div>
+
+//       {/* DYNAMIC CONTENT AREA */}
+//       {activeTab === "Analytics" ? (
+//         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
+          
+//           <div style={cardStyle}>
+//             <h3 style={chartTitleStyle}>Registrations by Wing (Top 8)</h3>
+//             <ResponsiveContainer width="100%" height={300}>
+//               <BarChart data={registrationsByWing} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+//                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+//                 <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+//                 <YAxis tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
+//                 <RechartsTooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
+//                 <Bar dataKey="registrations" name="Registrations" fill="#6366f1" radius={[4, 4, 0, 0]} />
+//               </BarChart>
+//             </ResponsiveContainer>
+//           </div>
+
+//           <div style={cardStyle}>
+//             <h3 style={chartTitleStyle}>Programs by Category</h3>
+//             <ResponsiveContainer width="100%" height={300}>
+//               <PieChart>
+//                 <Pie data={categoryData} cx="40%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={3} dataKey="value">
+//                   {categoryData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+//                 </Pie>
+//                 <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
+//                 <Legend layout="vertical" verticalAlign="middle" align="right" iconType="circle" wrapperStyle={{ fontSize: '13px', lineHeight: '24px', color: '#475569' }} />
+//               </PieChart>
+//             </ResponsiveContainer>
+//           </div>
+
+//           <div style={{...cardStyle, gridColumn: "1 / -1"}}>
+//             <h3 style={chartTitleStyle}>Program Frequency Timeline</h3>
+//             <ResponsiveContainer width="100%" height={300}>
+//               <LineChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+//                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+//                 <XAxis dataKey="name" tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
+//                 <YAxis tick={{fill: '#64748b'}} axisLine={false} tickLine={false} allowDecimals={false} />
+//                 <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
+//                 <Legend />
+//                 <Line type="monotone" dataKey="programs" name="Programs Conducted" stroke="#14b8a6" strokeWidth={3} activeDot={{ r: 8 }} />
+//               </LineChart>
+//             </ResponsiveContainer>
+//           </div>
+          
+//         </div>
+//       ) : (
+//         <div style={{ backgroundColor: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+//           <div style={{ overflowX: "auto" }}>
+//             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+//               <thead style={{ backgroundColor: "#f8fafc", color: "#475569", fontSize: "14px", textTransform: "uppercase" }}>
+//                 <tr>
+//                   <th style={thStyle}>Program Title</th>
+//                   <th style={thStyle}>Wing</th>
+//                   <th style={thStyle}>Date</th>
+//                   <th style={thStyle}>Venue</th>
+//                   <th style={thStyle}>Registrations</th>
+//                   <th style={thStyle}>Status</th>
+//                 </tr>
+//               </thead>
+//               <tbody>
+//                 {filteredData.map((prog, idx) => (
+//                   <tr key={prog.Program_Code} style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: idx % 2 === 0 ? "#fff" : "#f8fafc" }}>
+//                     <td style={tdStyle}>
+//                       <div style={{ fontWeight: 600, color: "#0f172a" }}>{prog.Program_Title}</div>
+//                       <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{prog.Category} • {prog.Group}</div>
+//                     </td>
+//                     <td style={tdStyle}>{getWingName(prog.WingCode)}</td>
+//                     <td style={tdStyle}>{prog.Date ? new Date(prog.Date).toLocaleDateString() : 'TBA'}</td>
+//                     <td style={tdStyle}>{prog.Venue || 'TBA'}</td>
+//                     <td style={tdStyle}>
+//                       <span style={{ backgroundColor: "#e0e7ff", color: "#4338ca", padding: "4px 10px", borderRadius: "999px", fontWeight: 600, fontSize: "12px" }}>
+//                         {prog.Total_Registration || 0}
+//                       </span>
+//                     </td>
+//                     <td style={tdStyle}>
+//                       {prog.IsConducted 
+//                         ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}><div style={{width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'#16a34a'}}></div> Conducted</span>
+//                         : <span style={{ color: "#d97706", fontWeight: 600, fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}><div style={{width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'#d97706'}}></div> Upcoming</span>}
+//                     </td>
+//                   </tr>
+//                 ))}
+//                 {filteredData.length === 0 && (
+//                   <tr>
+//                     <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
+//                       No programmes match your current filters.
+//                     </td>
+//                   </tr>
+//                 )}
+//               </tbody>
+//             </table>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// // --- Inline Styles typed as React.CSSProperties ---
+
+// const tabStyleBase: React.CSSProperties = {
+//   padding: "8px 16px",
+//   borderRadius: "6px",
+//   border: "none",
+//   cursor: "pointer",
+//   fontWeight: 600,
+//   transition: "all 0.2s"
+// };
+
+// const selectStyle: React.CSSProperties = {
+//   padding: "10px",
+//   borderRadius: "8px",
+//   border: "1px solid #e2e8f0",
+//   backgroundColor: "#f8fafc",
+//   color: "#334155",
+//   fontSize: "14px",
+//   outline: "none",
+//   cursor: "pointer"
+// };
+
+// const exportBtnStyle: React.CSSProperties = {
+//   backgroundColor: "#4f46e5", 
+//   color: "#fff", 
+//   border: "none", 
+//   padding: "10px 20px", 
+//   borderRadius: "8px", 
+//   fontWeight: 600, 
+//   cursor: "pointer", 
+//   display: "flex", 
+//   alignItems: "center", 
+//   gap: "8px", 
+//   boxShadow: "0 4px 6px -1px rgba(79, 70, 229, 0.3)"
+// };
+
+// const cardStyle: React.CSSProperties = {
+//   backgroundColor: "#fff", 
+//   padding: "24px", 
+//   borderRadius: "16px",
+//   boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", 
+//   border: "1px solid #f1f5f9"
+// };
+
+// const chartTitleStyle: React.CSSProperties = {
+//   margin: "0 0 20px 0", 
+//   fontSize: "16px", 
+//   color: "#334155", 
+//   fontWeight: 600
+// };
+
+// const thStyle: React.CSSProperties = {
+//   padding: "16px", 
+//   fontWeight: 600, 
+//   borderBottom: "2px solid #e2e8f0"
+// };
+
+// const tdStyle: React.CSSProperties = {
+//   padding: "16px", 
+//   color: "#334155", 
+//   fontSize: "14px",
+//   verticalAlign: "middle"
+// };
+
+
 import React, { useState, useEffect } from "react";
-// @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
+// @ts-ignore
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -1271,26 +1707,17 @@ import {
 } from "recharts";
 
 // --- TypeScript Interfaces ---
-
 export interface Programme {
   Program_Title: string | null;
   Program_Code: string;
   WingCode: string | null;
-  Description: string | null;
-  OutComes: string | null;
-  Date: string | null;
-  Venue: string | null;
   Category: string | null;
   Group: string | null;
-  IsApproved: boolean | null;
-  IsResulted: boolean | null;
-  IsResultPublished: boolean | null;
-  Total_Registration: number | null;
-  IsOpenRegistration: boolean | null;
-  Program_Poster: string | null;
-  IsConducted: boolean | null;
+  Date: string | null;
+  Venue: string | null;
   AccademicYear: string | null;
-  Expected_Time: string | null;
+  Total_Registration: number | null;
+  IsConducted: boolean | null;
   Collaborator: string | null;
 }
 
@@ -1299,330 +1726,142 @@ export interface WingSummary {
   WingTitle: string | null;
 }
 
-interface FilterState {
-  AccademicYear: string;
-  Group: string;
-  Venue: string;
-  WingCode: string;
-  Collaborator: string;
-}
-
-interface FilterOptions {
-  years: string[];
-  groups: string[];
-  venues: string[];
-  collaborators: string[];
-}
-
-// Professional Indigo Theme for Programs
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'];
+const COLORS: string[] = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'];
 
 export default function ProgrammesAnalytics() {
-  // State Management
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [wings, setWings] = useState<WingSummary[]>([]);
   const [filteredData, setFilteredData] = useState<Programme[]>([]);
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Filters State
-  const [filters, setFilters] = useState<FilterState>({
-    AccademicYear: "",
-    Group: "",
-    Venue: "",
-    WingCode: "",
-    Collaborator: ""
+  const [filters, setFilters] = useState({
+    AccademicYear: "", Group: "", Venue: "", WingCode: "", Collaborator: ""
   });
 
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    years: [],
-    groups: [],
-    venues: [],
-    collaborators: []
+  const [filterOptions, setFilterOptions] = useState({
+    years: [] as string[], groups: [] as string[], venues: [] as string[], collaborators: [] as string[]
   });
 
-  // 1. Fetch Data
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const { data: progData, error: progError } = await SupaBaseFunction
-          .from("ProgrammesBox")
-          .select("*");
-
-        const { data: wingData, error: wingError } = await SupaBaseFunction
-          .from("Chs-WingS")
-          .select("WingCode, WingTitle");
-
-        if (progError) throw progError;
-        if (wingError) throw wingError;
+        const { data: progData } = await SupaBaseFunction.from("ProgrammesBox").select("*");
+        const { data: wingData } = await SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle");
 
         const typedProgs = (progData as Programme[]) || [];
-        const typedWings = (wingData as WingSummary[]) || [];
-
         setProgrammes(typedProgs);
-        setWings(typedWings);
+        setWings((wingData as WingSummary[]) || []);
 
-        // Extract unique, non-null filter options
         setFilterOptions({
           years: Array.from(new Set(typedProgs.map(p => p.AccademicYear).filter(Boolean))) as string[],
           groups: Array.from(new Set(typedProgs.map(p => p.Group).filter(Boolean))) as string[],
           venues: Array.from(new Set(typedProgs.map(p => p.Venue).filter(Boolean))) as string[],
           collaborators: Array.from(new Set(typedProgs.map(p => p.Collaborator).filter(Boolean))) as string[]
         });
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
+      } catch (error) { console.error(error); } finally { setLoading(false); }
     };
     fetchData();
   }, []);
 
-  // 2. Apply Filters
   useEffect(() => {
-    let result = [...programmes];
-    if (filters.AccademicYear) result = result.filter(p => p.AccademicYear === filters.AccademicYear);
-    if (filters.Group) result = result.filter(p => p.Group === filters.Group);
-    if (filters.Venue) result = result.filter(p => p.Venue === filters.Venue);
-    if (filters.WingCode) result = result.filter(p => p.WingCode === filters.WingCode);
-    if (filters.Collaborator) result = result.filter(p => p.Collaborator === filters.Collaborator);
-    
+    let result = programmes.filter(p => 
+      (!filters.AccademicYear || p.AccademicYear === filters.AccademicYear) &&
+      (!filters.Group || p.Group === filters.Group) &&
+      (!filters.Venue || p.Venue === filters.Venue) &&
+      (!filters.WingCode || p.WingCode === filters.WingCode) &&
+      (!filters.Collaborator || p.Collaborator === filters.Collaborator)
+    );
     setFilteredData(result);
   }, [filters, programmes]);
 
-  // 3. Export Logic
-  const handleExport = () => {
-    const isFiltered = Object.values(filters).some(val => val !== "");
-    const message = isFiltered 
-      ? `You have active filters. Export ${filteredData.length} filtered rows?`
-      : `Export all ${filteredData.length} rows?`;
+  const getWingName = (code: string | null) => wings.find(w => w.WingCode === code)?.WingTitle || code || "Unknown";
 
-    if (window.confirm(message)) {
-      const headers = [
-        "Program_Title", "Program_Code", "Wing_Name", "Date", "Venue", 
-        "Category", "Group", "Academic_Year", "Total_Registration", "IsResulted"
-      ];
-
-      const csvContent = [
-        headers.join(","),
-        ...filteredData.map(row => {
-          const wingName = wings.find(w => w.WingCode === row.WingCode)?.WingTitle || row.WingCode;
-          return [
-            `"${row.Program_Title || ''}"`,
-            `"${row.Program_Code || ''}"`,
-            `"${wingName || ''}"`,
-            `"${row.Date || ''}"`,
-            `"${row.Venue || ''}"`,
-            `"${row.Category || ''}"`,
-            `"${row.Group || ''}"`,
-            `"${row.AccademicYear || ''}"`,
-            row.Total_Registration || 0,
-            row.IsResulted ? "Yes" : "No"
-          ].join(",");
-        })
-      ].join("\n");
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `Program_Analytics_${new Date().toISOString().split('T')[0]}.csv`;
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
-
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const getWingName = (code: string | null) => {
-    if (!code) return "Unknown";
-    return wings.find(w => w.WingCode === code)?.WingTitle || code;
-  };
-
-  // --- Analytics Data Processing ---
-
-  const registrationsByWing = Object.values(
-    filteredData.reduce<Record<string, { name: string; registrations: number }>>((acc, curr) => {
-      const name = getWingName(curr.WingCode);
-      if (!acc[name]) acc[name] = { name, registrations: 0 };
-      acc[name].registrations += (curr.Total_Registration || 0);
-      return acc;
-    }, {})
-  ).sort((a, b) => b.registrations - a.registrations).slice(0, 8);
-
-  const categoryData = Object.values(
-    filteredData.reduce<Record<string, { name: string; value: number }>>((acc, curr) => {
-      const cat = curr.Category || "Uncategorized";
-      if (!acc[cat]) acc[cat] = { name: cat, value: 0 };
-      acc[cat].value += 1;
-      return acc;
-    }, {})
-  );
-
-  const timelineData = Object.values(
-    filteredData.reduce<Record<string, { name: string; programs: number }>>((acc, curr) => {
-      if (!curr.Date) return acc;
-      const dateObj = new Date(curr.Date);
-      // Skip invalid dates
-      if (isNaN(dateObj.getTime())) return acc;
-      
-      const month = dateObj.toLocaleString('default', { month: 'short', year: '2-digit' });
-      if (!acc[month]) acc[month] = { name: month, programs: 0 };
-      acc[month].programs += 1;
-      return acc;
-    }, {})
-  ).sort((a, b) => new Date(`1 ${a.name}`).getTime() - new Date(`1 ${b.name}`).getTime());
-
-
-  if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "#64748b", fontWeight: "600" }}>Loading Analytics...</div>;
+  if (loading) return <div className="p-10 text-center font-bold text-slate-500 animate-pulse">Loading...</div>;
 
   return (
-    <div style={{ padding: "24px", backgroundColor: "#f8fafc", minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
-      
-      {/* HEADER SECTION */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8 font-sans">
+      {/* Header */}
+      <div className="bg-white p-6 rounded-2xl shadow-sm mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 style={{ margin: 0, fontSize: "24px", color: "#1e293b", fontWeight: 700 }}>Admin Program Analytics</h2>
-          <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>Full control over programmes and schedules.</p>
+          <h2 className="text-2xl font-bold text-slate-800">Admin Program Analytics</h2>
+          <p className="text-sm text-slate-500">Overview of organizational performance.</p>
         </div>
-        
-        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <div style={{ display: "flex", backgroundColor: "#f1f5f9", borderRadius: "8px", padding: "4px" }}>
-            <button 
-              onClick={() => setActiveTab("List")} 
-              style={{...tabStyleBase, backgroundColor: activeTab === "List" ? "#fff" : "transparent", color: activeTab === "List" ? "#0f172a" : "#64748b", boxShadow: activeTab === "List" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"}}
-            >
-              List
-            </button>
-            <button 
-              onClick={() => setActiveTab("Analytics")} 
-              style={{...tabStyleBase, backgroundColor: activeTab === "Analytics" ? "#fff" : "transparent", color: activeTab === "Analytics" ? "#0f172a" : "#64748b", boxShadow: activeTab === "Analytics" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"}}
-            >
-              Analytics
-            </button>
-          </div>
-          <button onClick={handleExport} style={exportBtnStyle}>
-            Export CSV ({filteredData.length})
-          </button>
+        <div className="flex bg-slate-100 rounded-lg p-1">
+          <button onClick={() => setActiveTab("List")} className={`px-4 py-2 rounded-md font-semibold ${activeTab === "List" ? "bg-white shadow" : ""}`}>List</button>
+          <button onClick={() => setActiveTab("Analytics")} className={`px-4 py-2 rounded-md font-semibold ${activeTab === "Analytics" ? "bg-white shadow" : ""}`}>Analytics</button>
         </div>
       </div>
 
-      {/* FILTER SECTION */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "16px", marginBottom: "24px", backgroundColor: "#fff", padding: "16px", borderRadius: "12px", boxShadow: "0 2px 4px -1px rgba(0,0,0,0.05)" }}>
-        <select name="AccademicYear" value={filters.AccademicYear} onChange={handleFilterChange} style={selectStyle}>
-          <option value="">All Academic Years</option>
-          {filterOptions.years.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-        <select name="Group" value={filters.Group} onChange={handleFilterChange} style={selectStyle}>
-          <option value="">All Groups</option>
-          {filterOptions.groups.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <select name="Venue" value={filters.Venue} onChange={handleFilterChange} style={selectStyle}>
-          <option value="">All Venues</option>
-          {filterOptions.venues.map(v => <option key={v} value={v}>{v}</option>)}
-        </select>
-        <select name="WingCode" value={filters.WingCode} onChange={handleFilterChange} style={selectStyle}>
-          <option value="">All Wings</option>
-          {wings.map(w => <option key={w.WingCode} value={w.WingCode}>{w.WingTitle}</option>)}
-        </select>
-        <select name="Collaborator" value={filters.Collaborator} onChange={handleFilterChange} style={selectStyle}>
-          <option value="">All Collaborators</option>
-          {filterOptions.collaborators.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-      </div>
-
-      {/* DYNAMIC CONTENT AREA */}
+      {/* Analytics View */}
       {activeTab === "Analytics" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
-          
-          <div style={cardStyle}>
-            <h3 style={chartTitleStyle}>Registrations by Wing (Top 8)</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={registrationsByWing} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                <YAxis tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
-                <RechartsTooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                <Bar dataKey="registrations" name="Registrations" fill="#6366f1" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Chart 1 */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm">
+            <h3 className="text-lg font-bold mb-6">Registrations by Wing</h3>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={filteredData.reduce((acc: any[], curr) => {
+                  const name = getWingName(curr.WingCode);
+                  const existing = acc.find(a => a.name === name);
+                  if (existing) existing.registrations += (curr.Total_Registration || 0);
+                  else acc.push({ name, registrations: (curr.Total_Registration || 0) });
+                  return acc;
+                }, []).slice(0, 8)}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" fontSize={12} />
+                  <YAxis fontSize={12} />
+                  <RechartsTooltip />
+                  <Bar dataKey="registrations" fill="#6366f1" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          <div style={cardStyle}>
-            <h3 style={chartTitleStyle}>Programs by Category</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie data={categoryData} cx="40%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={3} dataKey="value">
-                  {categoryData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                <Legend layout="vertical" verticalAlign="middle" align="right" iconType="circle" wrapperStyle={{ fontSize: '13px', lineHeight: '24px', color: '#475569' }} />
-              </PieChart>
-            </ResponsiveContainer>
+          {/* Chart 2 */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm">
+            <h3 className="text-lg font-bold mb-6">Programs by Category</h3>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={Object.values(filteredData.reduce((acc: any, curr) => {
+                    const cat = curr.Category || "Uncategorized";
+                    acc[cat] = (acc[cat] || 0) + 1;
+                    return acc;
+                  }, {})).map((val, i, arr) => ({ name: Object.keys(arr)[i], value: val }))} 
+                  innerRadius={70} outerRadius={110} dataKey="value">
+                    {/* FIX: Used '_' to avoid TS6133 error */}
+                    {Array.from({length: 10}).map((_, index) => <Cell key={index} fill={COLORS[index % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-
-          <div style={{...cardStyle, gridColumn: "1 / -1"}}>
-            <h3 style={chartTitleStyle}>Program Frequency Timeline</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timelineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
-                <YAxis tick={{fill: '#64748b'}} axisLine={false} tickLine={false} allowDecimals={false} />
-                <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                <Legend />
-                <Line type="monotone" dataKey="programs" name="Programs Conducted" stroke="#14b8a6" strokeWidth={3} activeDot={{ r: 8 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          
         </div>
       ) : (
-        <div style={{ backgroundColor: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-              <thead style={{ backgroundColor: "#f8fafc", color: "#475569", fontSize: "14px", textTransform: "uppercase" }}>
+        /* List View */
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px] text-left">
+              <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                 <tr>
-                  <th style={thStyle}>Program Title</th>
-                  <th style={thStyle}>Wing</th>
-                  <th style={thStyle}>Date</th>
-                  <th style={thStyle}>Venue</th>
-                  <th style={thStyle}>Registrations</th>
-                  <th style={thStyle}>Status</th>
+                  <th className="p-4">Title</th>
+                  <th className="p-4">Wing</th>
+                  <th className="p-4">Date</th>
+                  <th className="p-4">Regs</th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredData.map((prog, idx) => (
-                  <tr key={prog.Program_Code} style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: idx % 2 === 0 ? "#fff" : "#f8fafc" }}>
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight: 600, color: "#0f172a" }}>{prog.Program_Title}</div>
-                      <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px" }}>{prog.Category} • {prog.Group}</div>
-                    </td>
-                    <td style={tdStyle}>{getWingName(prog.WingCode)}</td>
-                    <td style={tdStyle}>{prog.Date ? new Date(prog.Date).toLocaleDateString() : 'TBA'}</td>
-                    <td style={tdStyle}>{prog.Venue || 'TBA'}</td>
-                    <td style={tdStyle}>
-                      <span style={{ backgroundColor: "#e0e7ff", color: "#4338ca", padding: "4px 10px", borderRadius: "999px", fontWeight: 600, fontSize: "12px" }}>
-                        {prog.Total_Registration || 0}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      {prog.IsConducted 
-                        ? <span style={{ color: "#16a34a", fontWeight: 600, fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}><div style={{width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'#16a34a'}}></div> Conducted</span>
-                        : <span style={{ color: "#d97706", fontWeight: 600, fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}><div style={{width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'#d97706'}}></div> Upcoming</span>}
-                    </td>
+              <tbody className="divide-y divide-slate-100">
+                {filteredData.map(p => (
+                  <tr key={p.Program_Code} className="hover:bg-slate-50">
+                    <td className="p-4 font-semibold">{p.Program_Title}</td>
+                    <td className="p-4">{getWingName(p.WingCode)}</td>
+                    <td className="p-4">{p.Date || 'TBA'}</td>
+                    <td className="p-4">{p.Total_Registration || 0}</td>
                   </tr>
                 ))}
-                {filteredData.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
-                      No programmes match your current filters.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
@@ -1631,67 +1870,3 @@ export default function ProgrammesAnalytics() {
     </div>
   );
 }
-
-// --- Inline Styles typed as React.CSSProperties ---
-
-const tabStyleBase: React.CSSProperties = {
-  padding: "8px 16px",
-  borderRadius: "6px",
-  border: "none",
-  cursor: "pointer",
-  fontWeight: 600,
-  transition: "all 0.2s"
-};
-
-const selectStyle: React.CSSProperties = {
-  padding: "10px",
-  borderRadius: "8px",
-  border: "1px solid #e2e8f0",
-  backgroundColor: "#f8fafc",
-  color: "#334155",
-  fontSize: "14px",
-  outline: "none",
-  cursor: "pointer"
-};
-
-const exportBtnStyle: React.CSSProperties = {
-  backgroundColor: "#4f46e5", 
-  color: "#fff", 
-  border: "none", 
-  padding: "10px 20px", 
-  borderRadius: "8px", 
-  fontWeight: 600, 
-  cursor: "pointer", 
-  display: "flex", 
-  alignItems: "center", 
-  gap: "8px", 
-  boxShadow: "0 4px 6px -1px rgba(79, 70, 229, 0.3)"
-};
-
-const cardStyle: React.CSSProperties = {
-  backgroundColor: "#fff", 
-  padding: "24px", 
-  borderRadius: "16px",
-  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", 
-  border: "1px solid #f1f5f9"
-};
-
-const chartTitleStyle: React.CSSProperties = {
-  margin: "0 0 20px 0", 
-  fontSize: "16px", 
-  color: "#334155", 
-  fontWeight: 600
-};
-
-const thStyle: React.CSSProperties = {
-  padding: "16px", 
-  fontWeight: 600, 
-  borderBottom: "2px solid #e2e8f0"
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "16px", 
-  color: "#334155", 
-  fontSize: "14px",
-  verticalAlign: "middle"
-};

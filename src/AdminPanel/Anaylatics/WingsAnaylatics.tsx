@@ -59,7 +59,6 @@
 // ) TABLESPACE pg_default;
 
 
-
 import React, { useState, useEffect } from "react";
 // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
 import { SupaBaseFunction } from "../../lib/SupaBase"; 
@@ -241,52 +240,66 @@ export default function GeneralWingsAnaylatics() {
   const totalSystemRegistrations = filteredData.reduce((sum, w) => sum + (w.Total_Registrations || 0), 0);
   const activeWingsCount = filteredData.filter(w => w.IsActive).length;
 
-  if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "#64748b", fontWeight: "600" }}>Loading Wings Analytics...</div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="text-lg font-semibold text-slate-500 animate-pulse">Loading Wings Analytics...</div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: "24px", backgroundColor: "#faf5ff", minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-violet-50 p-4 sm:p-6 lg:p-8 font-sans">
       
       {/* HEADER SECTION */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 sm:p-6 rounded-2xl shadow-sm mb-6 gap-5">
         <div>
-          <h2 style={{ margin: 0, fontSize: "24px", color: "#6d28d9", fontWeight: "700" }}>General Wings Analytics</h2>
-          <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "14px" }}>Monitor departmental performance, point accumulation, and event metrics.</p>
+          <h2 className="m-0 text-xl sm:text-2xl font-bold text-violet-700">General Wings Analytics</h2>
+          <p className="mt-1 text-sm text-slate-500">Monitor departmental performance, point accumulation, and event metrics.</p>
         </div>
-        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-stretch sm:items-center">
           
-          <div style={{ display: "flex", backgroundColor: "#f3e8ff", borderRadius: "8px", padding: "4px" }}>
+          <div className="flex bg-violet-50 rounded-lg p-1 w-full sm:w-auto">
             <button 
               onClick={() => setActiveTab("List")}
-              style={{ ...tabStyle, backgroundColor: activeTab === "List" ? "#fff" : "transparent", color: activeTab === "List" ? "#6d28d9" : "#64748b", boxShadow: activeTab === "List" ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === "List" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               Directory
             </button>
             <button 
               onClick={() => setActiveTab("Analytics")}
-              style={{ ...tabStyle, backgroundColor: activeTab === "Analytics" ? "#fff" : "transparent", color: activeTab === "Analytics" ? "#6d28d9" : "#64748b", boxShadow: activeTab === "Analytics" ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === "Analytics" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               Analytics
             </button>
           </div>
 
-          <button onClick={handleExport} style={exportBtnStyle}>
+          <button 
+            onClick={handleExport} 
+            className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 active:scale-95 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-md shadow-violet-600/20 transition-all text-center"
+          >
             Export CSV ({filteredData.length})
           </button>
         </div>
       </div>
 
       {/* FILTER & SEARCH SECTION */}
-      <div style={{ display: "flex", gap: "16px", marginBottom: "24px", backgroundColor: "#fff", padding: "16px", borderRadius: "12px", boxShadow: "0 2px 4px -1px rgba(0,0,0,0.05)" }}>
+      <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-white p-4 sm:p-5 rounded-2xl shadow-sm">
         <input 
           type="text" 
           name="SearchTerm" 
           placeholder="Search by Wing Name, Code, or Manager..." 
           value={filters.SearchTerm} 
           onChange={handleFilterChange} 
-          style={{ ...inputStyle, flex: 2 }}
+          className="w-full flex-2 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
         />
 
-        <select name="IsActive" value={filters.IsActive} onChange={handleFilterChange} style={{ ...inputStyle, flex: 1 }}>
+        <select 
+          name="IsActive" 
+          value={filters.IsActive} 
+          onChange={handleFilterChange} 
+          className="w-full sm:w-1/3 flex-1 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
+        >
           <option value="all">All Wings (Active & Inactive)</option>
           <option value="true">Active Wings Only</option>
           <option value="false">Inactive Wings Only</option>
@@ -297,149 +310,160 @@ export default function GeneralWingsAnaylatics() {
       {activeTab === "Analytics" ? (
         <>
           {/* KPI CARDS */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-            <div style={kpiCardStyle}>
-              <div style={kpiTitleStyle}>Total Registered Wings</div>
-              <div style={kpiValueStyle}>{filteredData.length}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Registered Wings</div>
+              <div className="text-2xl font-bold text-slate-800 mt-2">{filteredData.length}</div>
             </div>
-            <div style={kpiCardStyle}>
-              <div style={kpiTitleStyle}>Active Operating Wings</div>
-              <div style={{...kpiValueStyle, color: "#10b981"}}>{activeWingsCount}</div>
+            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Active Operating Wings</div>
+              <div className="text-2xl font-bold text-emerald-500 mt-2">{activeWingsCount}</div>
             </div>
-            <div style={kpiCardStyle}>
-              <div style={kpiTitleStyle}>Global System Points</div>
-              <div style={{...kpiValueStyle, color: "#8b5cf6"}}>{totalSystemPoints.toLocaleString()}</div>
+            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Global System Points</div>
+              <div className="text-2xl font-bold text-violet-500 mt-2">{totalSystemPoints.toLocaleString()}</div>
             </div>
-            <div style={kpiCardStyle}>
-              <div style={kpiTitleStyle}>Total Program Registrations</div>
-              <div style={{...kpiValueStyle, color: "#f59e0b"}}>{totalSystemRegistrations.toLocaleString()}</div>
+            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
+              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Program Registrations</div>
+              <div className="text-2xl font-bold text-amber-500 mt-2">{totalSystemRegistrations.toLocaleString()}</div>
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* STACKED BAR CHART: Points Breakdown */}
-            <div style={cardStyle}>
-              <h3 style={chartTitleStyle}>Wing Points Breakdown (Top 8)</h3>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={pointsBreakdown} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                  <YAxis tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
-                  <RechartsTooltip cursor={{fill: '#faf5ff'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                  <Legend />
-                  <Bar dataKey="standard" name="Standard Points" stackId="a" fill="#8b5cf6" />
-                  <Bar dataKey="bonus" name="Bonus Points" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+              <h3 className="text-base font-bold text-slate-700 mb-5">Wing Points Breakdown (Top 8)</h3>
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pointsBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                    <YAxis tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                    <RechartsTooltip cursor={{fill: '#faf5ff'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                    <Legend wrapperStyle={{fontSize: '12px'}} />
+                    <Bar dataKey="standard" name="Standard Points" stackId="a" fill="#8b5cf6" />
+                    <Bar dataKey="bonus" name="Bonus Points" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {/* PIE CHART: Registration Distribution */}
-            <div style={cardStyle}>
-              <h3 style={chartTitleStyle}>Registration Volume by Wing</h3>
-              <ResponsiveContainer width="100%" height={320}>
-                <PieChart>
-                  <Pie 
-                    data={registrationsByWing} 
-                    cx="40%" 
-                    cy="50%" 
-                    innerRadius={70} 
-                    outerRadius={110} 
-                    paddingAngle={3} 
-                    dataKey="value"
-                  >
-                    {registrationsByWing.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                  <Legend 
-                    layout="vertical" 
-                    verticalAlign="middle" 
-                    align="right" 
-                    iconType="circle"
-                    wrapperStyle={{ fontSize: '13px', lineHeight: '24px', color: '#475569' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+              <h3 className="text-base font-bold text-slate-700 mb-5">Registration Volume by Wing</h3>
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={registrationsByWing} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius="55%" 
+                      outerRadius="80%" 
+                      paddingAngle={2} 
+                      dataKey="value"
+                    >
+                      {/* FIX: Replaced 'entry' with '_' */}
+                      {registrationsByWing.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                    <Legend 
+                      iconType="circle"
+                      wrapperStyle={{ fontSize: '12px', color: '#475569' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             {/* COMPOSED CHART: Deep Engagement Profiling */}
-            <div style={{...cardStyle, gridColumn: "1 / -1"}}>
-              <h3 style={chartTitleStyle}>Top Performing Wings: Engagement vs Conversions</h3>
-              <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={engagementProfile} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="left" tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
-                  <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                  <Legend />
-                  <Area yAxisId="left" type="monotone" dataKey="registrations" name="Registrations" fill="#fef3c7" stroke="#f59e0b" />
-                  <Bar yAxisId="left" dataKey="results" name="Resulted/Completed" barSize={40} fill="#10b981" radius={[4, 4, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="points" name="Total Points Earned" stroke="#6d28d9" strokeWidth={3} />
-                </ComposedChart>
-              </ResponsiveContainer>
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
+              <h3 className="text-base font-bold text-slate-700 mb-5">Top Performing Wings: Engagement vs Conversions</h3>
+              <div className="h-[350px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={engagementProfile} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                    <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                    <Legend wrapperStyle={{fontSize: '12px'}} />
+                    <Area yAxisId="left" type="monotone" dataKey="registrations" name="Registrations" fill="#fef3c7" stroke="#f59e0b" />
+                    <Bar yAxisId="left" dataKey="results" name="Resulted/Completed" barSize={30} fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="points" name="Total Points Earned" stroke="#6d28d9" strokeWidth={3} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
           </div>
         </>
       ) : (
         /* TABLE LIST VIEW */
-        <div style={{ backgroundColor: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-              <thead style={{ backgroundColor: "#f8fafc", color: "#475569", fontSize: "14px", textTransform: "uppercase" }}>
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px] text-left border-collapse">
+              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                 <tr>
-                  <th style={thStyle}>Wing Identity</th>
-                  <th style={thStyle}>Leadership</th>
-                  <th style={thStyle}>Performance Data</th>
-                  <th style={thStyle}>Total Points</th>
-                  <th style={thStyle}>Status</th>
+                  <th className="p-4 border-b border-slate-200">Wing Identity</th>
+                  <th className="p-4 border-b border-slate-200">Leadership</th>
+                  <th className="p-4 border-b border-slate-200">Performance Data</th>
+                  <th className="p-4 border-b border-slate-200">Total Points</th>
+                  <th className="p-4 border-b border-slate-200">Status</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredData.map((wing, idx) => {
                   const grandTotal = (wing.Total_Points || 0) + (wing.Bonus_Points || 0);
                   
                   return (
-                    <tr key={wing.WingCode} style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: idx % 2 === 0 ? "#fff" : "#f8fafc" }}>
-                      <td style={tdStyle}>
-                        <div style={{ fontWeight: "700", color: "#0f172a", fontSize: "15px" }}>{wing.WingTitle || 'Unnamed Wing'}</div>
-                        <div style={{ fontSize: "12px", color: "#64748b", fontFamily: "monospace", marginTop: "2px" }}>CODE: {wing.WingCode}</div>
+                    <tr key={wing.WingCode} className={`hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                      <td className="p-4">
+                        <div className="font-bold text-slate-800 text-base">{wing.WingTitle || 'Unnamed Wing'}</div>
+                        <div className="text-xs text-slate-500 font-mono mt-0.5">CODE: {wing.WingCode}</div>
                       </td>
-                      <td style={tdStyle}>
-                        <div style={{ fontWeight: "500", color: "#334155" }}>Mgr: {wing.WingManager || 'Not Assigned'}</div>
-                        <div style={{ fontSize: "12px", color: "#64748b" }}>Cvr: {wing.WingConvener || 'Not Assigned'}</div>
+                      <td className="p-4">
+                        <div className="font-medium text-slate-700">Mgr: {wing.WingManager || 'Not Assigned'}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">Cvr: {wing.WingConvener || 'Not Assigned'}</div>
                       </td>
-                      <td style={tdStyle}>
-                        <div style={{ fontSize: "13px", color: "#475569" }}>Registrations: <b style={{color: "#0f172a"}}>{wing.Total_Registrations || 0}</b></div>
-                        <div style={{ fontSize: "13px", color: "#475569" }}>Results Processed: <b style={{color: "#0f172a"}}>{wing.Total_Resulted || 0}</b></div>
+                      <td className="p-4 text-slate-600">
+                        <div className="text-sm">Registrations: <span className="font-bold text-slate-800">{wing.Total_Registrations || 0}</span></div>
+                        <div className="text-sm">Results Processed: <span className="font-bold text-slate-800">{wing.Total_Resulted || 0}</span></div>
                       </td>
-                      <td style={tdStyle}>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
-                          <span style={{ backgroundColor: "#ede9fe", color: "#6d28d9", padding: "4px 12px", borderRadius: "999px", fontWeight: "700", fontSize: "14px" }}>
+                      <td className="p-4">
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-violet-100 text-violet-800 font-bold text-sm">
                             {grandTotal} pts
                           </span>
                           {(wing.Bonus_Points || 0) > 0 && (
-                            <span style={{ fontSize: "11px", color: "#ec4899", fontWeight: "600", marginLeft: "4px" }}>
+                            <span className="text-xs font-semibold text-pink-500 ml-1">
                               (+{wing.Bonus_Points} Bonus)
                             </span>
                           )}
                         </div>
                       </td>
-                      <td style={tdStyle}>
-                        {wing.IsActive 
-                          ? <span style={{ color: "#10b981", fontWeight: "600", fontSize: "14px", display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'#10b981'}}></div> Active</span>
-                          : <span style={{ color: "#ef4444", fontWeight: "600", fontSize: "14px", display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{width:'8px', height:'8px', borderRadius:'50%', backgroundColor:'#ef4444'}}></div> Inactive</span>
-                        }
+                      <td className="p-4">
+                        {wing.IsActive ? (
+                          <span className="inline-flex items-center gap-1.5 text-emerald-600 font-semibold">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-rose-500 font-semibold">
+                            <span className="w-2 h-2 rounded-full bg-rose-500"></span> Inactive
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
                 })}
                 {filteredData.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>No Wings match your current search/filters.</td>
+                    <td colSpan={5} className="p-8 text-center text-slate-500">
+                      No Wings match your current search/filters.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -450,16 +474,3 @@ export default function GeneralWingsAnaylatics() {
     </div>
   );
 }
-
-// --- Inline Styles typed as React.CSSProperties ---
-
-const inputStyle: React.CSSProperties = { padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0", backgroundColor: "#f8fafc", color: "#334155", fontSize: "14px", outline: "none" };
-const tabStyle: React.CSSProperties = { padding: "8px 16px", borderRadius: "6px", border: "none", cursor: "pointer", fontWeight: "600", transition: "all 0.2s" };
-const exportBtnStyle: React.CSSProperties = { backgroundColor: "#8b5cf6", color: "#fff", border: "none", padding: "10px 20px", borderRadius: "8px", fontWeight: "600", cursor: "pointer", boxShadow: "0 4px 6px -1px rgba(139, 92, 246, 0.3)" };
-const cardStyle: React.CSSProperties = { backgroundColor: "#fff", padding: "24px", borderRadius: "16px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", border: "1px solid #f1f5f9" };
-const chartTitleStyle: React.CSSProperties = { margin: "0 0 20px 0", fontSize: "16px", color: "#334155", fontWeight: "600" };
-const kpiCardStyle: React.CSSProperties = { backgroundColor: "#fff", padding: "20px", borderRadius: "12px", border: "1px solid #f1f5f9", boxShadow: "0 2px 4px rgba(0,0,0,0.02)" };
-const kpiTitleStyle: React.CSSProperties = { fontSize: "13px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px" };
-const kpiValueStyle: React.CSSProperties = { fontSize: "28px", color: "#0f172a", fontWeight: "700", marginTop: "8px" };
-const thStyle: React.CSSProperties = { padding: "16px", fontWeight: "600", borderBottom: "2px solid #e2e8f0" };
-const tdStyle: React.CSSProperties = { padding: "16px", color: "#334155", fontSize: "14px", verticalAlign: "middle" };

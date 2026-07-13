@@ -32,22 +32,24 @@ export default function AdminPanel() {
                     <NavLink to={`/admin-panel/${actUser}/dashboard`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
                         Dashboard
                     </NavLink>
-                    <NavLink to={`/admin-panel/${actUser}/programmes-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                        Programmes List
-                    </NavLink>
-                    <NavLink to={`/admin-panel/${actUser}/create-program`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                        Create Programme
-                    </NavLink>
-                    <NavLink to={`/admin-panel/${actUser}/create-highlight`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                        Create HighLight
-                    </NavLink>
-                    <NavLink to={`/admin-panel/${actUser}/programmes-card`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                        Programmes Card
-                    </NavLink>
-                    <NavLink to={`/admin-panel/${actUser}/programmes-calendar`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                        Programmes Calendar
-                    </NavLink>
-
+                    <div className='flex flex-col space-y-1'>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Program & Result</p>
+                        <NavLink to={`/admin-panel/${actUser}/programmes-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Programmes List
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/create-program`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Create Programme
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/create-highlight`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Create HighLight
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/programmes-card`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Programmes Card
+                        </NavLink>
+                        <NavLink to={`/admin-panel/${actUser}/programmes-calendar`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
+                            Programmes Calendar
+                        </NavLink>
+                    </div>
                     <div className='flex flex-col space-y-1'>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 px-3 mt-4">Students & Users</p>
                         <NavLink to={`/admin-panel/${actUser}/all-students`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
@@ -79,7 +81,7 @@ export default function AdminPanel() {
                         <NavLink to={`/admin-panel/${actUser}/create-treasurer`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Create Treasurer
                         </NavLink>
-                        
+
                         <NavLink to={`/admin-panel/${actUser}/all-treasurer-list`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                             Treasurer List
                         </NavLink>

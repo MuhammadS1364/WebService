@@ -7,7 +7,7 @@ import GetWay from './GetWay/GetWay';
 
 // Admin Special components
 import AdminPanel from './AdminPanel/Dashboard/AdminPanel';
-import AllProgrammesList from './PublicProgrammesComponents/AllProgrammesList';
+// import AllProgrammesList from './PublicProgrammesComponents/AllProgrammesList';
 import ProgrammesRegistrationCard from './PublicProgrammesComponents/ProgrammesRegistrationCard';
 import ProgrammesCalendar from './PublicProgrammesComponents/ProgramCelender';
 import ProgrammeRegistration from './PublicProgrammesComponents/ProgramRegistration';
