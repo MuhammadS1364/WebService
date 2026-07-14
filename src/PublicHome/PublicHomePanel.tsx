@@ -68,6 +68,8 @@ export default function PublicHomePanel() {
                     </button>
                 </header>
 
+
+
                 {/* Main Layout Container - Fixed height, no page scroll */}
                 <main className="flex-1 flex flex-col bg-gray-50 h-screen overflow-hidden">
 
