@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
+import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
 
 // 1. Define explicit structures matching your Supabase Database Schemas
 interface StudentProfile {
@@ -22,7 +23,7 @@ interface ProgramItem {
   Category: string | null;
   IsConducted: boolean;
   IsResultPublished: boolean;
-  Date?: string | Date;
+  Date?: string | null;
   Venue?: string;
 }
 
@@ -238,7 +239,7 @@ export default function StudentProgrammes() {
 
                   <div className="mt-auto border-t border-gray-50 pt-4 flex items-center justify-between text-xs font-medium text-gray-500">
                     <div>
-                      {prog.Date ? new Date(prog.Date).toLocaleDateString() : "TBA"}
+                      {formatResultDate(prog.Date)}
                     </div>
                     <div>
                       {prog.Venue || "TBA"}
