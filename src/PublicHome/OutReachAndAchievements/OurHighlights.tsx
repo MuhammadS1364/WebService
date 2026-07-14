@@ -172,9 +172,12 @@
 //     </div>
 //   );
 // }
+
+
+
 import { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
-import { Calendar, Tag, Layers, X, Maximize2, Download } from "lucide-react";
+import { Calendar, X, Maximize2, Download } from "lucide-react"; // Removed Tag and Layers
 
 interface PublicHighlightItem {
   id: number;
@@ -189,14 +192,13 @@ interface PublicHighlightItem {
 
 export default function OurHighLights() {
   const [highlights, setHighlights] = useState<PublicHighlightItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  // Removed unused 'loading' state
   const [selectedType, setSelectedType] = useState<string>("All");
   const [fullscreenMedia, setFullscreenMedia] = useState<{url: string, type: string} | null>(null);
 
   useEffect(() => {
     async function fetchHighlights() {
       try {
-        setLoading(true);
         const { data, error } = await SupaBaseFunction
           .from("PublicHighLights")
           .select("*")
@@ -205,8 +207,6 @@ export default function OurHighLights() {
         if (data) setHighlights(data as PublicHighlightItem[]);
       } catch (err) {
         console.error("Failed retrieving:", err);
-      } finally {
-        setLoading(false);
       }
     }
     fetchHighlights();
@@ -237,7 +237,6 @@ export default function OurHighLights() {
           <h1 className="mt-6 text-5xl md:text-6xl font-extrabold text-slate-950 tracking-tight">Our Milestones</h1>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-wrap gap-2 mb-10">
           {categories.map(type => (
             <button key={type} onClick={() => setSelectedType(type)} className={`px-5 py-2 text-xs font-bold rounded-full transition-all ${selectedType === type ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"}`}>
@@ -246,7 +245,6 @@ export default function OurHighLights() {
           ))}
         </div>
 
-        {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filtered.map((event) => (
             <article key={event.id} className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden">
@@ -270,7 +268,6 @@ export default function OurHighLights() {
         </div>
       </div>
 
-      {/* Modal */}
       {fullscreenMedia && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
           <button onClick={() => setFullscreenMedia(null)} className="absolute top-8 right-8 text-white p-3"><X size={24} /></button>
