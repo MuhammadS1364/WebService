@@ -470,6 +470,7 @@
 
 import { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../lib/SupaBase";
+import formatResultDate from "./DateFormatConvertor";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -525,9 +526,8 @@ export default function PublicProgrammesList() {
         const { data, error: fetchError } = await SupaBaseFunction
           .from('ProgrammesBox')
           .select('*')
-          // .eq('IsConducted', false)  // Filter: Not conducted yet
           // Temporarily disabled so your unapproved test data shows up!
-          // .eq("IsApproved", true)
+          .eq("IsApproved", true)
           .order('Date', { ascending: true });
 
         if (fetchError) throw fetchError;
@@ -645,7 +645,7 @@ export default function PublicProgrammesList() {
                       
                       {/* UPDATED: Applied formatDisplayDate here */}
                       <span className="text-sm font-semibold text-gray-900">
-                        {formatDisplayDate(program.Date)}
+                        {formatResultDate(program.Date)}
                       </span>
                       
                     </div>
@@ -671,3 +671,5 @@ export default function PublicProgrammesList() {
     </div>
   );
 }
+
+// checking start here 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; 
+import formatResultDate from "./DateFormatConvertor";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -38,6 +39,7 @@ export default function ProgrammesRegistrationCard() {
           .from('ProgrammesBox')
           .select('*')
           .eq('IsConducted', false)  // Filter: Not conducted yet
+          .eq("IsApproved", true)
           .order('Date', { ascending: true }); 
 
         if (fetchError) throw fetchError;
@@ -152,7 +154,7 @@ export default function ProgrammesRegistrationCard() {
                   <div className="flex bg-[#f8f9fa] border border-gray-100 rounded-xl p-4 mt-2">
                     <div className="flex flex-col w-1/2 border-r border-gray-200/60 pr-2">
                       <span className="text-xs font-medium text-gray-500 mb-1">Date</span>
-                      <span className="text-sm font-semibold text-gray-900">{program.Date || "TBA"}</span>
+                      <span className="text-sm font-semibold text-gray-900">{formatResultDate(program.Date) || "TBA"}</span>
                     </div>
                     <div className="flex flex-col w-1/2 pl-4">
                       <span className="text-xs font-medium text-gray-500 mb-1">Venue</span>

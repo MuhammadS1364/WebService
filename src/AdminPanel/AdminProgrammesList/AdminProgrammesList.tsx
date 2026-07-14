@@ -84,6 +84,8 @@ export default function AdminProgrammesList() {
       if (progError) throw progError;
       if (wingError) throw wingError;
 
+        console.log(progData.length)
+        
       if (progData) setProgrammes(progData as Programme[]);
       if (wingData) setWings(wingData as Wing[]);
     } catch (error: any) {
@@ -456,3 +458,5 @@ export default function AdminProgrammesList() {
     </div>
   );
 }
+
+// checking start here 
