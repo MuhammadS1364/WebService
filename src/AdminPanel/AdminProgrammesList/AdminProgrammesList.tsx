@@ -291,10 +291,10 @@ export default function AdminProgrammesList() {
               <button onClick={() => setViewMode("calendar")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-emerald-600'}`}>Calendar</button>
             </div>
             <input type="file" accept=".xlsx, .xls" ref={fileInputRef} style={{ display: 'none' }} onChange={processImportedFile} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={isLoading.import} className="flex items-center justify-center min-w-[110px] px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-70 shadow-sm">
+            <button onClick={() => fileInputRef.current?.click()} disabled={isLoading.import} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-70 shadow-sm">
               {isLoading.import ? <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span> : "Import Excel"}
             </button>
-            <button onClick={handleExport} disabled={isLoading.export} className="flex items-center justify-center min-w-[110px] px-4 py-2.5 bg-white border-2 border-emerald-600 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-50 transition disabled:opacity-70 shadow-sm">
+            <button onClick={handleExport} disabled={isLoading.export} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-white border-2 border-emerald-600 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-50 transition disabled:opacity-70 shadow-sm">
               {isLoading.export ? <span className="animate-spin h-4 w-4 border-2 border-emerald-700 border-t-transparent rounded-full"></span> : "Export Excel (All)"}
             </button>
           </div>
@@ -417,7 +417,7 @@ export default function AdminProgrammesList() {
                   const hasEvents = dayPrograms.length > 0;
                   
                   return (
-                    <div key={dateString} onClick={() => setSelectedDate(dateString)} className={`min-h-[100px] p-3 rounded-2xl border-2 transition-all flex flex-col cursor-pointer ${isSelected ? 'border-emerald-500 bg-emerald-50/50 shadow-sm' : hasEvents ? 'border-emerald-100 bg-white hover:border-emerald-300' : 'border-transparent bg-gray-50/50 hover:bg-gray-100'}`}>
+                    <div key={dateString} onClick={() => setSelectedDate(dateString)} className={`min-h-25 p-3 rounded-2xl border-2 transition-all flex flex-col cursor-pointer ${isSelected ? 'border-emerald-500 bg-emerald-50/50 shadow-sm' : hasEvents ? 'border-emerald-100 bg-white hover:border-emerald-300' : 'border-transparent bg-gray-50/50 hover:bg-gray-100'}`}>
                       <span className={`text-sm font-black ${isSelected ? 'text-emerald-700' : hasEvents ? 'text-gray-900' : 'text-gray-400'}`}>{new Date(dateString).getDate()}</span>
                       {hasEvents && (
                         <div className="mt-auto flex flex-col gap-1">
@@ -432,7 +432,7 @@ export default function AdminProgrammesList() {
               </div>
             </div>
 
-            <div className="w-full lg:w-1/3 bg-white rounded-3xl shadow-sm border border-emerald-100 p-8 min-h-[500px]">
+            <div className="w-full lg:w-1/3 bg-white rounded-3xl shadow-sm border border-emerald-100 p-8 min-h-125">
               <h3 className="text-xl font-black text-gray-900 pb-4 border-b-2 border-emerald-50 mb-6">{new Date(selectedDate).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
               <div className="space-y-4">
                 {programsForSelectedDate.length > 0 ? (
