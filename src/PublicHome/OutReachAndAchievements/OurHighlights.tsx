@@ -175,9 +175,119 @@
 
 
 
+// import { useState, useEffect } from "react";
+// import { SupaBaseFunction } from "../../lib/SupaBase";
+// import { Calendar, X, Maximize2, Download } from "lucide-react"; // Removed Tag and Layers
+// import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
+
+// interface PublicHighlightItem {
+//   id: number;
+//   created_at: string;
+//   HighLitght_Title: string | null;
+//   HighLight_Type: string | null;
+//   PhotoImg_Url: string | null;
+//   ShortDescpt: string | null;
+//   Academic_Year: number | null;
+//   FileType: string | null;
+// }
+
+// export default function OurHighLights() {
+//   const [highlights, setHighlights] = useState<PublicHighlightItem[]>([]);
+//   // Removed unused 'loading' state
+//   const [selectedType, setSelectedType] = useState<string>("All");
+//   const [fullscreenMedia, setFullscreenMedia] = useState<{url: string, type: string} | null>(null);
+
+//   useEffect(() => {
+//     async function fetchHighlights() {
+//       try {
+//         const { data, error } = await SupaBaseFunction
+//           .from("PublicHighLights")
+//           .select("*")
+//           .order("created_at", { ascending: false });
+//         if (error) throw error;
+//         if (data) setHighlights(data as PublicHighlightItem[]);
+//       } catch (err) {
+//         console.error("Failed retrieving:", err);
+//       }
+//     }
+//     fetchHighlights();
+//   }, []);
+
+//   const handleDownload = async (url: string) => {
+//     try {
+//       const response = await fetch(url);
+//       const blob = await response.blob();
+//       const blobUrl = window.URL.createObjectURL(blob);
+//       const link = document.createElement("a");
+//       link.href = blobUrl;
+//       link.setAttribute("download", "highlight-media");
+//       document.body.appendChild(link);
+//       link.click();
+//       link.remove();
+//     } catch (err) { console.error("Download failed:", err); }
+//   };
+
+//   const categories = ["All", ...Array.from(new Set(highlights.map(i => i.HighLight_Type).filter((t): t is string => !!t)))];
+//   const filtered = selectedType === "All" ? highlights : highlights.filter(i => i.HighLight_Type === selectedType);
+
+//   return (
+//     <div className="bg-slate-50 text-slate-900 min-h-screen p-6 md:p-16 font-sans">
+//       <div className="max-w-7xl mx-auto">
+//         <div className="mb-16">
+//           <span className="text-[10px] font-extrabold tracking-[0.2em] text-emerald-600 uppercase bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100">Campus Highlights</span>
+//           <h1 className="mt-6 text-5xl md:text-6xl font-extrabold text-slate-950 tracking-tight">Our Milestones</h1>
+//         </div>
+
+//         <div className="flex flex-wrap gap-2 mb-10">
+//           {categories.map(type => (
+//             <button key={type} onClick={() => setSelectedType(type)} className={`px-5 py-2 text-xs font-bold rounded-full transition-all ${selectedType === type ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+//               {type}
+//             </button>
+//           ))}
+//         </div>
+
+//         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+//           {filtered.map((event) => (
+//             <article key={event.id} className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden">
+//               <div className="aspect-[4/2] relative cursor-pointer overflow-hidden" onClick={() => event.PhotoImg_Url && setFullscreenMedia({url: event.PhotoImg_Url, type: event.FileType || 'Image'})}>
+//                 <div className="absolute inset-0 bg-slate-100 flex items-center justify-center">
+//                   {event.FileType === "Video" ? <video src={event.PhotoImg_Url || ""} className="w-full h-full object-cover" /> : <img src={event.PhotoImg_Url || ""} className="w-full h-full object-cover" />}
+//                 </div>
+//                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+//                   <Maximize2 className="text-white w-8 h-8" />
+//                 </div>
+//               </div>
+//               <div className="p-8">
+//                 <h2 className="text-xl font-bold text-slate-900 mb-2">{event.HighLitght_Title}</h2>
+//                 <p className="text-slate-500 text-sm mb-6 line-clamp-2">{event.ShortDescpt}</p>
+//                 <div className="flex items-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+//                   {/* <Calendar className="w-3.5 h-3.5 mr-2" />{new Date(event.created_at).toLocaleDateString()} */}
+//                   <Calendar className="w-3.5 h-3.5 mr-2" />{formatResultDate(event.created_at)}
+//                 </div>
+//               </div>
+//             </article>
+//           ))}
+//         </div>
+//       </div>
+
+//       {fullscreenMedia && (
+//         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+//           <button onClick={() => setFullscreenMedia(null)} className="absolute top-8 right-8 text-white p-3"><X size={24} /></button>
+//           <button onClick={() => handleDownload(fullscreenMedia.url)} className="absolute top-8 right-20 text-white flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full"><Download size={18} /> Save</button>
+//           <div className="max-w-5xl w-full">
+//             {fullscreenMedia.type === "Video" ? <video src={fullscreenMedia.url} controls className="w-full rounded-2xl" /> : <img src={fullscreenMedia.url} className="w-full h-auto rounded-2xl" />}
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+
 import { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
-import { Calendar, X, Maximize2, Download } from "lucide-react"; // Removed Tag and Layers
+import { Calendar, X, Maximize2, Download } from "lucide-react"; 
+import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
 
 interface PublicHighlightItem {
   id: number;
@@ -192,7 +302,6 @@ interface PublicHighlightItem {
 
 export default function OurHighLights() {
   const [highlights, setHighlights] = useState<PublicHighlightItem[]>([]);
-  // Removed unused 'loading' state
   const [selectedType, setSelectedType] = useState<string>("All");
   const [fullscreenMedia, setFullscreenMedia] = useState<{url: string, type: string} | null>(null);
 
@@ -223,23 +332,45 @@ export default function OurHighLights() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch (err) { console.error("Download failed:", err); }
+    } catch (err) { 
+      console.error("Download failed:", err); 
+    }
   };
 
   const categories = ["All", ...Array.from(new Set(highlights.map(i => i.HighLight_Type).filter((t): t is string => !!t)))];
   const filtered = selectedType === "All" ? highlights : highlights.filter(i => i.HighLight_Type === selectedType);
 
+  // UX Optimization: Prevent scrolling on the body when modal is open
+  useEffect(() => {
+    if (fullscreenMedia) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [fullscreenMedia]);
+
   return (
     <div className="bg-slate-50 text-slate-900 min-h-screen p-6 md:p-16 font-sans">
       <div className="max-w-7xl mx-auto">
         <div className="mb-16">
-          <span className="text-[10px] font-extrabold tracking-[0.2em] text-emerald-600 uppercase bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100">Campus Highlights</span>
+          <span className="text-[10px] font-extrabold tracking-[0.2em] text-emerald-600 uppercase bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100">
+            Campus Highlights
+          </span>
           <h1 className="mt-6 text-5xl md:text-6xl font-extrabold text-slate-950 tracking-tight">Our Milestones</h1>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-10">
           {categories.map(type => (
-            <button key={type} onClick={() => setSelectedType(type)} className={`px-5 py-2 text-xs font-bold rounded-full transition-all ${selectedType === type ? "bg-slate-900 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+            <button 
+              key={type} 
+              onClick={() => setSelectedType(type)} 
+              className={`px-5 py-2 text-xs font-bold rounded-full transition-all duration-300 ${
+                selectedType === type 
+                  ? "bg-slate-900 text-white shadow-md" 
+                  : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+              }`}
+            >
               {type}
             </button>
           ))}
@@ -247,20 +378,26 @@ export default function OurHighLights() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filtered.map((event) => (
-            <article key={event.id} className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden">
-              <div className="aspect-[4/3] relative cursor-pointer overflow-hidden" onClick={() => event.PhotoImg_Url && setFullscreenMedia({url: event.PhotoImg_Url, type: event.FileType || 'Image'})}>
-                <div className="absolute inset-0 bg-slate-100 flex items-center justify-center">
-                  {event.FileType === "Video" ? <video src={event.PhotoImg_Url || ""} className="w-full h-full object-cover" /> : <img src={event.PhotoImg_Url || ""} className="w-full h-full object-cover" />}
-                </div>
-                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <Maximize2 className="text-white w-8 h-8" />
+            <article key={event.id} className="group bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-500 overflow-hidden flex flex-col">
+              <div 
+                className="aspect-[4/2] relative cursor-pointer overflow-hidden bg-slate-100" 
+                onClick={() => event.PhotoImg_Url && setFullscreenMedia({url: event.PhotoImg_Url, type: event.FileType || 'Image'})}
+              >
+                {event.FileType === "Video" ? (
+                  <video src={event.PhotoImg_Url || ""} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                ) : (
+                  <img src={event.PhotoImg_Url || ""} alt={event.HighLitght_Title || "Highlight"} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                )}
+                
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                  <Maximize2 className="text-white w-8 h-8 drop-shadow-md" />
                 </div>
               </div>
-              <div className="p-8">
+              <div className="p-8 flex-1 flex flex-col">
                 <h2 className="text-xl font-bold text-slate-900 mb-2">{event.HighLitght_Title}</h2>
-                <p className="text-slate-500 text-sm mb-6 line-clamp-2">{event.ShortDescpt}</p>
-                <div className="flex items-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  <Calendar className="w-3.5 h-3.5 mr-2" />{new Date(event.created_at).toLocaleDateString()}
+                <p className="text-slate-500 text-sm mb-6 line-clamp-2 flex-1">{event.ShortDescpt}</p>
+                <div className="flex items-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider mt-auto">
+                  <Calendar className="w-3.5 h-3.5 mr-2" />{formatResultDate(event.created_at)}
                 </div>
               </div>
             </article>
@@ -268,12 +405,57 @@ export default function OurHighLights() {
         </div>
       </div>
 
+      {/* Improved Fullscreen Modal */}
       {fullscreenMedia && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <button onClick={() => setFullscreenMedia(null)} className="absolute top-8 right-8 text-white p-3"><X size={24} /></button>
-          <button onClick={() => handleDownload(fullscreenMedia.url)} className="absolute top-8 right-20 text-white flex items-center gap-2 bg-white/10 px-4 py-2 rounded-full"><Download size={18} /> Save</button>
-          <div className="max-w-5xl w-full">
-            {fullscreenMedia.type === "Video" ? <video src={fullscreenMedia.url} controls className="w-full rounded-2xl" /> : <img src={fullscreenMedia.url} className="w-full h-auto rounded-2xl" />}
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-8 transition-opacity"
+          onClick={() => setFullscreenMedia(null)} // UX: Click outside to close
+        >
+          {/* Action Buttons Container */}
+          <div className="absolute top-4 right-4 sm:top-8 sm:right-8 flex items-center gap-3 z-50">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownload(fullscreenMedia.url);
+              }} 
+              className="text-white/90 hover:text-white flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-full backdrop-blur-sm transition-colors text-sm font-medium"
+              aria-label="Download Media"
+            >
+              <Download size={18} /> 
+              <span className="hidden sm:inline">Save</span>
+            </button>
+            
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setFullscreenMedia(null);
+              }} 
+              className="text-white/90 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full backdrop-blur-sm transition-colors"
+              aria-label="Close Fullscreen"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          {/* Media Container - Constrained by Viewport Height */}
+          <div 
+            className="relative w-full h-full flex justify-center items-center"
+            onClick={(e) => e.stopPropagation()} // Prevent click from bubbling up to the backdrop
+          >
+            {fullscreenMedia.type === "Video" ? (
+              <video 
+                src={fullscreenMedia.url} 
+                controls 
+                autoPlay
+                className="max-w-full max-h-[85vh] w-auto rounded-xl shadow-2xl object-contain ring-1 ring-white/10" 
+              />
+            ) : (
+              <img 
+                src={fullscreenMedia.url} 
+                alt="Fullscreen view" 
+                className="max-w-full max-h-[85vh] w-auto rounded-xl shadow-2xl object-contain ring-1 ring-white/10" 
+              />
+            )}
           </div>
         </div>
       )}

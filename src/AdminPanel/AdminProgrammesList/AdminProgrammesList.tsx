@@ -45,7 +45,7 @@ interface ToastState {
 
 const IMPORT_COLUMNS = [
   "Program_Title", "Program_Code", "WingCode", "Date", 
-  "Venue", "Category", "Group", "AccademicYear", "Program_Poster","Total_Registration","IsResulted"
+  "Venue", "Category", "Group", "AccademicYear", "Program_Poster","Total_Registration","IsResulted","IsConducted","Expected_Time","Description","OutComes"
 ];
 
 const DEFAULT_POSTER = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80";

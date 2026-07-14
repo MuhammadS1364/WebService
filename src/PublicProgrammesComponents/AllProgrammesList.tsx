@@ -509,7 +509,7 @@ export default function PublicProgrammesList() {
           .from('ProgrammesBox')
           .select('*')
           // Temporarily disabled so your unapproved test data shows up!
-          .eq('IsConducted', true) 
+          // .eq('IsConducted', true) 
           .eq("IsApproved", true)
           .order('Date', { ascending: true });
 
