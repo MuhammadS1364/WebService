@@ -63,13 +63,13 @@ const OverViewClipBox = ({ BoxTitle, BoxValue, BoxSvgLogo, color = "indigo" }: O
 
 // 2. Main Analytics Component
 export default function WingAnalytics() {
-  const { actWing } = useParams<{ actWing: string }>(); 
-  
+  const { actWing } = useParams<{ actWing: string }>();
+
   const [loading, setLoading] = useState<boolean>(true);
   const [wingData, setWingData] = useState<WingData | null>(null);
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -114,8 +114,8 @@ export default function WingAnalytics() {
 
   // Derived state processing block using useMemo
   const { filteredProgrammes, categories, stats } = useMemo(() => {
-    let filtered = programmes.filter(p => 
-      (p.Program_Title && p.Program_Title.toLowerCase().includes(searchQuery.toLowerCase())) || 
+    let filtered = programmes.filter(p =>
+      (p.Program_Title && p.Program_Title.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (p.Program_Code && p.Program_Code.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
@@ -130,7 +130,7 @@ export default function WingAnalytics() {
     }
 
     const uniqueCategories = [...new Set(programmes.map(p => p.Category).filter(Boolean))];
-    
+
     const categoryStats: CategoryStat[] = uniqueCategories.map(cat => ({
       name: cat,
       totalReg: programmes.filter(p => p.Category === cat).reduce((sum, p) => sum + (p.Total_Registration || 0), 0)
@@ -138,8 +138,8 @@ export default function WingAnalytics() {
 
     const maxReg = Math.max(...categoryStats.map(c => c.totalReg), 1);
 
-    return { 
-      filteredProgrammes: filtered, 
+    return {
+      filteredProgrammes: filtered,
       categories: uniqueCategories,
       stats: { categoryStats, maxReg }
     };
@@ -147,6 +147,10 @@ export default function WingAnalytics() {
 
   const totalProgramsCount = programmes.length;
   const publishedResultsCount = programmes.filter(p => p.IsResultPublished).length;
+
+  // count all the value of thsi colun "Total_Registration" 
+  const totalRegistrations = programmes.reduce((sum, p) => sum + (p.Total_Registration || 0), 0);
+  
   const completionPercentage = totalProgramsCount === 0 ? 0 : Math.round((publishedResultsCount / totalProgramsCount) * 100);
 
   if (loading) return <div className="flex h-96 items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"></div></div>;
@@ -154,7 +158,7 @@ export default function WingAnalytics() {
 
   return (
     <div className="mx-auto max-w-[1600px] p-4 font-sans text-slate-800 bg-slate-50 min-h-screen">
-      
+
       {/* --- HEADER --- */}
       <div className="mb-8 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-col">
@@ -173,11 +177,10 @@ export default function WingAnalytics() {
                 key={status}
                 type="button"
                 onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  statusFilter === status
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${statusFilter === status
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 {status}
               </button>
@@ -186,7 +189,7 @@ export default function WingAnalytics() {
 
           <div className="relative w-full sm:w-64">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </span>
             <input
               type="text"
@@ -211,15 +214,15 @@ export default function WingAnalytics() {
 
       {/* --- METRICS LAYER --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <OverViewClipBox BoxTitle="Total Programmes" BoxValue={totalProgramsCount} color="indigo" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>} />
-        <OverViewClipBox BoxTitle="Total Registrations" BoxValue={wingData?.Total_Registrations || 0} color="blue" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} />
-        <OverViewClipBox BoxTitle="Results Published" BoxValue={publishedResultsCount} color="emerald" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} />
-        <OverViewClipBox BoxTitle="Total Points" BoxValue={(wingData?.Total_Points || 0) + (wingData?.Bonus_Points || 0)} color="amber" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>} />
+        <OverViewClipBox BoxTitle="Total Programmes" BoxValue={totalProgramsCount} color="indigo" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /></svg>} />
+        <OverViewClipBox BoxTitle="Total Registrations" BoxValue={totalRegistrations} color="blue" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>} />
+        <OverViewClipBox BoxTitle="Results Published" BoxValue={publishedResultsCount} color="emerald" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>} />
+        <OverViewClipBox BoxTitle="Total Points" BoxValue={(wingData?.Total_Points || 0) + (wingData?.Bonus_Points || 0)} color="amber" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>} />
       </div>
 
       {/* --- VISUAL ANALYTICS: CHARTS & TABLES DATA LAYER --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        
+
         {/* Category breakdown visual representation block using state properties */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-1">
           <div className="flex justify-between items-center mb-6">
@@ -234,8 +237,8 @@ export default function WingAnalytics() {
                   <span className="text-slate-500">{item.totalReg} Regs</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
+                  <div
+                    className="h-full bg-indigo-600 rounded-full transition-all duration-500"
                     style={{ width: `${(item.totalReg / stats.maxReg) * 100}%` }}
                   />
                 </div>
@@ -272,11 +275,10 @@ export default function WingAnalytics() {
                     <td className="py-4 px-6 text-slate-500 font-medium">{prog.Category || "Event"}</td>
                     <td className="py-4 px-6 text-slate-500 font-medium">{prog.Group}</td>
                     <td className="py-4 px-6">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
-                        prog.IsResultPublished 
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${prog.IsResultPublished
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                           : "bg-slate-50 text-slate-600 border border-slate-200"
-                      }`}>
+                        }`}>
                         {prog.IsResultPublished ? "Published" : "Pending"}
                       </span>
                     </td>

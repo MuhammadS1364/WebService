@@ -27,6 +27,9 @@ export default function PublicHomePanel() {
                     <NavLink to={`/public-panel/our-wing-list`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
                         Our Wings
                     </NavLink>
+                    <NavLink to={`/public-panel/our-programmes-list`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
+                        All Program
+                    </NavLink>
                     <NavLink to={`/public-panel/donate-us`} onClick={() => setIsMenuOpen(true)} className={navLinkClasses}>
                         Donate Us
                     </NavLink>
@@ -35,9 +38,6 @@ export default function PublicHomePanel() {
                     </NavLink>
                     <NavLink to={`/public-panel/our-hightligths-evens`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Highlights
-                    </NavLink>
-                    <NavLink to={`/public-panel/our-programmes`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
-                        Our Program
                     </NavLink>
                     <NavLink to={`/public-panel/our-achievements`} onClick={() => setIsMenuOpen(false)} className={navLinkClasses}>
                         Our Achievements

@@ -490,24 +490,6 @@ interface ProgramData {
   IsOpenRegistration: boolean;
 }
 
-// Helper to format dates to DD-Month-YYYY (e.g., 12-July-2026)
-const formatDisplayDate = (dateString: string | null) => {
-  if (!dateString) return "TBA";
-  try {
-    const [year, month, day] = dateString.split('T')[0].split('-');
-    if (!year || !month || !day) return dateString;
-    
-    const months = [
-      "January", "February", "March", "April", "May", "June", 
-      "July", "August", "September", "October", "November", "December"
-    ];
-    
-    const monthName = months[parseInt(month, 10) - 1];
-    return `${day}-${monthName}-${year}`;
-  } catch (error) {
-    return dateString;
-  }
-};
 
 export default function PublicProgrammesList() {
   // const { actStn } = useParams<{ actStn: string }>();
@@ -527,6 +509,7 @@ export default function PublicProgrammesList() {
           .from('ProgrammesBox')
           .select('*')
           // Temporarily disabled so your unapproved test data shows up!
+          .eq('IsConducted', true) 
           .eq("IsApproved", true)
           .order('Date', { ascending: true });
 
@@ -561,7 +544,7 @@ export default function PublicProgrammesList() {
     <div className="md:p-5 bg-gray-50 min-h-screen">
       <div className="max-w-300 mx-auto">
         <h2 className="text-3xl font-extrabold text-gray-900 mb-8">
-          Upcoming Programmes
+          Facilitated Programmes 
         </h2>
 
         {programmes.length === 0 ? (

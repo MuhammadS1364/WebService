@@ -78,6 +78,7 @@ export default function App() {
           <Route path='dashboard' element={<PublicPageDashboard />} />
           <Route path='our-hightligths-evens' element={<OurHighLights />} />
           <Route path='our-wing-list' element={<AllWingsList />} />
+          <Route path='our-programmes-list' element={<PublicProgrammesList />} />
           <Route path='our-programmes' element={<PublicProgrammesList />} />
           <Route path='our-achievements' element={<OutReachAndAchievements />} />
           <Route path='programmes-calendar' element={<ProgrammesCalendar />} />

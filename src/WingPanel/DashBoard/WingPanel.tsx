@@ -49,6 +49,14 @@ export default function WingPanel() {
                         </NavLink>
 
                         <NavLink
+                            to={`/wing-panel/${actWing}/create-program`}
+                            onClick={() => setIsMenuOpen(false)}
+                            className={navLinkClasses}
+                        >
+                            Create Program
+                        </NavLink>
+                        
+                        <NavLink
                             to={`/wing-panel/${actWing}/create-result`}
                             onClick={() => setIsMenuOpen(false)}
                             className={navLinkClasses}
@@ -56,13 +64,7 @@ export default function WingPanel() {
                             Create Result
                         </NavLink>
 
-                        <NavLink
-                            to={`/wing-panel/${actWing}/create-program`}
-                            onClick={() => setIsMenuOpen(false)}
-                            className={navLinkClasses}
-                        >
-                            Create Program
-                        </NavLink>
+
                     </div>
 
                     {/* Program Section */}
