@@ -45,7 +45,7 @@ interface ToastState {
 
 const IMPORT_COLUMNS = [
   "Program_Title", "Program_Code", "WingCode", "Date", 
-  "Venue", "Category", "Group", "AccademicYear", "Program_Poster","Total_Registration","IsResulted","IsConducted","Expected_Time","Description","OutComes"
+  "Venue", "Category", "Group", "AccademicYear", "Program_Poster","Total_Registration","IsResulted","IsConducted","Description","OutComes"
 ];
 
 const DEFAULT_POSTER = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80";
@@ -95,10 +95,10 @@ export default function AdminProgrammesList() {
     }
   };
 
-  const getWingName = (wingCode: string | null): string => {
-    if (!wingCode) return "Unknown Wing";
-    const wing = wings.find((w) => w.WingCode === wingCode);
-    return wing?.WingTitle || wingCode;
+  const getWingName = (WingCode: string | null): string => {
+    if (!WingCode) return "Unknown Wing";
+    const wing = wings.find((w) => w.WingCode === WingCode);
+    return wing?.WingTitle || WingCode;
   };
 
   const uniqueValues = useMemo(() => {
