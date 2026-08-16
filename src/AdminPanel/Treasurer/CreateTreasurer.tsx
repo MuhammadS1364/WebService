@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import { User, Mail, Calendar, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { User, Mail, Calendar, ShieldCheck, Loader2, CheckCircle2, AlertCircle, Hash } from "lucide-react";
 import { SupaBaseFunction } from "../../lib/SupaBase"; // Ensure correct path
 
 export default function CreateTreasurer() {
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     Treasurer_Name: "",
     Treasurer_Email: "",
     AccountingFor: "",
     IsActive: true,
     Treasurer_id: "",
-  });
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
 
   // Typed state for error/success messages
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -26,21 +28,37 @@ export default function CreateTreasurer() {
     setStatus(null);
 
     try {
-      const { error } = await SupaBaseFunction
-        .from("TreasurerVolt")
-        .insert([formData]);
+      // 1. First create user in UserTable
+      const { error: userError } = await SupaBaseFunction
+        .from('UserTable')
+        .insert([
+          {
+            UserEmail: formData.Treasurer_Email,
+            UserPassword: formData.Treasurer_id,
+            UserRole: "Treasurer"
+          }
+        ]);
 
-      if (error) throw error;
+      if (userError) throw userError; // Catch user creation errors (like duplicate emails)
+
+      // 2. Then create treasurer profile in TreasurerVolt
+      const { error: treasurerError } = await SupaBaseFunction
+        .from("TreasurerVolt")
+        .insert([
+          {
+            Treasurer_id: formData.Treasurer_id,
+            Treasurer_Name: formData.Treasurer_Name,
+            Treasurer_Email: formData.Treasurer_Email,
+            AccountingFor: formData.AccountingFor,
+            IsActive: formData.IsActive,
+            Treasurer_UserId: formData.Treasurer_Email,
+          }
+        ]);
+
+      if (treasurerError) throw treasurerError;
 
       setStatus({ type: "success", message: "Treasurer profile created successfully!" });
-      setFormData({
-        Treasurer_Name: "",
-        Treasurer_Email: "",
-        AccountingFor: "",
-        IsActive: true,
-        Treasurer_id: "",
-
-      });
+      setFormData(initialFormState);
 
       // Auto-hide success message after 4 seconds
       setTimeout(() => setStatus(null), 4000);
@@ -71,8 +89,9 @@ export default function CreateTreasurer() {
 
           {/* Status Alerts */}
           {status && (
-            <div className={`flex items-start gap-3 p-4 mb-6 rounded-xl text-sm font-medium animate-in fade-in slide-in-from-top-2 transition-all ${status.type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-              }`}>
+            <div className={`flex items-start gap-3 p-4 mb-6 rounded-xl text-sm font-medium animate-in fade-in slide-in-from-top-2 transition-all ${
+              status.type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+            }`}>
               {status.type === 'error' ? <AlertCircle size={20} className="shrink-0" /> : <CheckCircle2 size={20} className="shrink-0" />}
               <p>{status.message}</p>
             </div>
@@ -80,12 +99,12 @@ export default function CreateTreasurer() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Name Input */}
+            {/* Treasurer ID Input */}
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Treasurer ID</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <User size={18} />
+                  <Hash size={18} />
                 </div>
                 <input
                   type="text"
@@ -99,7 +118,7 @@ export default function CreateTreasurer() {
               </div>
             </div>
 
-            {/* Name Input */}
+            {/* Full Name Input */}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name</label>
               <div className="relative">
