@@ -95,6 +95,13 @@ export default function StudentPanel() {
 
                     {/* Logout Button */}
                     <div className="pt-4 border-t border-slate-800 mt-4">
+                        <NavLink
+                            to={`/student-panel/${actStn}/stn-password`}
+                            onClick={() => setIsMenuOpen(false)}
+                            className={navLinkClasses}
+                        >
+                            Update Pass
+                        </NavLink>
                         <button
                             type="button"
                             onClick={handleLogout}

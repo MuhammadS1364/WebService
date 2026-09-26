@@ -44,6 +44,13 @@ export default function OutReachPanel() {
                     </NavLink>
 
                     <div className="pt-4 border-t border-slate-800 mt-4">
+                        <NavLink
+                            to={`/outreach-panel/${safeActOutReach}/outreach-password`}
+                            onClick={() => setIsMenuOpen(false)}
+                            className={navLinkClasses}
+                        >
+                            Update Pass
+                        </NavLink>
                         <button type="button" onClick={handleLogout} className="w-full text-left block p-3 rounded-lg hover:bg-red-500/10 transition text-red-400 hover:text-red-300 font-medium">
                             Logout
                         </button>

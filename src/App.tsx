@@ -64,6 +64,10 @@ import ProgrammesAnaylatics from './AdminPanel/Anaylatics/ProgrammesAnaylatics';
 import StudentsAnaylaticsGeneral from './AdminPanel/Anaylatics/StudentsAnaylatics';
 import GeneralWingsAnaylatics from './AdminPanel/Anaylatics/WingsAnaylatics';
 
+
+import UpdatePassword from './UpdatePass/UpdatePass';
+
+
 export default function App() {
   return (
     <>
@@ -130,6 +134,7 @@ export default function App() {
           <Route path='stn-outreach-list' element={<StudentsOutReach />} />
           <Route path='stn-anylatics' element={<StudentAnalytics />} />
           <Route path='stn-program' element={<StudentProgrammes />} />
+          <Route path='stn-password' element={<UpdatePassword />} />
         </Route>
 
         {/* WING PANEL (Protected) */}
@@ -145,6 +150,7 @@ export default function App() {
           <Route path='wing-anylatics' element={<WingAnylatics />} />
           <Route path='wing-programmes' element={<WingProgrammes />} />
           <Route path='wing-results' element={<WingResults />} />
+          <Route path='wing-password' element={<UpdatePassword />} />
         </Route>
 
         {/* OUTREACH PANEL (Protected) */}
@@ -158,6 +164,7 @@ export default function App() {
           <Route path='create-achievements' element={<CreateAchievements />} />
           <Route path='create-outreach' element={<CreateOutReach />} />
           <Route path='outreach-anaylatics' element={<OutReachAnaylatics />} />
+          <Route path='outreach-password' element={<UpdatePassword />} />
           <Route path='edite-outreach' element={<OutReachAnaylatics />} />
           <Route path='edite-achievement/:Achieve_Id' element={<OutReachAnaylatics />} />
         </Route>
@@ -172,6 +179,7 @@ export default function App() {
           <Route path='dashboard' element={<TreasurerDashboard />} />
           <Route path='create-expance' element={<CreateExpanceOrIncome />} />
           <Route path='treasurer-analytics' element={<TreasureAnalatics />} />
+          <Route path='treasurer-password' element={<UpdatePassword />} />
         </Route>
 
         {/* 404 ERROR PAGE (Catches all unknown URLs) */}

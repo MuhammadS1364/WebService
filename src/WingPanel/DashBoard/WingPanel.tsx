@@ -55,7 +55,7 @@ export default function WingPanel() {
                         >
                             Create Program
                         </NavLink>
-                        
+
                         <NavLink
                             to={`/wing-panel/${actWing}/create-result`}
                             onClick={() => setIsMenuOpen(false)}
@@ -98,6 +98,13 @@ export default function WingPanel() {
 
                     {/* Logout Button */}
                     <div className="pt-4 border-t border-slate-800 mt-4">
+                        <NavLink
+                            to={`/wing-panel/${actWing}/wing-password`}
+                            onClick={() => setIsMenuOpen(false)}
+                            className={navLinkClasses}
+                        >
+                            Update Pass
+                        </NavLink>
                         <button
                             type="button"
                             onClick={handleLogout}
