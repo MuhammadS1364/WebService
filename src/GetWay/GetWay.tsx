@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; // Ensure this path is correct
+import dhiuLogo from "../ImgBox/Dhiu.jpg";
 
 export default function GetWay() {
   const navigate = useNavigate();
@@ -82,15 +83,16 @@ export default function GetWay() {
         
         {/* Branding/Header Section */}
         <div className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-200">
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white p-1.5 shadow-lg ring-2 ring-indigo-500/20 overflow-hidden">
+            <img src={dhiuLogo} alt="DHIU Logo" className="w-full h-full object-contain" />
           </div>
-          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900">
-            Welcome Back
+          <span className="mt-3 inline-block text-[11px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+            Darul Huda Islamic University
+          </span>
+          <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+            Welcome to Portal
           </h2>
-          <p className="mt-2 text-sm font-medium text-slate-500">
+          <p className="mt-1 text-sm font-medium text-slate-500">
             Sign in to access your dashboard gateway
           </p>
         </div>

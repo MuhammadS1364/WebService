@@ -2,50 +2,48 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
+import SafeImage from "../../lib/SafeImage";
+import { resolveStudentProfile, type LoggedInStudentProfile } from "../../lib/accountResolver";
+import { Compass, Globe, Award, Sparkles } from "lucide-react";
 
-// 1. Define the shape of your Student data
-interface StudentInfo {
-  AddNo: string;
-  StudentName: string;
-}
-
-// 2. Define the shape of your Outreach records
 interface OutreachRecord {
   OutReach_Id: string;
   OutReach_Type: string;
   OutReach_Title: string;
-  OutReach_Descriptin: string; // Keeping original spelling from your DB
+  OutReach_Descriptin: string;
   Point_Obtained: number;
   created_at: string;
 }
 
 export default function StudentsOutReach() {
   const { actStn } = useParams<{ actStn: string }>(); 
-  
-  const [loading, setLoading] = useState<boolean>(true);
-  
-  // 3. Apply the interfaces to the useState hooks
-  const [student, setStudent] = useState<StudentInfo | null>(null);
+  const [student, setStudent] = useState<LoggedInStudentProfile | null>(() => {
+    try {
+      const cached = localStorage.getItem("cached_student_profile");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState<boolean>(() => !localStorage.getItem("cached_student_profile"));
   const [outreachRecords, setOutreachRecords] = useState<OutreachRecord[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("All");
 
   useEffect(() => {
-    const fetchOutreach = async () => {
-      if (!actStn) return;
-      
-      setLoading(true);
+    let isMounted = true;
+
+    const fetchOutreach = async (silent = false) => {
+      if (!silent && !student) {
+        setLoading(true);
+      }
       try {
-        // Fetch Student Info via Email
-        const { data: studentData, error: studentError } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("AddNo, StudentName")
-          .eq("StudentEmail", actStn)
-          .single();
+        const studentData = await resolveStudentProfile(actStn);
+        if (!studentData) throw new Error("Student not found");
 
-        if (studentError || !studentData) throw studentError;
-        setStudent(studentData as StudentInfo);
+        if (isMounted) {
+          setStudent(studentData);
+        }
 
-        // Fetch Outreach Records using the student's AddNo
         const { data: outreachData, error: outreachError } = await SupaBaseFunction
           .from("StudentsOutReach")
           .select("*")
@@ -53,151 +51,175 @@ export default function StudentsOutReach() {
           .order("created_at", { ascending: false });
 
         if (outreachError) throw outreachError;
-        setOutreachRecords((outreachData as OutreachRecord[]) || []);
-        
+        if (isMounted) {
+          setOutreachRecords((outreachData as OutreachRecord[]) || []);
+        }
       } catch (error: unknown) {
-        // Safely handle unknown error types in TypeScript
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error("Error fetching student outreach:", errorMessage);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchOutreach();
+    fetchOutreach(Boolean(student));
+
+    const handleProfileSync = () => {
+      fetchOutreach(true);
+    };
+    window.addEventListener("student-profile-synced", handleProfileSync);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("student-profile-synced", handleProfileSync);
+    };
   }, [actStn]);
 
-  // Derived Stats safely typed
   const totalPoints = outreachRecords.reduce((sum, record) => sum + (record.Point_Obtained || 0), 0);
   const totalMissions = outreachRecords.length;
-  
-  // Safely extract unique types, casting filtered boolean array to strings
   const outreachTypes = ["All", ...new Set(outreachRecords.map(o => o.OutReach_Type).filter(Boolean) as string[])];
-
   const filteredOutreach = outreachRecords.filter(record => 
     typeFilter === "All" || record.OutReach_Type === typeFilter
   );
 
-  // 4. Added explicit type for the function parameter
-  const getTypeColor = (type?: string | null) => {
-    const defaultColor = "bg-teal-50 text-teal-700 border-teal-200";
-    if (!type) return defaultColor;
-    
-    const charCode = type.charCodeAt(0);
-    if (charCode % 4 === 0) return "bg-cyan-50 text-cyan-700 border-cyan-200";
-    if (charCode % 4 === 1) return "bg-blue-50 text-blue-700 border-blue-200";
-    if (charCode % 4 === 2) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    
-    return defaultColor;
-  };
-
   if (loading) {
     return (
-      <div className="flex h-[80vh] items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-teal-500"></div>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-cyan-600 border-t-transparent"></div>
       </div>
     );
   }
 
   if (!student) {
     return (
-      <div className="text-center mt-20 text-gray-500">
-        <h2 className="text-2xl font-bold text-gray-700">Student Not Found</h2>
-        <p>We couldn't locate records for this profile.</p>
+      <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 p-8">
+        <h2 className="text-xl font-bold text-slate-800">Student Not Found</h2>
+        <p className="text-xs text-slate-500 mt-1">We couldn't locate records for this profile.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="w-full max-w-6xl mx-auto space-y-6 pb-28 font-sans px-1 sm:px-2">
+      
+      {/* HEADER HERO: CLEAN WHITE BACKGROUND, COLLAPSES ON SMALL SCREENS */}
+      <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-7 shadow-xs flex flex-col sm:flex-row items-center sm:items-start justify-between gap-5 relative overflow-hidden">
         
-        {/* Header */}
-        <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-700 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
-          <div className="relative z-10">
-            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Global Footprint</h1>
-            <p className="text-teal-100 mt-2 text-lg">
-              Outreach & community impact map for <span className="font-bold text-white">{student.StudentName}</span>
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left min-w-0">
+          {/* Real Student Photo */}
+          <div className="w-18 h-18 sm:w-22 sm:h-22 rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-xs overflow-hidden shrink-0 flex items-center justify-center">
+            {student.Student_Photo_Urls ? (
+              <SafeImage
+                src={student.Student_Photo_Urls} 
+                alt={student.StudentName} 
+                fallbackCategory="student"
+                fallbackText={student.StudentName}
+                className="w-full h-full rounded-xl object-cover"
+              />
+            ) : (
+              <div className="w-full h-full rounded-xl bg-cyan-50 text-cyan-700 font-extrabold text-2xl flex items-center justify-center">
+                {(student.StudentName || "S")[0].toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider bg-cyan-50 text-cyan-700 px-2.5 py-0.5 rounded-full border border-cyan-200 inline-block mb-1">
+              🌍 DHIU Community Reach
+            </span>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight truncate">
+              Global Outreach Footprint
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1">
+              Field impact, symposiums, and civic missions for{" "}
+              <strong className="text-slate-900 font-bold">{student.StudentName}</strong>
             </p>
           </div>
-          <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20 text-center shadow-lg transform hover:scale-105 transition-transform">
-            <p className="text-sm font-bold text-teal-100 uppercase tracking-widest mb-1">Impact Score</p>
-            <p className="text-5xl font-black text-white">{totalPoints}</p>
+        </div>
+
+        {/* Impact Score Counter Badge */}
+        <div className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shrink-0 shadow-xs flex sm:flex-col items-center justify-between sm:justify-center gap-1 min-w-[150px]">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Impact Score</p>
+          <p className="text-3xl sm:text-4xl font-black text-cyan-600 flex items-center gap-1">
+            <Sparkles className="w-6 h-6 text-cyan-500" />
+            {totalPoints}
+          </p>
+          <span className="text-[10px] font-bold text-slate-400">Total Points</span>
+        </div>
+      </div>
+
+      {/* STATS OVERVIEW: 2 COLS ON MOBILE, 2 ON DESKTOP */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <OverviewClipBox
+          BoxTitle="Outreach Missions"
+          BoxValue={totalMissions}
+          BoxSvgLogo={<Globe className="w-6 h-6 text-cyan-600" />}
+        />
+        <OverviewClipBox
+          BoxTitle="Active Categories"
+          BoxValue={outreachTypes.length - 1}
+          BoxSvgLogo={<Compass className="w-6 h-6 text-indigo-600" />}
+        />
+      </div>
+
+      {/* FILTER & MISSIONS GRID */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <h2 className="text-base font-bold text-slate-900">Documented Missions ({filteredOutreach.length})</h2>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            {outreachTypes.map(type => (
+              <button
+                key={type}
+                onClick={() => setTypeFilter(type)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+                  typeFilter === type
+                    ? "bg-cyan-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {type}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Top Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <OverviewClipBox
-            BoxTitle="Outreach Missions"
-            BoxValue={totalMissions}
-            variant="emerald"
-            BoxSvgLogo={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            }
-          />
-          <OverviewClipBox
-            BoxTitle="Network Sectors"
-            BoxValue={outreachTypes.length > 1 ? outreachTypes.length - 1 : 0}
-            variant="blue"
-            BoxSvgLogo={
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-            }
-          />
-        </div>
-
-        {/* Filter Section */}
-        <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2 mb-4 sm:mb-0">🌍 Mission Log</h2>
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-semibold text-gray-500">Sector:</label>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-teal-500 outline-none font-medium transition-all"
-            >
-              {outreachTypes.map((type, idx) => (
-                <option key={idx} value={type}>{type || "Uncategorized"}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Outreach Log Grid */}
         {filteredOutreach.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-gray-300">
-            <span className="text-6xl mb-4 block">🚀</span>
-            <h3 className="text-2xl font-bold text-gray-700">Ready for Launch?</h3>
-            <p className="text-gray-500 mt-2 max-w-md mx-auto">Engage in community service or global programs to fill your mission log.</p>
-          </div>
+          <p className="text-xs text-slate-400 py-8 text-center">No outreach initiatives found in this category.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredOutreach.map((record) => {
-              const themeColor = getTypeColor(record.OutReach_Type);
-              return (
-                <div key={record.OutReach_Id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden flex flex-col group hover:-translate-y-1">
-                  <div className={`h-2 w-full ${themeColor.split(' ')[0].replace('bg-', 'bg-')}`} style={{ filter: 'brightness(0.9)' }}></div>
-                  <div className="p-6 flex flex-col flex-1">
-                    <div className="flex justify-between items-start mb-4">
-                      <span className={`px-3 py-1 text-xs font-bold rounded-full border ${themeColor}`}>
-                        {record.OutReach_Type || "General Outreach"}
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 leading-tight">{record.OutReach_Title}</h3>
-                    <p className="text-sm text-gray-600 mb-6 flex-1 line-clamp-3">{record.OutReach_Descriptin}</p>
-                    <div className="mt-auto border-t border-gray-100 pt-4 flex justify-between items-center">
-                      <div className="text-xs font-medium text-gray-400">
-                        {record.created_at ? new Date(record.created_at).toLocaleDateString() : 'Date N/A'}
-                      </div>
-                      <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-                        <span className="text-xs font-bold text-gray-500 uppercase">Impact</span>
-                        <span className="text-lg font-black text-cyan-600">+{record.Point_Obtained}</span>
-                      </div>
-                    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredOutreach.map(record => (
+              <div
+                key={record.OutReach_Id}
+                className="border border-slate-200 rounded-2xl p-4 sm:p-5 hover:shadow-md transition bg-slate-50/40 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-700 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-md">
+                      {record.OutReach_Type || "Mission"}
+                    </span>
+                    <span className="text-xs font-black text-cyan-700 bg-cyan-100/70 px-2 py-0.5 rounded-lg">
+                      +{record.Point_Obtained} PTS
+                    </span>
                   </div>
+
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug mb-1">
+                    {record.OutReach_Title}
+                  </h3>
+
+                  <p className="text-xs text-slate-600 leading-relaxed mb-3 line-clamp-3">
+                    {record.OutReach_Descriptin}
+                  </p>
                 </div>
-              );
-            })}
+
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+                  <span className="font-mono">#{record.OutReach_Id}</span>
+                  <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                    <Award size={12} /> Approved
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

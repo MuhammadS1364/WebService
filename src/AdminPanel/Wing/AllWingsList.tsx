@@ -3,6 +3,9 @@ import type { ChangeEvent } from "react";
 // Ensure this path aligns perfectly with your setup
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useParams } from "react-router-dom";
+import SafeImage from "../../lib/SafeImage";
+import EditWingModal from "./EditWingModal";
+import { Edit2, Trash2, CheckCircle2, KeyRound, Mail, Lock, Eye, EyeOff, Copy, Check } from "lucide-react";
 
 // 1. Explicitly typed structure representing database schema
 interface WingData {
@@ -14,7 +17,11 @@ interface WingData {
     WingAssistant?: string | null;
     Total_Registrations?: number | null;
     Total_Resulted?: number | null;
+    Total_Points?: number | null;
+    Bonus_Points?: number | null;
+    Description?: string | null;
     IsActive: boolean;
+    wing_logo?: string | null;
 }
 
 export default function AllWingsList() {
@@ -29,42 +36,106 @@ export default function AllWingsList() {
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [statusFilter, setStatusFilter] = useState<string>("All");
 
+    // Modal & Toast States
+    const [selectedWingForEdit, setSelectedWingForEdit] = useState<WingData | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+    const [actionFeedback, setActionFeedback] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+    // Credentials & Copy States
+    const [wingPasswords, setWingPasswords] = useState<Record<string, string>>({});
+    const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+    const copyToClipboard = (text: string, key: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        setCopiedKey(key);
+        setTimeout(() => setCopiedKey(null), 2000);
+    };
+
+    const togglePasswordVisibility = (code: string) => {
+        setVisiblePasswords((prev) => ({ ...prev, [code]: !prev[code] }));
+    };
+
+    const fetchWings = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const { data, error: fetchError } = await SupaBaseFunction
+                .from('Chs-WingS')
+                .select('*')
+                .order('WingTitle', { ascending: true });
+
+            if (fetchError) throw fetchError;
+
+            // Also retrieve passwords from UserTable for exact admin syncing
+            try {
+                const { data: userAccounts } = await SupaBaseFunction
+                    .from('UserTable')
+                    .select('UserEmail, UserPassword')
+                    .eq('UserRole', 'Wing');
+
+                if (userAccounts) {
+                    const passMap: Record<string, string> = {};
+                    userAccounts.forEach((u: any) => {
+                        if (u.UserEmail) {
+                            passMap[u.UserEmail.toLowerCase().trim()] = u.UserPassword;
+                        }
+                    });
+                    setWingPasswords(passMap);
+                }
+            } catch (authErr) {
+                console.warn("Could not query UserTable credentials:", authErr);
+            }
+
+            setWings(data || []);
+        } catch (err: any) {
+            console.error("Critical Fetch Exception Encountered:", err);
+            setError(err.message || "Failed to load wings records securely from data-store layer.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Fetch live rows from Supabase
     useEffect(() => {
-        let isMounted = true;
-
-        const fetchWings = async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                const { data, error: fetchError } = await SupaBaseFunction
-                    .from('Chs-WingS')
-                    .select('*')
-                    .order('WingTitle', { ascending: true });
-
-                if (fetchError) throw fetchError;
-
-                if (isMounted) {
-                    setWings(data || []);
-                }
-            } catch (err: any) {
-                console.error("Critical Fetch Exception Encountered:", err);
-                if (isMounted) {
-                    setError(err.message || "Failed to load wings records securely from data-store layer.");
-                }
-            } finally {
-                if (isMounted) {
-                    setIsLoading(false);
-                }
-            }
-        };
-
         fetchWings();
-
-        return () => {
-            isMounted = false;
-        };
     }, []);
+
+    const handleEditWing = (wing: WingData) => {
+        setSelectedWingForEdit(wing);
+        setIsEditModalOpen(true);
+    };
+
+    const handleWingEditSuccess = () => {
+        setActionFeedback({ message: "Wing details updated successfully!", type: "success" });
+        fetchWings();
+        setTimeout(() => setActionFeedback(null), 3000);
+    };
+
+    const handleDeleteWing = async (wing: WingData) => {
+        const confirmed = window.confirm(
+            `Are you sure you want to delete "${wing.WingTitle || wing.WingCode}"? This will remove the wing department record.`
+        );
+        if (!confirmed) return;
+
+        try {
+            const { error: delError } = await SupaBaseFunction
+                .from('Chs-WingS')
+                .delete()
+                .eq('WingCode', wing.WingCode);
+
+            if (delError) throw delError;
+
+            setWings(prev => prev.filter(w => w.WingCode !== wing.WingCode));
+            setActionFeedback({ message: `Wing "${wing.WingTitle || wing.WingCode}" deleted successfully.`, type: "success" });
+            setTimeout(() => setActionFeedback(null), 3000);
+        } catch (err: any) {
+            console.error("Failed to delete wing:", err);
+            setActionFeedback({ message: `Error deleting wing: ${err.message}`, type: "error" });
+            setTimeout(() => setActionFeedback(null), 4000);
+        }
+    };
 
 
 
@@ -132,6 +203,18 @@ export default function AllWingsList() {
                 </div>
             </div>
 
+            {/* --- ACTION FEEDBACK BANNER --- */}
+            {actionFeedback && (
+                <div className={`mb-6 rounded-2xl border p-4 text-xs sm:text-sm font-semibold flex items-center gap-3 transition-all ${
+                    actionFeedback.type === "success"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                        : "border-red-200 bg-red-50 text-red-800"
+                }`}>
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                    <span>{actionFeedback.message}</span>
+                </div>
+            )}
+
             {/* --- ERROR ALERTS --- */}
             {error && (
                 <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 flex items-center gap-3">
@@ -159,6 +242,21 @@ export default function AllWingsList() {
                             <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                                 <div className="flex items-start gap-3">
                                     <input type="checkbox" className="mt-1.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                                    <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 p-0.5 shrink-0 overflow-hidden flex items-center justify-center">
+                                        {wing.wing_logo ? (
+                                            <SafeImage
+                                                src={wing.wing_logo}
+                                                alt={wing.WingTitle ?? "Wing Logo"}
+                                                fallbackCategory="wing"
+                                                fallbackText={wing.WingTitle || "W"}
+                                                className="w-full h-full object-contain"
+                                            />
+                                        ) : (
+                                            <span className="font-bold text-xs text-blue-700">
+                                                {(wing.WingTitle || "W")[0].toUpperCase()}
+                                            </span>
+                                        )}
+                                    </div>
                                     <div>
                                         <h3 className="text-lg font-bold text-slate-800 line-clamp-1" title={wing.WingTitle ?? "No Title Available"}>
                                             {wing.WingTitle ?? "No Title Provided"}
@@ -171,35 +269,132 @@ export default function AllWingsList() {
 
                                 {/* Interaction Actions Buttons */}
                                 <div className="flex items-center gap-1">
-                                    <button type="button" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
-                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleEditWing(wing)}
+                                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
+                                        title="Edit Wing Details"
+                                    >
+                                        <Edit2 className="h-4 w-4" />
                                     </button>
-                                    <button type="button" className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteWing(wing)}
+                                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                                        title="Delete Wing"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Authentication Detail Wrapper */}
+                            {/* Authentication Detail Wrapper (Collapse-Proof, Fully Responsive) */}
                             {decodedEmail ? (
-                                < div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-3">
-                                    <div className="flex flex-col space-y-1.5">
-                                        <div className="flex items-center justify-between text-xs">
-                                            <span className="font-semibold text-slate-500">Login Email:</span>
-                                            <span className="font-mono text-slate-800">{wing.WingEmail ?? "N/A"}</span>
+                                <div className="mt-3.5 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 sm:p-3.5 space-y-3">
+                                    {/* Section Header */}
+                                    <div className="flex items-center justify-between gap-2 border-b border-slate-200/70 pb-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <KeyRound className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                                                Wing Credentials
+                                            </span>
                                         </div>
-                                        <div className="flex items-center justify-between text-xs">
-                                            <span className="font-semibold text-slate-500">Password:</span>
-                                            <span className="font-mono text-slate-800">{wing.WingCode}</span>
+                                        <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full shrink-0">
+                                            Admin View
+                                        </span>
+                                    </div>
+
+                                    {/* Login Email Block */}
+                                    <div className="space-y-1 min-w-0">
+                                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                            <span className="flex items-center gap-1">
+                                                <Mail className="h-3 w-3 text-slate-400 shrink-0" />
+                                                Login Email
+                                            </span>
+                                            {wing.WingEmail && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => copyToClipboard(wing.WingEmail || "", `email-${wing.WingCode}`)}
+                                                    className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer transition-colors"
+                                                    title="Copy Login Email"
+                                                >
+                                                    {copiedKey === `email-${wing.WingCode}` ? (
+                                                        <>
+                                                            <Check className="h-3 w-3 text-emerald-600 shrink-0" />
+                                                            <span className="text-emerald-600 font-bold">Copied</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Copy className="h-3 w-3 shrink-0" />
+                                                            <span>Copy</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div 
+                                            className="flex items-center justify-between gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs min-w-0"
+                                            title={wing.WingEmail ?? "No email configured"}
+                                        >
+                                            <span className="font-mono text-xs font-semibold text-slate-800 truncate select-all min-w-0">
+                                                {wing.WingEmail || <span className="text-slate-400 italic">No email assigned</span>}
+                                            </span>
                                         </div>
                                     </div>
+
+                                    {/* Password Block */}
+                                    {(() => {
+                                        const currentPass = (wing.WingEmail && wingPasswords[wing.WingEmail.toLowerCase().trim()]) || wing.WingCode;
+                                        const isPassVisible = !!visiblePasswords[wing.WingCode];
+                                        const isCustom = currentPass !== wing.WingCode;
+
+                                        return (
+                                            <div className="space-y-1 min-w-0">
+                                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                    <span className="flex items-center gap-1">
+                                                        <Lock className="h-3 w-3 text-slate-400 shrink-0" />
+                                                        Password
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 font-normal">
+                                                        {isCustom ? "Custom Key" : "Wing Code (Default)"}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs min-w-0">
+                                                    <span className="font-mono text-xs font-bold text-indigo-700 select-all truncate min-w-0">
+                                                        {isPassVisible ? currentPass : "••••••••"}
+                                                    </span>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => togglePasswordVisibility(wing.WingCode)}
+                                                            className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition cursor-pointer"
+                                                            title={isPassVisible ? "Hide password" : "Show password"}
+                                                        >
+                                                            {isPassVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyToClipboard(currentPass, `pass-${wing.WingCode}`)}
+                                                            className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-indigo-600 transition cursor-pointer"
+                                                            title="Copy password"
+                                                        >
+                                                            {copiedKey === `pass-${wing.WingCode}` ? (
+                                                                <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                                            ) : (
+                                                                <Copy className="h-3.5 w-3.5" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
-                            ) :
-                                <h3 className="text-lg  mt-3 font-bold text-slate-800 line-clamp-1">
+                            ) : (
+                                <h3 className="text-lg mt-3 font-bold text-slate-800 line-clamp-1">
                                     Wing Managers
                                 </h3>
-
-                            }
+                            )}
 
                             {/* Assignment Hierarchies */}
                             <div className="mt-4 space-y-2 flex-1">
@@ -244,6 +439,26 @@ export default function AllWingsList() {
                                     {wing.IsActive ? 'Active' : 'Inactive'}
                                 </div>
                             </div>
+
+                            {/* Action Button Row */}
+                            <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleEditWing(wing)}
+                                    className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 active:bg-indigo-200 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-indigo-100 shadow-2xs"
+                                >
+                                    <Edit2 className="h-3.5 w-3.5" />
+                                    <span>Edit Wing Info</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteWing(wing)}
+                                    className="py-2 px-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
+                                    title="Delete Wing"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
                         </div>
                     ))}
 
@@ -258,6 +473,17 @@ export default function AllWingsList() {
                 </div>
             )
             }
-        </div >
+
+            {/* Edit Wing Modal */}
+            <EditWingModal
+                wing={selectedWingForEdit}
+                isOpen={isEditModalOpen}
+                onClose={() => {
+                    setIsEditModalOpen(false);
+                    setSelectedWingForEdit(null);
+                }}
+                onSuccess={handleWingEditSuccess}
+            />
+        </div>
     );
 }

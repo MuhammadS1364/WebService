@@ -288,6 +288,7 @@ import { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { Calendar, X, Maximize2, Download } from "lucide-react"; 
 import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
+import SafeImage from "../../lib/SafeImage";
 
 interface PublicHighlightItem {
   id: number;
@@ -386,7 +387,13 @@ export default function OurHighLights() {
                 {event.FileType === "Video" ? (
                   <video src={event.PhotoImg_Url || ""} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 ) : (
-                  <img src={event.PhotoImg_Url || ""} alt={event.HighLitght_Title || "Highlight"} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  <SafeImage
+                    src={event.PhotoImg_Url}
+                    alt={event.HighLitght_Title || "Highlight"}
+                    fallbackCategory="highlight"
+                    fallbackText={event.HighLitght_Title || "Highlight Spotlight"}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
                 )}
                 
                 <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">

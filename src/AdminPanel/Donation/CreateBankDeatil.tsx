@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
+import { uploadImageToImgBB } from "../../lib/imgbbService";
 import { 
   Building2, 
   CreditCard, 
@@ -61,21 +62,9 @@ export default function CreateBankDetails() {
     try {
       setSubmitting(true);
 
-      // 1. Upload Image to Supabase Bucket ('QrImgBox')
-      const fileExt = qrFile.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `qr-codes/${fileName}`;
-
-      const {  error: uploadError } = await SupaBaseFunction.storage
-        .from("QrImgBox")
-        .upload(filePath, qrFile);
-
-      if (uploadError) throw new Error(`Image Upload Failed: ${uploadError.message}`);
-
-      // Optional: Get the public URL if you prefer storing the full URL instead of the path
-      const { data: publicUrlData } = SupaBaseFunction.storage
-        .from("QrImgBox")
-        .getPublicUrl(filePath);
+      // 1. Upload Image to ImgBB
+      const uploadRes = await uploadImageToImgBB(qrFile, `bank_qr_${Date.now()}`);
+      const qrPhotoUrl = uploadRes.displayUrl;
 
       // 2. Insert Record into 'BanksDetails' Table
       const deatiId = crypto.randomUUID(); // Generate unique ID
@@ -88,7 +77,7 @@ export default function CreateBankDetails() {
             Bank_Holde_Name: formData.Bank_Holde_Name,
             Account_Number: formData.Account_Number,
             UPi_Number: formData.UPi_Number,
-            PaY_Qr_Photo: publicUrlData.publicUrl, // Or use uploadData.path based on your preference
+            PaY_Qr_Photo: qrPhotoUrl,
             IsActive: formData.IsActive,
           },
         ]);

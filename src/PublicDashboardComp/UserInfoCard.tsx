@@ -1,62 +1,70 @@
+import { useMemo } from "react";
+import SafeImage from "../lib/SafeImage";
+
 interface ActiveUserCardProps {
   Panel: string;
   UserName: string;
+  userPhoto?: string;
+  roleType?: "student" | "wing" | "treasurer" | "outreach";
 }
 
-export default function ActiveUserCard({ Panel, UserName }: ActiveUserCardProps) {
-  // Master adjustment: Dynamic greeting calculation engine based on execution time
-  const getGreeting = (): string => {
+export default function ActiveUserCard({ Panel, UserName, userPhoto, roleType = "student" }: ActiveUserCardProps) {
+  const greeting = useMemo(() => {
     const hours = new Date().getHours();
     if (hours < 12) return "☀️ Good Morning";
     if (hours < 17) return "🌤️ Good Afternoon";
     return "🌙 Good Evening";
-  };
+  }, []);
 
   return (
-    <div className="relative overflow-hidden bg-green-100 p-8 shadow-xl rounded-2xl m-2">
+    <div className="relative overflow-hidden bg-white border border-slate-200/90 p-4 sm:p-6 md:p-7 shadow-xs rounded-3xl mb-4 sm:mb-6">
+      
+      {/* Subtle Light Accents */}
+      <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Background Glow */}
-      <div className="absolute -top-24 -right-20 h-72 w-72 rounded-full bg-white/10 blur-3xl"></div>
-      <div className="absolute -bottom-20 -left-16 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl"></div>
-
-      {/* Grid Pattern */}
-      <div
-        className="absolute inset-0 opacity-10"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-        }}
-      />
-
-      <div className="relative z-10 flex items-center justify-between">
-
-        <div>
-          <div className="flex items-center gap-3 mb-3">
-            <span className="text-sm font-medium text-black/80">
-              {getGreeting()}
+      {/* Responsive layout: stacks on mobile (< 640px), row on tablet/desktop */}
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span className="text-xs font-semibold text-slate-500">
+              {greeting}
             </span>
 
-            <span className="rounded-full bg-black/10 backdrop-blur-md border border-white/40 px-4 py-1 text-xs font-semibold tracking-wide text-gray-800">
+            <span className="rounded-full bg-slate-100 border border-slate-200 px-3 py-0.5 text-[10px] sm:text-[11px] font-bold tracking-wide text-slate-700">
               {Panel}
             </span>
           </div>
 
-          <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight leading-tight truncate">
             Welcome back,{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+            <span className="text-indigo-600">
               {UserName}
             </span>
           </h2>
 
-          <p className="mt-3 text-xl text-gray-700 font-medium">
-            Anjuman-e-Huda Niics (chs)
+          <p className="mt-1 sm:mt-1.5 text-xs text-slate-500 font-medium line-clamp-1">
+            Darul Huda Islamic University — National Institute of Islamic & Contemporary Studies
           </p>
         </div>
 
-        {/* Avatar */}
-        <div className="hidden md:flex h-24 w-24 items-center justify-center rounded-full bg-white/30 backdrop-blur-xl border border-white/40 text-4xl shadow-lg select-none">
-          👤
+        {/* Real User Photo Avatar */}
+        <div className="flex items-center gap-3 shrink-0 self-start sm:self-center">
+          <div className="h-14 w-14 sm:h-18 sm:w-18 md:h-20 md:w-20 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs overflow-hidden shrink-0 select-none p-1">
+            {userPhoto ? (
+              <SafeImage
+                src={userPhoto}
+                alt={UserName}
+                fallbackCategory={roleType === "wing" ? "wing" : "student"}
+                fallbackText={UserName}
+                className="w-full h-full object-cover rounded-xl"
+              />
+            ) : (
+              <div className="w-full h-full rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-black text-lg sm:text-2xl">
+                {(UserName || "U")[0].toUpperCase()}
+              </div>
+            )}
+          </div>
         </div>
 
       </div>

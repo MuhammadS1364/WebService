@@ -2,19 +2,17 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
+import SafeImage from "../../lib/SafeImage";
+import { resolveStudentProfile, type LoggedInStudentProfile } from "../../lib/accountResolver";
+import { GraduationCap, Award, Compass, Zap } from "lucide-react";
 
-// --- Type Definitions based on your Database Schema ---
-interface Student {
-  AddNo: string;
-  StudentName: string;
-  Student_Photo_Urls: string;
-  Class: string;
-  CollegeName: string;
-  Grand_Total_Points: number;
-  Registration_Count: number;
-  OutReach_Count: number;
-  Achievements_Counts: number;
-  Total_Point_Anjuman: number;
+// --- Type Definitions ---
+interface Student extends LoggedInStudentProfile {
+  Grand_Total_Points?: number;
+  Registration_Count?: number;
+  OutReach_Count?: number;
+  Achievements_Counts?: number;
+  Total_Point_Anjuman?: number;
 }
 
 interface Program {
@@ -45,26 +43,34 @@ interface Outreach {
 export default function StudentAnalytics() {
   const { actStn } = useParams<{ actStn: string }>();
   
-  const [loading, setLoading] = useState<boolean>(true);
-  const [student, setStudent] = useState<Student | null>(null);
+  const [student, setStudent] = useState<Student | null>(() => {
+    try {
+      const cached = localStorage.getItem("cached_student_profile");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState<boolean>(() => !localStorage.getItem("cached_student_profile"));
   const [programs, setPrograms] = useState<Program[]>([]);
   const [outreach, setOutreach] = useState<Outreach[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [programFilter, setProgramFilter] = useState<string>("All");
 
   useEffect(() => {
-    const fetchStudentData = async () => {
-      if (!actStn) return;
-      setLoading(true);
-      try {
-        const { data: studentData, error: studentError } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("*")
-          .eq("StudentEmail", actStn)
-          .single();
+    let isMounted = true;
 
-        if (studentError || !studentData) throw studentError;
-        setStudent(studentData);
+    const fetchStudentData = async (silent = false) => {
+      if (!silent && !student) {
+        setLoading(true);
+      }
+      try {
+        const studentData = await resolveStudentProfile(actStn);
+        if (!studentData) throw new Error("Student not found");
+
+        if (isMounted) {
+          setStudent(studentData as Student);
+        }
 
         const addNo = studentData.AddNo;
 
@@ -80,30 +86,40 @@ export default function StudentAnalytics() {
             .from("ProgrammesBox")
             .select("*")
             .in("Program_Code", programCodes);
-          setPrograms(programsData || []);
+          if (isMounted) setPrograms(programsData || []);
         }
 
         const { data: outreachData } = await SupaBaseFunction
           .from("StudentsOutReach")
           .select("*")
           .eq("StnAddNo", addNo);
-        setOutreach(outreachData || []);
+        if (isMounted) setOutreach(outreachData || []);
 
         const { data: achievementsData } = await SupaBaseFunction
           .from("StudentsAchievements")
           .select("*")
           .eq("StnAddNo", addNo);
-        setAchievements(achievementsData || []);
+        if (isMounted) setAchievements(achievementsData || []);
 
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
         console.error("Error fetching student analytics:", errorMessage);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchStudentData();
+    fetchStudentData(Boolean(student));
+
+    const handleProfileSync = () => {
+      fetchStudentData(true);
+    };
+    window.addEventListener("student-profile-synced", handleProfileSync);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("student-profile-synced", handleProfileSync);
+    };
   }, [actStn]);
 
   const programGroups = ["All", ...new Set(programs.map(p => p.Group).filter(Boolean))];
@@ -113,113 +129,143 @@ export default function StudentAnalytics() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-indigo-600"></div>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-4 border-indigo-600 border-t-transparent"></div>
       </div>
     );
   }
 
   if (!student) {
     return (
-      <div className="text-center mt-20 text-gray-500">
-        <h2 className="text-2xl font-bold text-gray-700">Student Not Found</h2>
+      <div className="text-center py-16 bg-white rounded-3xl border border-slate-200 p-8">
+        <h2 className="text-xl font-bold text-slate-800">Student Profile Not Found</h2>
+        <p className="text-xs text-slate-500 mt-1">Please ensure your account credentials are valid.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
-      <div className=" mx-auto space-y-8">
+    <div className="w-full max-w-6xl mx-auto space-y-6 pb-28 font-sans px-1 sm:px-2">
+      
+      {/* HEADER HERO: CLEAN WHITE BACKGROUND, COLLAPSES ON SMALL SCREENS */}
+      <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-7 shadow-xs flex flex-col sm:flex-row items-center sm:items-start justify-between gap-5 relative overflow-hidden">
         
-        {/* Header Hero */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl flex flex-col md:flex-row items-center gap-6">
-          <img 
-            src={student.Student_Photo_Urls} 
-            alt={student.StudentName} 
-            className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover"
-          />
-          <div className="text-center md:text-left flex-1">
-            <h1 className="text-4xl font-extrabold tracking-tight">{student.StudentName}</h1>
-            <p className="text-indigo-100 mt-2 text-lg">{student.Class} | {student.CollegeName}</p>
-            <div className="mt-4 inline-block bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full text-sm font-semibold tracking-wide border border-white/30">
-              ID: {student.AddNo}
-            </div>
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left min-w-0">
+          {/* Real Student Photo */}
+          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border border-slate-200 bg-slate-50 p-1 shadow-xs overflow-hidden shrink-0 flex items-center justify-center">
+            {student.Student_Photo_Urls ? (
+              <SafeImage
+                src={student.Student_Photo_Urls} 
+                alt={student.StudentName} 
+                fallbackCategory="student"
+                fallbackText={student.StudentName}
+                className="w-full h-full rounded-xl object-cover"
+              />
+            ) : (
+              <div className="w-full h-full rounded-xl bg-indigo-50 text-indigo-700 font-extrabold text-2xl flex items-center justify-center">
+                {(student.StudentName || "S")[0].toUpperCase()}
+              </div>
+            )}
           </div>
-          <div className="bg-white text-indigo-900 rounded-2xl p-6 text-center shadow-lg transform transition hover:scale-105">
-            <p className="text-sm font-bold text-gray-500 uppercase">Grand Total Points</p>
-            <p className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
-              {student.Grand_Total_Points}
+
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight truncate">
+              {student.StudentName}
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm mt-1">
+              {student.Class || "Student"} | {student.CollegeName || "DHIU Institute"}
             </p>
+            <div className="mt-2 inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-0.5 rounded-full text-xs font-semibold">
+              <span>ID:</span>
+              <span className="font-mono">{student.AddNo}</span>
+            </div>
           </div>
         </div>
 
-        {/* Analytics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <OverviewClipBox BoxTitle="Events Registered" BoxValue={student.Registration_Count} variant="blue" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} />
-          <OverviewClipBox BoxTitle="Outreach Activities" BoxValue={student.OutReach_Count} variant="orange" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
-          <OverviewClipBox BoxTitle="Total Achievements" BoxValue={student.Achievements_Counts} variant="emerald" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>} />
+        {/* Grand Total Points Badge */}
+        <div className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shrink-0 shadow-xs flex sm:flex-col items-center justify-between sm:justify-center gap-1 min-w-[150px]">
+          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Grand Total</p>
+          <p className="text-3xl sm:text-4xl font-black text-indigo-600 flex items-center gap-1">
+            <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />
+            {student.Grand_Total_Points || 0}
+          </p>
+          <span className="text-[10px] font-bold text-slate-400">Total Points</span>
+        </div>
+      </div>
+
+      {/* OVERVIEW STATS GRID (COLLAPSES: 2 COLUMNS ON MOBILE, 4 ON DESKTOP) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <OverviewClipBox 
+          BoxTitle="Events Joined" 
+          BoxValue={programs.length} 
+          BoxSvgLogo={<GraduationCap className="w-5 h-5 text-indigo-600" />} 
+        />
+        <OverviewClipBox 
+          BoxTitle="Achievements" 
+          BoxValue={achievements.length} 
+          BoxSvgLogo={<Award className="w-5 h-5 text-amber-500" />} 
+        />
+        <OverviewClipBox 
+          BoxTitle="Outreach" 
+          BoxValue={outreach.length} 
+          BoxSvgLogo={<Compass className="w-5 h-5 text-cyan-600" />} 
+        />
+        <OverviewClipBox 
+          BoxTitle="Anjuman Points" 
+          BoxValue={student.Total_Point_Anjuman || 0} 
+          BoxSvgLogo={<Zap className="w-5 h-5 text-emerald-600" />} 
+        />
+      </div>
+
+      {/* FILTER & PROGRAMMES LIST */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <h2 className="text-base font-bold text-slate-900">Enrolled Activities ({filteredPrograms.length})</h2>
           
-          {/* METHOD FIX: Changed invalid 'purple' variant to allowed 'rose' variant */}
-          <OverviewClipBox BoxTitle="Anjuman Points" BoxValue={student.Total_Point_Anjuman} variant="rose" BoxSvgLogo={<svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>} />
-        </div>
-
-        {/* Content Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">My Registered Programs</h2>
-              <select value={programFilter} onChange={(e) => setProgramFilter(e.target.value)} className="bg-gray-50 border border-gray-200 text-gray-700 rounded-xl px-4 py-2">
-                {programGroups.map((group) => <option key={group} value={group}>{group || "Uncategorized"}</option>)}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredPrograms.map((prog) => (
-                <div key={prog.Program_Code} className="border border-gray-100 rounded-2xl overflow-hidden bg-gray-50">
-                  <img src={prog.Program_Poster} alt={prog.Program_Title} className="w-full max-h-125 object-cover" />
-                  <div className="p-4">
-                    <div className="text-xs font-bold text-indigo-600 mb-1 uppercase tracking-wider">{prog.Category || "Event"}</div>
-                    <h3 className="font-bold text-gray-900 truncate">{prog.Program_Title}</h3>
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${prog.IsConducted ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
-                        {prog.IsConducted ? "Conducted" : "Upcoming"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right Column */}
-          <div className="space-y-8">
-            <div className="bg-emerald-50 rounded-3xl p-6 border border-emerald-100">
-              <h2 className="text-xl font-bold text-emerald-900 mb-4">🏆 Top Achievements</h2>
-              {achievements.map((ach) => (
-                <div key={ach.Achieve_Id} className="bg-white p-4 mb-3 rounded-xl shadow-sm border border-emerald-100 flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold text-gray-800">{ach.Achievement_Title}</h4>
-                    <p className="text-xs text-emerald-600 font-medium">{ach.Position_Achieved}</p>
-                  </div>
-                  <div className="bg-emerald-100 text-emerald-700 font-bold px-3 py-1.5 rounded-lg text-sm">+{ach.Point_Obtained} pts</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-orange-50 rounded-3xl p-6 border border-orange-100">
-              <h2 className="text-xl font-bold text-orange-900 mb-4">🌍 Outreach Impact</h2>
-              {outreach.map((out) => (
-                <div key={out.OutReach_Id} className="bg-white p-4 mb-3 rounded-xl shadow-sm border border-orange-100 flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold text-gray-800">{out.OutReach_Title}</h4>
-                    <p className="text-xs text-orange-600 font-medium">{out.OutReach_Type}</p>
-                  </div>
-                  <div className="bg-orange-100 text-orange-700 font-bold px-3 py-1.5 rounded-lg text-sm">+{out.Point_Obtained} pts</div>
-                </div>
-              ))}
-            </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            {programGroups.map(group => (
+              <button
+                key={group}
+                onClick={() => setProgramFilter(group)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-xl whitespace-nowrap transition cursor-pointer ${
+                  programFilter === group
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {group}
+              </button>
+            ))}
           </div>
         </div>
+
+        {filteredPrograms.length === 0 ? (
+          <p className="text-xs text-slate-400 py-6 text-center">No programs enrolled in this category.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredPrograms.map(prog => (
+              <div key={prog.Program_Code} className="border border-slate-200 rounded-2xl p-4 hover:shadow-md transition bg-slate-50/50 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                      {prog.Group || "General"}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">#{prog.Program_Code}</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 leading-snug line-clamp-2">{prog.Program_Title}</h3>
+                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">{prog.Description}</p>
+                </div>
+                
+                <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">{prog.Category || "Standard"}</span>
+                  <span className={prog.IsConducted ? "text-emerald-600 font-semibold" : "text-amber-600 font-semibold"}>
+                    {prog.IsConducted ? "Conducted" : "Upcoming"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

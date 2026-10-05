@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Download, Upload, UserPlus, Search, AlertCircle, ShieldCheck, ShieldX } from "lucide-react";
-import { SupaBaseFunction } from "../../lib/SupaBase"; // Adjust path as needed
+import { Download, Upload, UserPlus, Search, AlertCircle, ShieldCheck, ShieldX, FileSpreadsheet } from "lucide-react";
+import { SupaBaseFunction } from "../../lib/SupaBase";
+import { exportToExcel, parseSpreadsheet, downloadSampleTemplate } from "../../lib/excelService";
 
 // 1. TYPE DEFINITIONS
 interface Treasurer {
@@ -53,102 +54,84 @@ export default function AllTreasurerList() {
       alert("No data to export");
       return;
     }
-
-    const headers = ["Name", "Email", "Accounting For", "Status", "Date Added"];
-    
-    // Explicitly define 't' as Treasurer
-    const csvRows = treasurers.map((t: Treasurer) => [
-      `"${t.Treasurer_Name || ""}"`,
-      `"${t.Treasurer_Email || ""}"`,
-      `"${t.AccountingFor || ""}"`,
-      t.IsActive ? "Active" : "Inactive",
-      `"${new Date(t.created_at).toLocaleDateString()}"`
-    ]);
-
-    const csvContent = [headers.join(","), ...csvRows.map(row => row.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Treasurers_List_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportToExcel(treasurers, `Treasurers_List_${new Date().toISOString().split("T")[0]}.xlsx`, "Treasurers");
   };
 
   // 5. IMPORT TRIGGER
   const triggerImportClick = () => {
-    // Null check required by TypeScript before calling .click()
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
 
-  // 6. IMPORT LOGIC (Strictly Typed)
+  // 6. IMPORT LOGIC (Strictly Typed & Batch Safe)
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
+    setIsLoading(true);
+    setError(null);
 
-    reader.onload = async (event: ProgressEvent<FileReader>) => {
-      // Ensure target and result exist
-      if (!event.target || !event.target.result) return;
-
-      // Force type to string (resolves ArrayBuffer conflict)
-      const text = event.target.result as string;
-      
-      // Type 'line' as string
-      const lines = text.split("\n").filter((line: string) => line.trim() !== "");
-      
-      if (lines.length <= 1) {
-        alert("The CSV file seems to be empty or only contains headers.");
+    try {
+      const rows = await parseSpreadsheet(file);
+      if (!rows || rows.length === 0) {
+        alert("The spreadsheet seems to be empty or contains no records.");
         return;
       }
 
-      // Skip the header row
-      const dataRows = lines.slice(1);
-      const insertPayloads = [];
+      const usersToCreate: { UserEmail: string; UserPassword: string; UserRole: string }[] = [];
+      const treasurersToInsert: any[] = [];
 
-      for (const row of dataRows) {
-        // Type 'col' as string
-        const columns = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map((col: string) => col.replace(/(^"|"$)/g, "")) || [];
-        
-        if (columns.length >= 3) {
-          insertPayloads.push({
-            Treasurer_Name: columns[0] || "Unknown",
-            Treasurer_Email: columns[1] || "",
-            AccountingFor: columns[2] || "General",
-            IsActive: columns[3]?.toLowerCase() === "active" ? true : false,
-          });
-        }
+      for (const row of rows) {
+        const email = String(row.Treasurer_Email || row.Email || "").trim();
+        const name = String(row.Treasurer_Name || row.Name || "Unknown").trim();
+        const accountingFor = String(row.AccountingFor || row["Accounting For"] || "General Accounts").trim();
+        const id = String(row.Treasurer_id || row.ID || `TRZ_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`).trim();
+        const isActive = row.IsActive !== undefined ? Boolean(row.IsActive) : true;
+
+        if (!email) continue;
+
+        usersToCreate.push({
+          UserEmail: email,
+          UserPassword: id, // Default password matches Treasurer ID
+          UserRole: "Treasurer",
+        });
+
+        treasurersToInsert.push({
+          Treasurer_id: id,
+          Treasurer_Name: name,
+          Treasurer_Email: email,
+          Treasurer_UserId: email,
+          AccountingFor: accountingFor,
+          IsActive: isActive,
+        });
       }
 
-      if (insertPayloads.length > 0) {
-        setIsLoading(true);
-        try {
-          const { error: insertError } = await SupaBaseFunction
-            .from("TreasurerVolt")
-            .insert(insertPayloads);
-
-          if (insertError) throw insertError;
-          
-          alert(`${insertPayloads.length} Treasurers imported successfully!`);
-          fetchTreasurers(); // Refresh table
-        } catch (err: unknown) {
-          console.error("Import error:", err);
-          alert(`Failed to import: ${(err as Error).message}`);
-        } finally {
-          setIsLoading(false);
-        }
+      if (treasurersToInsert.length === 0) {
+        alert("No valid rows with an email address found.");
+        return;
       }
-    };
 
-    reader.readAsText(file);
-    
-    // Clear input so the same file can be selected again if needed
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      // 1. Create or sync user credentials in UserTable
+      await SupaBaseFunction.from("UserTable").upsert(usersToCreate, { onConflict: "UserEmail", ignoreDuplicates: true });
+
+      // 2. Insert or update into TreasurerVolt
+      const { error: insertError } = await SupaBaseFunction
+        .from("TreasurerVolt")
+        .upsert(treasurersToInsert, { onConflict: "Treasurer_id", ignoreDuplicates: true });
+
+      if (insertError) throw insertError;
+
+      alert(`✅ ${treasurersToInsert.length} Treasurers successfully imported with access credentials!`);
+      await fetchTreasurers();
+    } catch (err: unknown) {
+      console.error("Import error:", err);
+      alert(`Failed to import: ${(err as Error).message}`);
+    } finally {
+      setIsLoading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -189,7 +172,7 @@ export default function AllTreasurerList() {
             {/* Hidden File Input */}
             <input 
               type="file" 
-              accept=".csv" 
+              accept=".xlsx,.xls,.csv" 
               ref={fileInputRef} 
               onChange={handleImport} 
               className="hidden" 
@@ -197,17 +180,24 @@ export default function AllTreasurerList() {
             
             <button
               onClick={triggerImportClick}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl shadow-sm transition-all font-medium text-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl shadow-sm transition-all font-medium text-sm cursor-pointer"
             >
-              <Upload size={16} /> Import CSV
+              <Upload size={16} /> Import Excel/CSV
             </button>
             
             <button
               onClick={handleExport}
               disabled={treasurers.length === 0}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 rounded-xl shadow-sm transition-all font-medium text-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 rounded-xl shadow-sm transition-all font-medium text-sm cursor-pointer"
             >
-              <Download size={16} /> Export
+              <Download size={16} /> Export Excel
+            </button>
+
+            <button
+              onClick={() => downloadSampleTemplate("treasurers")}
+              className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 rounded-xl shadow-sm transition-all font-medium text-sm cursor-pointer"
+            >
+              <FileSpreadsheet size={16} /> Template (.xlsx)
             </button>
 
             <button className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all font-medium text-sm">

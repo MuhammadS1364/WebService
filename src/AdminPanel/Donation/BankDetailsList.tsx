@@ -11,6 +11,7 @@ import {
     AlertTriangle
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
+import SafeImage from "../../lib/SafeImage";
 
 interface BankDetails {
     Deati_id: string;
@@ -239,7 +240,7 @@ export default function BankDetailsList() {
                                         <td className="px-6 py-4">
                                             {bank.PaY_Qr_Photo ? (
                                                 <div className="relative group w-12 h-12 rounded-lg border border-slate-200 bg-white overflow-hidden shadow-sm">
-                                                    <img src={bank.PaY_Qr_Photo} alt="QR" className="w-full h-full object-cover" />
+                                                    <SafeImage src={bank.PaY_Qr_Photo} alt="QR" fallbackCategory="bank" className="w-full h-full object-cover" />
                                                 </div>
                                             ) : (
                                                 <div className="w-12 h-12 rounded-lg border border-dashed border-slate-300 flex items-center justify-center bg-slate-50 text-slate-400">

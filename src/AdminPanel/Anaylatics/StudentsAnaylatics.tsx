@@ -81,6 +81,7 @@
 import React, { useState, useEffect } from "react";
 // @ts-ignore
 import { SupaBaseFunction } from "../../lib/SupaBase";
+import SafeImage from "../../lib/SafeImage";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -375,12 +376,15 @@ export default function StudentsAnalyticsGeneral() {
                   <tr key={student.AddNo} className={`hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <img 
-                          src={student.Student_Photo_Urls || 'https://via.placeholder.com/40'} 
-                          alt="Avatar" 
-                          className="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0"
-                          onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => { e.currentTarget.src = 'https://via.placeholder.com/40'; }}
-                        />
+                        <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
+                          <SafeImage 
+                            src={student.Student_Photo_Urls} 
+                            alt={student.StudentName || "Student"} 
+                            fallbackCategory="student"
+                            fallbackText={student.StudentName || "Student"}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                         <div className="min-w-0">
                           <div className="font-bold text-slate-800 truncate">{student.StudentName}</div>
                           <div className="text-xs text-slate-500 truncate">#{student.AddNo}</div>

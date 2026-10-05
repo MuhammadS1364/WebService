@@ -1,7 +1,11 @@
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useNavigate, useParams } from "react-router-dom";
+import { exportToExcel, parseSpreadsheet, downloadSampleTemplate } from "../../lib/excelService";
+import { importStudentsBatch } from "./ImportStudent";
+import { Download, Upload, FileSpreadsheet, PlusCircle } from "lucide-react";
+import SafeImage from "../../lib/SafeImage";
 
 interface StudentRecord {
   AddNo: string;
@@ -84,13 +88,36 @@ export default function OurStudentsList() {
     } catch (err: any) { alert(`Error: ${err.message}`); } finally { setActionLoading(null); }
   };
 
-  const getDirectImageUrl = (url: string) => {
-    if (!url) return "";
-    if (url.includes("drive.google.com/")) {
-      const fileId = url.includes("/d/") ? url.split("/d/")[1].split("/")[0] : url.split("id=")[1];
-      return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportAll = () => {
+    exportToExcel(students, "Students_Directory.xlsx", "All Students");
+  };
+
+  const handleExportSelected = () => {
+    const selected = students.filter(s => selectedStudents.includes(s.AddNo));
+    if (selected.length === 0) {
+      alert("Please select at least one student using the card checkboxes.");
+      return;
     }
-    return url;
+    exportToExcel(selected, `Students_Selected_${selected.length}.xlsx`, "Selected Students");
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setLoading(true);
+      const rows = await parseSpreadsheet(file);
+      const res = await importStudentsBatch(rows);
+      alert(`✅ Batch import result: ${res.successCount} added/updated, ${res.duplicatesSkipped} duplicates skipped.`);
+      await fetchStudents();
+    } catch (err: any) {
+      alert(`Import failed: ${err.message}`);
+    } finally {
+      setLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   if (loading) return <div className="flex min-h-72 items-center justify-center text-sm font-semibold text-[#64748B]">Syncing directory...</div>;
@@ -100,7 +127,54 @@ export default function OurStudentsList() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between border-b border-[#E2E8F0] pb-3 gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-[#0F172A]">Registered Directory</h2>
-          <p className="text-xs text-[#64748B] font-medium">{filteredStudents.length} Students found</p>
+          <p className="text-xs text-[#64748B] font-medium">{filteredStudents.length} Students found {selectedStudents.length > 0 && `(${selectedStudents.length} selected)`}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            ref={fileInputRef}
+            onChange={handleImport}
+            className="hidden"
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#CBD5E1] text-[#334155] hover:bg-slate-50 transition cursor-pointer"
+          >
+            <Upload size={14} /> Import Excel
+          </button>
+
+          <button
+            onClick={handleExportAll}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#CBD5E1] text-[#334155] hover:bg-slate-50 transition cursor-pointer"
+          >
+            <Download size={14} /> Export All
+          </button>
+
+          {selectedStudents.length > 0 && (
+            <button
+              onClick={handleExportSelected}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 transition cursor-pointer"
+            >
+              <Download size={14} /> Export Selected ({selectedStudents.length})
+            </button>
+          )}
+
+          <button
+            onClick={() => downloadSampleTemplate("students")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 transition cursor-pointer"
+          >
+            <FileSpreadsheet size={14} /> Template
+          </button>
+
+          <button
+            onClick={() => navigate(`/admin-panel/${actUser}/new-student`)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#047857] text-white hover:bg-[#065f46] transition cursor-pointer"
+          >
+            <PlusCircle size={14} /> Add Student
+          </button>
         </div>
       </div>
 
@@ -131,7 +205,13 @@ export default function OurStudentsList() {
                 <div className="p-5 space-y-4">
                   <div className="flex items-start gap-3.5 pr-8">
                     <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center relative">
-                      {student.Student_Photo_Urls ? <img src={getDirectImageUrl(student.Student_Photo_Urls)} alt={student.StudentName} className="h-full w-full object-cover" /> : <svg className="h-6 w-6 text-[#94A3B8]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+                      <SafeImage
+                        src={student.Student_Photo_Urls}
+                        alt={student.StudentName}
+                        fallbackCategory="student"
+                        fallbackText={student.StudentName}
+                        className="h-full w-full object-cover"
+                      />
                       {student.IsActive !== undefined && <div className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${student.IsActive ? 'bg-green-500' : 'bg-gray-400'}`} />}
                     </div>
                     <div className="space-y-0.5 min-w-0">

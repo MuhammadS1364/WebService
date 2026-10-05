@@ -1,239 +1,407 @@
-import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { useParams, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
+import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingResolver";
+import SafeImage from "../../lib/SafeImage";
+import {
+  Trophy,
+  Search,
+  Filter,
+  CheckCircle2,
+  Clock,
+  Users,
+  ChevronDown,
+  ChevronUp
+} from "lucide-react";
 
-// 1. Define the exact shape of a Programme
 interface Programme {
-    id: string | number;
-    name: string;
-    programme_code: string;
-    registration_on: boolean;
+  Program_Code: string;
+  Program_Title: string | null;
+  WingCode: string | null;
+  Date: string | null;
+  Venue: string | null;
+  Category: string | null;
+  Group: string | null;
+  IsResulted: boolean;
+  IsResultPublished: boolean;
+  Total_Registration: number;
+  is_group_program: boolean;
 }
 
-// 2. Define the exact shape of a Candidate
 interface Candidate {
-    id: string | number;
-    name: string;
-    programme_code: string;
-    class_name: string;
-    category: string;
-    campus_name: string;
+  AddNo: string;
+  StudentName: string;
+  Class: string;
+  CollegeName: string;
+  Student_Photo_Urls?: string;
+  Program_Code: string;
 }
 
 export default function WingResults() {
-    // 3. Strictly type the URL parameters
-    const { actWing } = useParams<{ actWing: string }>();
-    
-    // 4. Apply interfaces to the useState hooks
-    const [searchQuery, setSearchQuery] = useState<string>("");
-    const [programmes, setProgrammes] = useState<Programme[]>([]);
-    const [candidates, setCandidates] = useState<Candidate[]>([]);
-    const [expandedProgrammes, setExpandedProgrammes] = useState<Set<string>>(new Set());
-    const [loading, setLoading] = useState<boolean>(true);
+  const { actWing } = useParams<{ actWing: string }>();
 
-    // Fetch Data on Component Mount
-    useEffect(() => {
-        if (actWing) {
-            fetchWingDetails();
+  const [loading, setLoading] = useState<boolean>(true);
+  const [wingData, setWingData] = useState<LoggedInWingProfile | null>(() => {
+    try {
+      const cached = localStorage.getItem("cached_wing_profile");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [candidates, setCandidates] = useState<Record<string, Candidate[]>>({});
+  const [expandedProgrammes, setExpandedProgrammes] = useState<Set<string>>(new Set());
+  const [loadingCands, setLoadingCands] = useState<Record<string, boolean>>({});
+  const [resultFilter, setResultFilter] = useState<"all" | "published" | "pending">("all");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchWingResults = async () => {
+      try {
+        const wing = await resolveWingProfile(actWing);
+        if (!wing) throw new Error("Wing account not identified.");
+
+        if (isMounted) {
+          setWingData(wing);
         }
-    }, [actWing]);
 
-    const fetchWingDetails = async () => {
-        setLoading(true);
-        try {
-            // Fetch all programmes associated with this wing code
-            const { data: progData, error: progError } = await SupaBaseFunction
-                .from('programes')
-                .select('*')
-                .eq('wing_code', actWing);
+        // Fetch programmes for this wing
+        const { data: progData, error: progError } = await SupaBaseFunction
+          .from("ProgrammesBox")
+          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program")
+          .eq("WingCode", wing.WingCode)
+          .order("Date", { ascending: false });
 
-            if (progError) throw progError;
-            setProgrammes((progData as Programme[]) || []);
-
-            // Extract programme codes to fetch related candidates
-            const progCodes = progData?.map(p => p.programme_code) || [];
-            
-            if (progCodes.length > 0) {
-                const { data: candData, error: candError } = await SupaBaseFunction
-                    .from('candidates')
-                    .select('*')
-                    .in('programme_code', progCodes);
-
-                if (candError) throw candError;
-                setCandidates((candData as Candidate[]) || []);
-            }
-        } catch (error: unknown) {
-            // Safely handle unknown errors
-            const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-            console.error("Error fetching data:", errorMessage);
-        } finally {
-            setLoading(false);
+        if (progError) throw progError;
+        if (isMounted) {
+          setProgrammes((progData as Programme[]) || []);
         }
+      } catch (err: unknown) {
+        console.error("Error fetching wing result records:", err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
     };
 
-    // 5. Add explicit types to function parameters
-    const toggleRegistration = async (programmeId: string | number, currentStatus: boolean) => {
-        try {
-            const newStatus = !currentStatus;
-            
-            // Optimistic UI Update
-            setProgrammes(prev => prev.map(prog => 
-                prog.id === programmeId ? { ...prog, registration_on: newStatus } : prog
-            ));
+    fetchWingResults();
+  }, [actWing]);
 
-            // Update Database
-            const { error } = await SupaBaseFunction
-                .from('programes')
-                .update({ registration_on: newStatus })
-                .eq('id', programmeId);
+  const toggleCandidates = async (code: string) => {
+    const newExpanded = new Set(expandedProgrammes);
+    if (newExpanded.has(code)) {
+      newExpanded.delete(code);
+    } else {
+      newExpanded.add(code);
+    }
+    setExpandedProgrammes(newExpanded);
 
-            if (error) {
-                // Revert on failure
-                setProgrammes(prev => prev.map(prog => 
-                    prog.id === programmeId ? { ...prog, registration_on: currentStatus } : prog
-                ));
-                console.error("Failed to update registration status", error);
-            }
-        } catch (error: unknown) {
-            console.error("Error toggling registration:", error);
+    if (!candidates[code]) {
+      setLoadingCands(prev => ({ ...prev, [code]: true }));
+      try {
+        const { data: regs } = await SupaBaseFunction
+          .from("CandidateRegistrationTable")
+          .select("Candidate_Code")
+          .eq("Program_Code", code);
+
+        if (regs && regs.length > 0) {
+          const codes = regs.map(r => r.Candidate_Code).filter(Boolean);
+          const { data: studentList } = await SupaBaseFunction
+            .from("StudentsBox")
+            .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+            .in("AddNo", codes);
+
+          const mapped: Candidate[] = (studentList || []).map((s: any) => ({
+            ...s,
+            Program_Code: code,
+          }));
+
+          setCandidates(prev => ({ ...prev, [code]: mapped }));
+        } else {
+          setCandidates(prev => ({ ...prev, [code]: [] }));
         }
-    };
+      } catch (e) {
+        console.error("Failed to load candidates:", e);
+      } finally {
+        setLoadingCands(prev => ({ ...prev, [code]: false }));
+      }
+    }
+  };
 
-    // 6. Add explicit types to function parameters
-    const toggleExpand = (programmeCode: string) => {
-        setExpandedProgrammes(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(programmeCode)) {
-                newSet.delete(programmeCode);
-            } else {
-                newSet.add(programmeCode);
-            }
-            return newSet;
-        });
-    };
+  const filteredProgrammes = useMemo(() => {
+    return programmes.filter((p) => {
+      const matchSearch =
+        (p.Program_Title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.Program_Code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.Category || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    // Filter Logic
-    const filteredProgrammes = programmes.filter(prog => 
-        prog.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        prog.programme_code?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+      if (!matchSearch) return false;
 
+      const isPub = p.IsResultPublished === true || p.IsResulted === true;
+      if (resultFilter === "published") return isPub;
+      if (resultFilter === "pending") return !isPub;
+      return true;
+    });
+  }, [programmes, searchQuery, resultFilter]);
+
+  if (loading && !wingData) {
     return (
-        <div className="mx-auto max-w-[1600px] p-4 md:p-8 font-sans text-slate-800 min-h-screen bg-slate-50/50">
-            
-            {/* --- CONTROLS HEADER --- */}
-            <div className="mb-8 flex flex-col gap-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 xl:flex-row xl:items-center xl:justify-between">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Wing Results & Programmes</h1>
-                    <p className="text-sm text-slate-500 font-medium">Managing Wing ID: <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{actWing}</span></p>
-                </div>
-
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center flex-wrap">
-                    {/* Search Bar */}
-                    <div className="relative group">
-                        <input
-                            type="text"
-                            placeholder="Search programmes..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm font-medium transition-all focus:bg-white focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 sm:w-72"
-                        />
-                        <svg className="absolute left-4 top-3 h-5 w-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                    </div>
-                </div>
-            </div>
-
-            {/* --- PROGRAMMES LIST --- */}
-            {loading ? (
-                <div className="flex justify-center items-center py-20 text-slate-400">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <span className="ml-3 font-medium">Loading academic data...</span>
-                </div>
-            ) : (
-                <div className="flex flex-col gap-4">
-                    {filteredProgrammes.length === 0 ? (
-                        <div className="text-center py-16 bg-white rounded-2xl ring-1 ring-slate-200">
-                            <h3 className="text-lg font-semibold text-slate-700">No programmes found</h3>
-                            <p className="text-slate-500 mt-1">Try adjusting your search criteria.</p>
-                        </div>
-                    ) : (
-                        filteredProgrammes.map((prog) => {
-                            const isExpanded = expandedProgrammes.has(prog.programme_code);
-                            const progCandidates = candidates.filter(c => c.programme_code === prog.programme_code);
-
-                            return (
-                                <div key={prog.id} className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-200 overflow-hidden transition-all duration-200 hover:shadow-md">
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 gap-4">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-3">
-                                                <h2 className="text-xl font-bold text-slate-900">{prog.name}</h2>
-                                                <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                                    {prog.programme_code}
-                                                </span>
-                                            </div>
-                                            <p className="text-sm text-slate-500 mt-1">{progCandidates.length} Registered Candidates</p>
-                                        </div>
-
-                                        <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-sm font-semibold text-slate-600">Registration</span>
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => toggleRegistration(prog.id, prog.registration_on)}
-                                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${prog.registration_on ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                                                >
-                                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${prog.registration_on ? 'translate-x-6' : 'translate-x-1'}`} />
-                                                </button>
-                                            </div>
-
-                                            <button 
-                                                type="button"
-                                                onClick={() => toggleExpand(prog.programme_code)}
-                                                className="flex items-center gap-2 px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-lg text-sm font-bold transition-colors border border-slate-200"
-                                            >
-                                                {isExpanded ? 'Hide Candidates' : 'View Candidates'}
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {isExpanded && (
-                                        <div className="border-t border-slate-100 bg-slate-50/50 p-5">
-                                            {progCandidates.length === 0 ? (
-                                                <div className="text-center py-8 text-slate-500 italic text-sm">No candidates registered for this programme yet.</div>
-                                            ) : (
-                                                <div className="overflow-x-auto rounded-xl ring-1 ring-slate-200 bg-white">
-                                                    <table className="w-full text-left text-sm text-slate-600">
-                                                        <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-bold border-b border-slate-200">
-                                                            <tr>
-                                                                <th className="px-6 py-4">Candidate Name</th>
-                                                                <th className="px-6 py-4">Class</th>
-                                                                <th className="px-6 py-4">Category</th>
-                                                                <th className="px-6 py-4">Campus Name</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {progCandidates.map((candidate) => (
-                                                                <tr key={candidate.id} className="hover:bg-slate-50 transition-colors">
-                                                                    <td className="px-6 py-4 font-semibold text-slate-800">{candidate.name}</td>
-                                                                    <td className="px-6 py-4"><span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">{candidate.class_name}</span></td>
-                                                                    <td className="px-6 py-4"><span className="inline-flex items-center rounded-md bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-700/10">{candidate.category}</span></td>
-                                                                    <td className="px-6 py-4 font-medium">{candidate.campus_name}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-            )}
-        </div>
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-10 w-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      </div>
     );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 md:p-6 font-sans text-slate-800 space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+
+        {/* Clean Light Hero Card */}
+        <div className="relative bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6 overflow-hidden">
+          <div className="relative z-10 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                Official Results Portal
+              </span>
+              <span className="text-xs text-slate-500 font-medium">
+                {wingData?.WingCode} • Examination & Standing Records
+              </span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              {wingData?.WingTitle || "Wing Space"} — Results
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-xl">
+              Publish and monitor official performance results, rank standings, and score allocations for your wing's programmes.
+            </p>
+          </div>
+
+          <div className="relative z-10 flex flex-wrap items-center gap-3 shrink-0">
+            <Link
+              to={`/wing-panel/${actWing || wingData?.WingEmail || ""}/create-result`}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-amber-200 transition-all cursor-pointer"
+            >
+              <Trophy size={16} />
+              <span>Publish Result</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search results by programme title or code..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+              <Filter size={12} /> Status:
+            </span>
+            <button
+              onClick={() => setResultFilter("all")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                resultFilter === "all"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              All ({programmes.length})
+            </button>
+            <button
+              onClick={() => setResultFilter("published")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                resultFilter === "published"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Published ({programmes.filter(p => p.IsResultPublished || p.IsResulted).length})
+            </button>
+            <button
+              onClick={() => setResultFilter("pending")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                resultFilter === "pending"
+                  ? "bg-amber-600 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Pending ({programmes.filter(p => !p.IsResultPublished && !p.IsResulted).length})
+            </button>
+          </div>
+        </div>
+
+        {/* Results / Programmes Table */}
+        <div className="bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden">
+          {filteredProgrammes.length === 0 ? (
+            <div className="p-12 text-center space-y-3">
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
+                <Trophy size={24} />
+              </div>
+              <h3 className="font-bold text-slate-800 text-base">No Result Records Found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No programmes match your current filter. Choose "Publish Result" to announce standings for completed events.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="px-6 py-4">Programme</th>
+                    <th className="px-4 py-4">Date & Venue</th>
+                    <th className="px-4 py-4 text-center">Registrations</th>
+                    <th className="px-4 py-4 text-center">Result Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {filteredProgrammes.map((p) => {
+                    const isPub = p.IsResultPublished || p.IsResulted;
+                    const isExp = expandedProgrammes.has(p.Program_Code);
+
+                    return (
+                      <React.Fragment key={p.Program_Code}>
+                        <tr className="hover:bg-slate-50/60 transition-colors">
+                          <td className="px-6 py-4">
+                            <div>
+                              <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                {p.Program_Title || "Untitled Programme"}
+                                {p.is_group_program && (
+                                  <span className="text-[10px] font-extrabold uppercase bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200">
+                                    Squad
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                {p.Program_Code} {p.Category ? `• ${p.Category}` : ""}
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <div className="font-semibold text-slate-800">
+                              {p.Date || "Date TBD"}
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">
+                              {p.Venue || "Venue not provided"}
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-4 text-center">
+                            <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
+                              <Users size={12} className="text-blue-600" />
+                              {p.Total_Registration || 0}
+                            </span>
+                          </td>
+
+                          <td className="px-4 py-4 text-center">
+                            <span
+                              className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                isPub
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                              }`}
+                            >
+                              {isPub ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                              {isPub ? "Published" : "Pending Results"}
+                            </span>
+                          </td>
+
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {!isPub ? (
+                                <Link
+                                  to={`/wing-panel/${actWing || wingData?.WingEmail || ""}/create-result`}
+                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all"
+                                >
+                                  Publish Result
+                                </Link>
+                              ) : (
+                                <span className="text-xs font-semibold text-emerald-600 px-2 py-1 bg-emerald-50 rounded-lg">
+                                  ✓ Concluded
+                                </span>
+                              )}
+                              <button
+                                onClick={() => toggleCandidates(p.Program_Code)}
+                                className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer"
+                                title="Toggle Candidates"
+                              >
+                                {isExp ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {isExp && (
+                          <tr>
+                            <td colSpan={5} className="bg-slate-50/70 p-5 border-y border-slate-100">
+                              <div className="space-y-3">
+                                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                                  <Users size={14} className="text-blue-600" />
+                                  Candidates in {p.Program_Title}
+                                </h4>
+
+                                {loadingCands[p.Program_Code] ? (
+                                  <div className="text-center py-4 text-xs text-slate-400 italic">
+                                    Loading candidates...
+                                  </div>
+                                ) : candidates[p.Program_Code] && candidates[p.Program_Code].length > 0 ? (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    {candidates[p.Program_Code].map((c) => (
+                                      <div
+                                        key={c.AddNo}
+                                        className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3"
+                                      >
+                                        <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-50">
+                                          <SafeImage
+                                            src={c.Student_Photo_Urls}
+                                            alt={c.StudentName}
+                                            fallbackCategory="student"
+                                            fallbackText={c.StudentName}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="font-bold text-slate-900 text-xs truncate">
+                                            {c.StudentName}
+                                          </p>
+                                          <p className="text-[10px] text-slate-500 font-mono truncate">
+                                            {c.AddNo} • {c.Class}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4 text-xs text-slate-400">
+                                    No registered candidates found for this programme.
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
 }

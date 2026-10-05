@@ -62,6 +62,8 @@
 import React, { useState, useEffect } from "react";
 // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
 import { SupaBaseFunction } from "../../lib/SupaBase"; 
+import EditWingModal, { type EditableWing } from "../Wing/EditWingModal";
+import { Edit2, Building2, CheckCircle2, Search, Download } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -84,6 +86,7 @@ export interface Wing {
   Description: string | null;
   WingUserId: string | null;
   IsActive: boolean | null;
+  wing_logo?: string | null;
 }
 
 interface Filters {
@@ -101,6 +104,11 @@ export default function GeneralWingsAnaylatics() {
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Edit Modal & Notification State
+  const [selectedWingForEdit, setSelectedWingForEdit] = useState<EditableWing | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
   // Filter States
   const [filters, setFilters] = useState<Filters>({
     SearchTerm: "",
@@ -108,26 +116,50 @@ export default function GeneralWingsAnaylatics() {
   });
 
   // 1. Fetch Wings Data
-  useEffect(() => {
-    const fetchWings = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await SupaBaseFunction
-          .from("Chs-WingS")
-          .select("*");
-          
-        if (error) throw error;
+  const fetchWings = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await SupaBaseFunction
+        .from("Chs-WingS")
+        .select("*")
+        .order("WingTitle", { ascending: true });
         
-        setWings(data || []);
-      } catch (error) {
-        console.error("Error fetching Wings:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+      if (error) throw error;
+      
+      setWings(data || []);
+    } catch (error) {
+      console.error("Error fetching Wings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchWings();
   }, []);
+
+  const handleEditWing = (wing: Wing) => {
+    setSelectedWingForEdit({
+      WingTitle: wing.WingTitle,
+      WingCode: wing.WingCode,
+      WingEmail: wing.WingEmail,
+      WingManager: wing.WingManager,
+      WingConvener: wing.WingConvener,
+      WingAssistant: wing.WingAssistant,
+      Total_Points: wing.Total_Points,
+      Bonus_Points: wing.Bonus_Points,
+      Description: wing.Description,
+      wing_logo: wing.wing_logo,
+      IsActive: wing.IsActive !== false,
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleWingEditSuccess = () => {
+    setFeedback("Wing details updated successfully!");
+    fetchWings();
+    setTimeout(() => setFeedback(null), 3500);
+  };
 
   // 2. Apply Filters
   useEffect(() => {
@@ -249,130 +281,165 @@ export default function GeneralWingsAnaylatics() {
   }
 
   return (
-    <div className="min-h-screen bg-violet-50 p-4 sm:p-6 lg:p-8 font-sans">
+    <div className="w-full max-w-full overflow-hidden font-sans space-y-5">
       
-      {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 sm:p-6 rounded-2xl shadow-sm mb-6 gap-5">
-        <div>
-          <h2 className="m-0 text-xl sm:text-2xl font-bold text-violet-700">General Wings Analytics</h2>
-          <p className="mt-1 text-sm text-slate-500">Monitor departmental performance, point accumulation, and event metrics.</p>
+      {/* FEEDBACK TOAST BANNER */}
+      {feedback && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xs transition-all animate-fade-in">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          <span>{feedback}</span>
         </div>
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-stretch sm:items-center">
-          
-          <div className="flex bg-violet-50 rounded-lg p-1 w-full sm:w-auto">
+      )}
+
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-violet-50 text-violet-600 border border-violet-100">
+              <Building2 size={20} />
+            </div>
+            <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">Wings Analytics & Management</h2>
+          </div>
+          <p className="mt-1 text-xs sm:text-sm text-slate-500">Monitor departmental performance, points distribution, and manage wing profiles.</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto items-stretch sm:items-center">
+          <div className="flex bg-slate-100 rounded-xl p-1 w-full sm:w-auto">
             <button 
-              onClick={() => setActiveTab("List")}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === "List" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Directory
-            </button>
-            <button 
+              type="button"
               onClick={() => setActiveTab("Analytics")}
-              className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === "Analytics" ? "bg-white text-violet-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === "Analytics" ? "bg-white text-violet-700 shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
             >
               Analytics
+            </button>
+            <button 
+              type="button"
+              onClick={() => setActiveTab("List")}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${activeTab === "List" ? "bg-white text-violet-700 shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+            >
+              Directory ({filteredData.length})
             </button>
           </div>
 
           <button 
+            type="button"
             onClick={handleExport} 
-            className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 active:scale-95 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-md shadow-violet-600/20 transition-all text-center"
+            className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 active:scale-95 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
           >
-            Export CSV ({filteredData.length})
+            <Download size={14} />
+            <span>Export CSV</span>
           </button>
         </div>
       </div>
 
       {/* FILTER & SEARCH SECTION */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6 bg-white p-4 sm:p-5 rounded-2xl shadow-sm">
-        <input 
-          type="text" 
-          name="SearchTerm" 
-          placeholder="Search by Wing Name, Code, or Manager..." 
-          value={filters.SearchTerm} 
-          onChange={handleFilterChange} 
-          className="w-full flex-2 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-200 shadow-xs">
+        <div className="relative sm:col-span-2">
+          <input 
+            type="text" 
+            name="SearchTerm" 
+            placeholder="Search by Wing Name, Code, or Manager..." 
+            value={filters.SearchTerm} 
+            onChange={handleFilterChange} 
+            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+          />
+          <Search size={15} className="absolute left-3 top-3 text-slate-400" />
+        </div>
 
-        <select 
-          name="IsActive" 
-          value={filters.IsActive} 
-          onChange={handleFilterChange} 
-          className="w-full sm:w-1/3 flex-1 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
-        >
-          <option value="all">All Wings (Active & Inactive)</option>
-          <option value="true">Active Wings Only</option>
-          <option value="false">Inactive Wings Only</option>
-        </select>
+        <div>
+          <select 
+            name="IsActive" 
+            value={filters.IsActive} 
+            onChange={handleFilterChange} 
+            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm rounded-xl p-2.5 outline-none focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all cursor-pointer font-medium"
+          >
+            <option value="all">All Statuses (Active & Inactive)</option>
+            <option value="true">Active Operating Wings Only</option>
+            <option value="false">Inactive Wings Only</option>
+          </select>
+        </div>
       </div>
 
       {/* DYNAMIC CONTENT AREA */}
       {activeTab === "Analytics" ? (
-        <>
-          {/* KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Registered Wings</div>
-              <div className="text-2xl font-bold text-slate-800 mt-2">{filteredData.length}</div>
+        <div className="space-y-5">
+          {/* KPI CARDS (2 cols on small mobile, 4 cols on desktop) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Registered Wings</span>
+              <div className="text-xl sm:text-3xl font-black text-slate-900 mt-1">{filteredData.length}</div>
             </div>
-            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Active Operating Wings</div>
-              <div className="text-2xl font-bold text-emerald-500 mt-2">{activeWingsCount}</div>
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Active Operating</span>
+              <div className="text-xl sm:text-3xl font-black text-emerald-600 mt-1">{activeWingsCount}</div>
             </div>
-            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Global System Points</div>
-              <div className="text-2xl font-bold text-violet-500 mt-2">{totalSystemPoints.toLocaleString()}</div>
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Global Points</span>
+              <div className="text-xl sm:text-3xl font-black text-violet-600 mt-1">{totalSystemPoints.toLocaleString()}</div>
             </div>
-            <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm">
-              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Program Registrations</div>
-              <div className="text-2xl font-bold text-amber-500 mt-2">{totalSystemRegistrations.toLocaleString()}</div>
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+              <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Registrations</span>
+              <div className="text-xl sm:text-3xl font-black text-amber-500 mt-1">{totalSystemRegistrations.toLocaleString()}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* CHARTS GRID (min-w-0 on every card prevents flex/grid blowout & collapse) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             
             {/* STACKED BAR CHART: Points Breakdown */}
-            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h3 className="text-base font-bold text-slate-700 mb-5">Wing Points Breakdown (Top 8)</h3>
-              <div className="h-[320px] w-full">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">Wing Points Breakdown (Top 8)</h3>
+                <span className="text-[11px] text-slate-400 font-medium">Standard + Bonus</span>
+              </div>
+              <div className="h-[260px] sm:h-[300px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={pointsBreakdown} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                    <YAxis tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                    <RechartsTooltip cursor={{fill: '#faf5ff'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                    <Legend wrapperStyle={{fontSize: '12px'}} />
-                    <Bar dataKey="standard" name="Standard Points" stackId="a" fill="#8b5cf6" />
-                    <Bar dataKey="bonus" name="Bonus Points" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  <BarChart data={pointsBreakdown} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#64748b', fontSize: 10 }} 
+                      axisLine={false} 
+                      tickLine={false}
+                      interval={0}
+                      tickFormatter={(val: string) => (val.length > 8 ? val.slice(0, 6) + "…" : val)}
+                    />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip cursor={{ fill: '#faf5ff' }} contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
+                    <Bar dataKey="standard" name="Standard" stackId="a" fill="#8b5cf6" />
+                    <Bar dataKey="bonus" name="Bonus" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             {/* PIE CHART: Registration Distribution */}
-            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h3 className="text-base font-bold text-slate-700 mb-5">Registration Volume by Wing</h3>
-              <div className="h-[320px] w-full">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">Registration Volume by Wing</h3>
+                <span className="text-[11px] text-slate-400 font-medium">Candidate Share</span>
+              </div>
+              <div className="h-[260px] sm:h-[300px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie 
                       data={registrationsByWing} 
                       cx="50%" 
-                      cy="50%" 
-                      innerRadius="55%" 
-                      outerRadius="80%" 
+                      cy="45%" 
+                      innerRadius="45%" 
+                      outerRadius="72%" 
                       paddingAngle={2} 
                       dataKey="value"
                     >
-                      {/* FIX: Replaced 'entry' with '_' */}
                       {registrationsByWing.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }} />
                     <Legend 
                       iconType="circle"
-                      wrapperStyle={{ fontSize: '12px', color: '#475569' }}
+                      wrapperStyle={{ fontSize: '11px', color: '#475569', paddingTop: '6px' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -380,97 +447,189 @@ export default function GeneralWingsAnaylatics() {
             </div>
 
             {/* COMPOSED CHART: Deep Engagement Profiling */}
-            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
-              <h3 className="text-base font-bold text-slate-700 mb-5">Top Performing Wings: Engagement vs Conversions</h3>
-              <div className="h-[350px] w-full">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800">Top Performing Wings: Engagement vs Conversions</h3>
+                <span className="text-[11px] text-slate-400 font-medium">Registrations & Points</span>
+              </div>
+              <div className="h-[280px] sm:h-[320px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={engagementProfile} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="left" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="right" orientation="right" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                    <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                    <Legend wrapperStyle={{fontSize: '12px'}} />
+                  <ComposedChart data={engagementProfile} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fill: '#64748b', fontSize: 10 }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      interval={0}
+                      tickFormatter={(val: string) => (val.length > 9 ? val.slice(0, 7) + "…" : val)}
+                    />
+                    <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }} />
+                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
                     <Area yAxisId="left" type="monotone" dataKey="registrations" name="Registrations" fill="#fef3c7" stroke="#f59e0b" />
-                    <Bar yAxisId="left" dataKey="results" name="Resulted/Completed" barSize={30} fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Line yAxisId="right" type="monotone" dataKey="points" name="Total Points Earned" stroke="#6d28d9" strokeWidth={3} />
+                    <Bar yAxisId="left" dataKey="results" name="Results" barSize={26} fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Line yAxisId="right" type="monotone" dataKey="points" name="Total Points" stroke="#6d28d9" strokeWidth={2.5} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
           </div>
-        </>
+        </div>
       ) : (
-        /* TABLE LIST VIEW */
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] text-left border-collapse">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
-                <tr>
-                  <th className="p-4 border-b border-slate-200">Wing Identity</th>
-                  <th className="p-4 border-b border-slate-200">Leadership</th>
-                  <th className="p-4 border-b border-slate-200">Performance Data</th>
-                  <th className="p-4 border-b border-slate-200">Total Points</th>
-                  <th className="p-4 border-b border-slate-200">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {filteredData.map((wing, idx) => {
-                  const grandTotal = (wing.Total_Points || 0) + (wing.Bonus_Points || 0);
-                  
-                  return (
-                    <tr key={wing.WingCode} className={`hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                      <td className="p-4">
-                        <div className="font-bold text-slate-800 text-base">{wing.WingTitle || 'Unnamed Wing'}</div>
-                        <div className="text-xs text-slate-500 font-mono mt-0.5">CODE: {wing.WingCode}</div>
-                      </td>
-                      <td className="p-4">
-                        <div className="font-medium text-slate-700">Mgr: {wing.WingManager || 'Not Assigned'}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Cvr: {wing.WingConvener || 'Not Assigned'}</div>
-                      </td>
-                      <td className="p-4 text-slate-600">
-                        <div className="text-sm">Registrations: <span className="font-bold text-slate-800">{wing.Total_Registrations || 0}</span></div>
-                        <div className="text-sm">Results Processed: <span className="font-bold text-slate-800">{wing.Total_Resulted || 0}</span></div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex flex-col items-start gap-1">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-violet-100 text-violet-800 font-bold text-sm">
-                            {grandTotal} pts
-                          </span>
-                          {(wing.Bonus_Points || 0) > 0 && (
-                            <span className="text-xs font-semibold text-pink-500 ml-1">
-                              (+{wing.Bonus_Points} Bonus)
+        /* DIRECTORY VIEW: RESPONSIVE (Cards for small screens, Table for desktop) */
+        <div className="space-y-4">
+          
+          {/* MOBILE CARDS VIEW (< 640px) */}
+          <div className="block sm:hidden space-y-3">
+            {filteredData.map((wing) => {
+              const grandTotal = (wing.Total_Points || 0) + (wing.Bonus_Points || 0);
+              return (
+                <div key={wing.WingCode} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">{wing.WingTitle || "Unnamed Wing"}</h4>
+                      <span className="font-mono text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md mt-0.5 inline-block">
+                        {wing.WingCode}
+                      </span>
+                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${wing.IsActive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${wing.IsActive ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                      {wing.IsActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Manager</span>
+                      <span className="font-medium truncate block">{wing.WingManager || "Unassigned"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Convener</span>
+                      <span className="font-medium truncate block">{wing.WingConvener || "Unassigned"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Registrations</span>
+                      <span className="font-bold text-slate-800">{wing.Total_Registrations || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-bold">Points</span>
+                      <span className="font-bold text-violet-700">{grandTotal} pts</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleEditWing(wing)}
+                    className="w-full py-2 px-3 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 border border-violet-200 transition-colors cursor-pointer"
+                  >
+                    <Edit2 size={13} />
+                    <span>Edit Wing Info</span>
+                  </button>
+                </div>
+              );
+            })}
+            {filteredData.length === 0 && (
+              <div className="p-8 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 text-xs">
+                No wings match your filter.
+              </div>
+            )}
+          </div>
+
+          {/* TABLE VIEW (>= 640px) */}
+          <div className="hidden sm:block bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-bold tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="p-4">Wing Identity</th>
+                    <th className="p-4">Leadership</th>
+                    <th className="p-4">Performance</th>
+                    <th className="p-4">Total Points</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {filteredData.map((wing) => {
+                    const grandTotal = (wing.Total_Points || 0) + (wing.Bonus_Points || 0);
+                    
+                    return (
+                      <tr key={wing.WingCode} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="p-4">
+                          <div className="font-bold text-slate-900 text-sm">{wing.WingTitle || 'Unnamed Wing'}</div>
+                          <div className="text-[11px] text-slate-500 font-mono mt-0.5">CODE: {wing.WingCode}</div>
+                        </td>
+                        <td className="p-4">
+                          <div className="font-medium text-slate-700">Mgr: {wing.WingManager || 'Not Assigned'}</div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">Cvr: {wing.WingConvener || 'Not Assigned'}</div>
+                        </td>
+                        <td className="p-4 text-slate-600">
+                          <div>Registrations: <span className="font-bold text-slate-800">{wing.Total_Registrations || 0}</span></div>
+                          <div className="text-[11px] text-slate-400">Results: {wing.Total_Resulted || 0}</div>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-800 font-bold text-xs">
+                              {grandTotal} pts
+                            </span>
+                            {(wing.Bonus_Points || 0) > 0 && (
+                              <span className="text-[10px] font-semibold text-pink-500 ml-1">
+                                (+{wing.Bonus_Points} Bonus)
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          {wing.IsActive ? (
+                            <span className="inline-flex items-center gap-1.5 text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full text-[11px]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 text-rose-500 font-semibold bg-rose-50 px-2 py-0.5 rounded-full text-[11px]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Inactive
                             </span>
                           )}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        {wing.IsActive ? (
-                          <span className="inline-flex items-center gap-1.5 text-emerald-600 font-semibold">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Active
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-rose-500 font-semibold">
-                            <span className="w-2 h-2 rounded-full bg-rose-500"></span> Inactive
-                          </span>
-                        )}
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleEditWing(wing)}
+                            className="px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 text-xs font-bold rounded-xl inline-flex items-center gap-1 border border-violet-200 transition-colors cursor-pointer"
+                          >
+                            <Edit2 size={12} />
+                            <span>Edit</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredData.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-500">
+                        No Wings match your current search/filters.
                       </td>
                     </tr>
-                  );
-                })}
-                {filteredData.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
-                      No Wings match your current search/filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
+
+      {/* EDIT WING MODAL */}
+      <EditWingModal
+        wing={selectedWingForEdit}
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedWingForEdit(null);
+        }}
+        onSuccess={handleWingEditSuccess}
+      />
     </div>
   );
 }

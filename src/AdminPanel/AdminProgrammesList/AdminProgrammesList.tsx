@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import * as XLSX from "xlsx"; 
+import EditProgrammeModal from "./EditProgrammeModal";
+import SafeImage from "../../lib/SafeImage";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
+import { Edit3 } from "lucide-react"; 
 
 export interface Programme {
   Program_Title: string | null;
@@ -48,14 +52,14 @@ const IMPORT_COLUMNS = [
   "Venue", "Category", "Group", "AccademicYear", "Program_Poster","Total_Registration","IsResulted","IsConducted","Description","OutComes"
 ];
 
-const DEFAULT_POSTER = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80";
-
 export default function AdminProgrammesList() {
+  const meta = useProgrammeMeta();
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [wings, setWings] = useState<Wing[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [editingProgram, setEditingProgram] = useState<Programme | null>(null);
   
   const [isLoading, setIsLoading] = useState({ fetch: true, import: false, export: false, action: false });
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -63,7 +67,7 @@ export default function AdminProgrammesList() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [filters, setFilters] = useState<FilterState>({
-    AccademicYear: "", Group: "", Venue: "", WingCode: "",
+    AccademicYear: "", Category: "", Group: "", Venue: "", WingCode: "",
   });
 
   const showToast = (message: string, type: ToastState["type"] = "info") => {
@@ -84,8 +88,6 @@ export default function AdminProgrammesList() {
       if (progError) throw progError;
       if (wingError) throw wingError;
 
-        console.log(progData.length)
-        
       if (progData) setProgrammes(progData as Programme[]);
       if (wingData) setWings(wingData as Wing[]);
     } catch (error: any) {
@@ -97,13 +99,28 @@ export default function AdminProgrammesList() {
 
   const getWingName = (WingCode: string | null): string => {
     if (!WingCode) return "Unknown Wing";
-    const wing = wings.find((w) => w.WingCode === WingCode);
-    return wing?.WingTitle || WingCode;
+    return meta.wingMap[WingCode] || wings.find((w) => w.WingCode === WingCode)?.WingTitle || WingCode;
+  };
+
+  const getVenueName = (venueId: string | null): string => {
+    if (!venueId) return "TBA";
+    return meta.venueMap[venueId] || venueId;
+  };
+
+  const getAcademicYearName = (yearId: string | null): string => {
+    if (!yearId) return "";
+    return meta.academicMap[yearId] || yearId;
+  };
+
+  const getCategoryName = (catId: string | null): string => {
+    if (!catId) return "General";
+    return meta.categoryMap[catId] || catId;
   };
 
   const uniqueValues = useMemo(() => {
     return {
       AccademicYear: Array.from(new Set(programmes.map((p) => p.AccademicYear).filter(Boolean))) as string[],
+      Category: Array.from(new Set(programmes.map((p) => p.Category).filter(Boolean))) as string[],
       Group: Array.from(new Set(programmes.map((p) => p.Group).filter(Boolean))) as string[],
       Venue: Array.from(new Set(programmes.map((p) => p.Venue).filter(Boolean))) as string[],
       WingCode: Array.from(new Set(programmes.map((p) => p.WingCode).filter(Boolean))) as string[],
@@ -114,6 +131,7 @@ export default function AdminProgrammesList() {
     return programmes.filter((p) => {
       return (
         (!filters.AccademicYear || p.AccademicYear === filters.AccademicYear) &&
+        (!filters.Category || p.Category === filters.Category) &&
         (!filters.Group || p.Group === filters.Group) &&
         (!filters.Venue || p.Venue === filters.Venue) &&
         (!filters.WingCode || p.WingCode === filters.WingCode)
@@ -305,16 +323,26 @@ export default function AdminProgrammesList() {
       {/* FILTERS & BULK ACTIONS */}
       <div className="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
-            {(['AccademicYear', 'Group', 'Venue', 'WingCode'] as const).map((filterKey) => (
+            {(['AccademicYear', 'Category', 'Group', 'Venue', 'WingCode'] as const).map((filterKey) => (
               <select 
                 key={filterKey}
                 className="text-sm font-medium text-gray-700 border border-emerald-200/60 rounded-xl bg-white py-2 px-3 shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all cursor-pointer hover:bg-emerald-50/30"
-                value={filters[filterKey]}
+                value={filters[filterKey] || ""}
                 onChange={(e) => setFilters({...filters, [filterKey]: e.target.value})}
               >
-                <option value="">All {filterKey.replace('Code', '')}s</option>
-                {uniqueValues[filterKey].map(val => (
-                  <option key={val} value={val}>{filterKey === 'WingCode' ? getWingName(val) : val}</option>
+                <option value="">All {filterKey === 'AccademicYear' ? 'Academic Years' : filterKey === 'Category' ? 'Categories' : filterKey.replace('Code', '') + 's'}</option>
+                {uniqueValues[filterKey]?.map(val => (
+                  <option key={val} value={val}>
+                    {filterKey === 'WingCode' 
+                      ? getWingName(val) 
+                      : filterKey === 'Venue' 
+                        ? getVenueName(val) 
+                        : filterKey === 'AccademicYear' 
+                          ? getAcademicYearName(val) 
+                          : filterKey === 'Category'
+                            ? getCategoryName(val)
+                            : val}
+                  </option>
                 ))}
               </select>
             ))}
@@ -362,8 +390,14 @@ export default function AdminProgrammesList() {
                     />
                   </div>
 
-                  <div className="h-48 w-full bg-emerald-50 relative">
-                    <img src={prog.Program_Poster || DEFAULT_POSTER} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_POSTER; }} />
+                  <div className="h-48 w-full bg-slate-900 relative overflow-hidden">
+                    <SafeImage
+                      src={prog.Program_Poster}
+                      alt={prog.Program_Title || "Program"}
+                      fallbackCategory="programme"
+                      fallbackText={prog.Program_Title || prog.Program_Code}
+                      className="w-full h-full object-cover"
+                    />
                     <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
                       <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase shadow-sm ${prog.IsApproved ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-white'}`}>{prog.IsApproved ? "Approved" : "Pending"}</span>
                       <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase shadow-sm ${prog.IsOpenRegistration ? 'bg-white text-emerald-800' : 'bg-red-500 text-white'}`}>{prog.IsOpenRegistration ? 'Reg Open' : 'Reg Closed'}</span>
@@ -376,25 +410,35 @@ export default function AdminProgrammesList() {
                     
                     <div className="mt-auto space-y-2 text-sm mb-4">
                       <div className="flex items-center gap-2 text-gray-700 font-semibold"><span className="truncate">{getWingName(prog.WingCode)}</span></div>
-                      <div className="flex items-center gap-2 text-gray-600 font-medium"><span>{prog.Date || "TBA"}</span> | <span>{prog.Venue || "TBA"}</span></div>
+                      <div className="flex items-center gap-2 text-gray-600 font-medium"><span>{prog.Date || "TBA"}</span> | <span>{getVenueName(prog.Venue)}</span></div>
                     </div>
                     
-                    {/* ONE-BY-ONE STATUS UPDATE BUTTONS */}
-                    <div className="flex gap-2 pt-4 border-t border-gray-100">
-                      <button 
-                        disabled={isLoading.action}
-                        onClick={() => handleSingleAction(prog.Program_Code, "ToggleApprove")}
-                        className="flex-1 py-2 rounded-lg text-xs font-bold border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition disabled:opacity-50"
+                    {/* EDIT & STATUS UPDATE BUTTONS */}
+                    <div className="flex flex-col gap-2 pt-4 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProgram(prog)}
+                        className="w-full py-2 px-3 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        {prog.IsApproved ? "Mark Pending" : "Approve Now"}
+                        <Edit3 size={13} /> Edit Programme Details
                       </button>
-                      <button 
-                        disabled={isLoading.action}
-                        onClick={() => handleSingleAction(prog.Program_Code, "ToggleReg")}
-                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition disabled:opacity-50 ${prog.IsOpenRegistration ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}
-                      >
-                        {prog.IsOpenRegistration ? "Close Reg" : "Open Reg"}
-                      </button>
+
+                      <div className="flex gap-2">
+                        <button 
+                          disabled={isLoading.action}
+                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleApprove")}
+                          className="flex-1 py-2 rounded-lg text-xs font-bold border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition disabled:opacity-50 cursor-pointer"
+                        >
+                          {prog.IsApproved ? "Mark Pending" : "Approve Now"}
+                        </button>
+                        <button 
+                          disabled={isLoading.action}
+                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleReg")}
+                          className={`flex-1 py-2 rounded-lg text-xs font-bold transition disabled:opacity-50 cursor-pointer ${prog.IsOpenRegistration ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}
+                        >
+                          {prog.IsOpenRegistration ? "Close Reg" : "Open Reg"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -445,6 +489,13 @@ export default function AdminProgrammesList() {
                         <div className="flex items-center gap-3"><span className="w-12 font-bold text-emerald-400 text-[10px] uppercase tracking-widest">Wing</span><span className="font-semibold text-gray-800 text-xs">{getWingName(prog.WingCode)}</span></div>
                         <div className="flex items-center gap-3"><span className="w-12 font-bold text-emerald-400 text-[10px] uppercase tracking-widest">Venue</span><span className="font-semibold text-gray-800 text-xs">{prog.Venue || 'TBA'}</span></div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingProgram(prog)}
+                        className="mt-2 py-1.5 px-3 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer self-start"
+                      >
+                        <Edit3 size={12} /> Edit Info
+                      </button>
                     </div>
                   ))
                 ) : (
@@ -454,6 +505,18 @@ export default function AdminProgrammesList() {
             </div>
           </div>
         )}
+
+        {/* Edit Programme Modal */}
+        <EditProgrammeModal
+          isOpen={Boolean(editingProgram)}
+          program={editingProgram}
+          wings={wings}
+          onClose={() => setEditingProgram(null)}
+          onSuccess={() => {
+            showToast("Programme details updated successfully!", "success");
+            fetchData();
+          }}
+        />
       </div>
     </div>
   );

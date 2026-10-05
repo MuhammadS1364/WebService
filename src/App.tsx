@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 import NotFoundPage from './GetWay/NoFoundPage';
 import ProtectedRoute from './GetWay/ProtectedRoute';
@@ -26,6 +26,7 @@ import StudentsAchievements from './StudentPanel/StudentAchievements/StudentAchi
 import StudentsOutReach from './StudentPanel/StudentOutReach/StudentOutReach';
 import StudentAnalytics from './StudentPanel/Anylatics/StudentAnylatics';
 import StudentProgrammes from './StudentPanel/StudentProgram/StudentProgrammes';
+import StudentGroupManage from './StudentPanel/StudentGroup/StudentGroupManage';
 
 // Wing Components
 import WingPanel from './WingPanel/DashBoard/WingPanel';
@@ -63,9 +64,12 @@ import PublicProgrammesList from './PublicProgrammesComponents/AllProgrammesList
 import ProgrammesAnaylatics from './AdminPanel/Anaylatics/ProgrammesAnaylatics';
 import StudentsAnaylaticsGeneral from './AdminPanel/Anaylatics/StudentsAnaylatics';
 import GeneralWingsAnaylatics from './AdminPanel/Anaylatics/WingsAnaylatics';
+import MasterConfigHub from './AdminPanel/MasterConfig/MasterConfigHub';
+import MasterConfigWrapper from './AdminPanel/MasterConfig/MasterConfigWrapper';
 
 
 import UpdatePassword from './UpdatePass/UpdatePass';
+import UpdateProfile from './Profile/UpdateProfile';
 
 
 export default function App() {
@@ -73,6 +77,7 @@ export default function App() {
     <>
       <Routes>
         {/* PUBLIC ROUTES (No Login Required) */}
+        <Route path='/' element={<Navigate to='/public-panel/dashboard' replace />} />
         <Route path='/login' element={<GetWay />} />
         {/* <Route path='/cal' index element={<ProgrammesCalendar />} /> */}
 
@@ -118,6 +123,11 @@ export default function App() {
           <Route path='program-general-anaylatics' element={<ProgrammesAnaylatics />} />
           <Route path='student-general-anaylatics' element={<StudentsAnaylaticsGeneral />} />
           <Route path='wing-general-anaylatics' element={<GeneralWingsAnaylatics />} />
+          <Route path='master-config' element={<MasterConfigHub />} />
+          <Route path='our-classes' element={<MasterConfigWrapper defaultTab="classes" />} />
+          <Route path='our-categories' element={<MasterConfigWrapper defaultTab="categories" />} />
+          <Route path='our-venues' element={<MasterConfigWrapper defaultTab="venues" />} />
+          <Route path='points-templates' element={<MasterConfigWrapper defaultTab="templates" />} />
         </Route>
 
         {/* STUDENT PANEL (Protected) */}
@@ -134,6 +144,10 @@ export default function App() {
           <Route path='stn-outreach-list' element={<StudentsOutReach />} />
           <Route path='stn-anylatics' element={<StudentAnalytics />} />
           <Route path='stn-program' element={<StudentProgrammes />} />
+          <Route path='create-group' element={<StudentGroupManage />} />
+          <Route path='my-squads' element={<StudentGroupManage />} />
+          <Route path='profile' element={<UpdateProfile />} />
+          <Route path='stn-profile' element={<UpdateProfile />} />
           <Route path='stn-password' element={<UpdatePassword />} />
         </Route>
 
@@ -150,6 +164,8 @@ export default function App() {
           <Route path='wing-anylatics' element={<WingAnylatics />} />
           <Route path='wing-programmes' element={<WingProgrammes />} />
           <Route path='wing-results' element={<WingResults />} />
+          <Route path='profile' element={<UpdateProfile />} />
+          <Route path='wing-profile' element={<UpdateProfile />} />
           <Route path='wing-password' element={<UpdatePassword />} />
         </Route>
 
@@ -164,6 +180,8 @@ export default function App() {
           <Route path='create-achievements' element={<CreateAchievements />} />
           <Route path='create-outreach' element={<CreateOutReach />} />
           <Route path='outreach-anaylatics' element={<OutReachAnaylatics />} />
+          <Route path='profile' element={<UpdateProfile />} />
+          <Route path='outreach-profile' element={<UpdateProfile />} />
           <Route path='outreach-password' element={<UpdatePassword />} />
           <Route path='edite-outreach' element={<OutReachAnaylatics />} />
           <Route path='edite-achievement/:Achieve_Id' element={<OutReachAnaylatics />} />
@@ -179,6 +197,8 @@ export default function App() {
           <Route path='dashboard' element={<TreasurerDashboard />} />
           <Route path='create-expance' element={<CreateExpanceOrIncome />} />
           <Route path='treasurer-analytics' element={<TreasureAnalatics />} />
+          <Route path='profile' element={<UpdateProfile />} />
+          <Route path='treasurer-profile' element={<UpdateProfile />} />
           <Route path='treasurer-password' element={<UpdatePassword />} />
         </Route>
 

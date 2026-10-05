@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
+import { resolveWingProfile } from "../../lib/wingResolver";
 
 // --- INTERFACES ---
 interface WingData {
@@ -75,23 +76,16 @@ export default function WingAnalytics() {
   const [statusFilter, setStatusFilter] = useState<string>("All");
 
   useEffect(() => {
+    let isMounted = true;
     const fetchWingAndProgrammes = async () => {
-      if (!actWing) {
-        setError("No wing email provided.");
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       try {
-        const { data: wingResult, error: wingError } = await SupaBaseFunction
-          .from('Chs-WingS')
-          .select('*')
-          .eq('WingEmail', actWing)
-          .single();
+        const wingResult = await resolveWingProfile(actWing);
+        if (!wingResult) throw new Error("Wing configuration could not be loaded.");
 
-        if (wingError) throw new Error(wingError.message);
-        setWingData(wingResult as WingData);
+        if (isMounted) {
+          setWingData(wingResult as WingData);
+        }
 
         const { data: programmesResult, error: progError } = await SupaBaseFunction
           .from('ProgrammesBox')
@@ -100,16 +94,25 @@ export default function WingAnalytics() {
 
         if (progError) throw new Error(progError.message);
 
-        setProgrammes(programmesResult || []);
+        if (isMounted) {
+          setProgrammes(programmesResult || []);
+        }
       } catch (err) {
         const error = err as Error;
-        setError(error.message);
+        if (isMounted) {
+          setError(error.message);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchWingAndProgrammes();
+    return () => {
+      isMounted = false;
+    };
   }, [actWing]);
 
   // Derived state processing block using useMemo

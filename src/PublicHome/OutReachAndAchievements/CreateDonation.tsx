@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
+import SafeImage from "../../lib/SafeImage";
 import { 
   Landmark, Smartphone, QrCode, DollarSign, User, MapPin, 
   MessageSquare, ShieldCheck, CheckCircle2, AlertCircle, 
@@ -167,8 +168,8 @@ export default function CreateDonationForUs() {
                   <h3 className="font-semibold text-white">Direct Mobile Gateway / UPI</h3>
                 </div>
                 <div className="p-6 relative z-10 flex flex-col items-center text-center">
-                  <div className="bg-white p-3  rounded-xl shadow-inner mb-4 inline-block">
-                    <img src={activeBank.PaY_Qr_Photo} alt="UPI QR Code" className="w-75 h-80 rounded-lg object-contain" />
+                  <div className="bg-white p-3 rounded-xl shadow-inner mb-4 inline-block max-w-full overflow-hidden">
+                    <SafeImage src={activeBank.PaY_Qr_Photo} alt="UPI QR Code" fallbackCategory="bank" className="w-56 h-56 sm:w-64 sm:h-64 rounded-lg object-contain" />
                   </div>
                   <p className="text-emerald-100 text-sm mb-1">Scan to pay, or use ID:</p>
                   <p className="font-mono text-xl font-bold tracking-wider">{activeBank.UPi_Number}</p>

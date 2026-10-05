@@ -3,6 +3,11 @@ import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
 import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
+import SafeImage from "../../lib/SafeImage";
+import ProgrammeFeedbackModal from "../../PublicProgrammesComponents/ProgrammeFeedbackModal";
+import { resolveStudentProfile } from "../../lib/accountResolver";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
+import { MessageSquare } from "lucide-react";
 
 // 1. Define explicit structures matching your Supabase Database Schemas
 interface StudentProfile {
@@ -30,30 +35,45 @@ interface ProgramItem {
 export default function StudentProgrammes() {
   // Explicitly type dynamic route parameters
   const { actStn } = useParams<{ actStn: string }>(); 
+  const meta = useProgrammeMeta();
   
   // 2. Attach clean explicit generics to hooks to wipe out 'never' type-casting bugs
-  const [loading, setLoading] = useState<boolean>(true);
-  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [student, setStudent] = useState<StudentProfile | null>(() => {
+    try {
+      const cached = localStorage.getItem("cached_student_profile");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState<boolean>(() => !localStorage.getItem("cached_student_profile"));
   const [programs, setPrograms] = useState<ProgramItem[]>([]);
   
   // Filters Layout Context State
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
 
-  useEffect(() => {
-    const fetchPrograms = async () => {
-      if (!actStn) return;
-      setLoading(true);
-      try {
-        // Step 1: Fetch Student AddNo via Email
-        const { data: studentData, error: studentError } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("AddNo, StudentName, StudentEmail")
-          .eq("StudentEmail", actStn)
-          .single();
+  // Feedback Modal State for participated programmes
+  const [feedbackModal, setFeedbackModal] = useState<{ isOpen: boolean; code: string; title: string }>({
+    isOpen: false,
+    code: "",
+    title: "",
+  });
 
-        if (studentError || !studentData) throw studentError;
-        setStudent(studentData as StudentProfile);
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchPrograms = async (silent = false) => {
+      if (!silent && !student) {
+        setLoading(true);
+      }
+      try {
+        // Step 1: Fetch Student profile via robust resolver
+        const studentData = await resolveStudentProfile(actStn);
+        if (!studentData) throw new Error("Student record not found");
+        if (isMounted) {
+          setStudent(studentData as StudentProfile);
+        }
 
         // Step 2: Fetch all registered program codes for this student
         const { data: registrations, error: regError } = await SupaBaseFunction
@@ -74,16 +94,23 @@ export default function StudentProgrammes() {
             .order("Date", { ascending: false });
             
           if (progError) throw progError;
-          setPrograms((programsData as ProgramItem[]) || []);
+          if (isMounted) {
+            setPrograms((programsData as ProgramItem[]) || []);
+          }
         }
       } catch (error) {
         console.error("Error fetching student programs:", error);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchPrograms();
+    fetchPrograms(Boolean(student));
+    return () => {
+      isMounted = false;
+    };
   }, [actStn]);
 
   // Derived tracking calculations
@@ -210,16 +237,14 @@ export default function StudentProgrammes() {
                 key={prog.Program_Code} 
                 className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
               >
-                <div className="relative h-48 overflow-hidden bg-slate-100">
-                  {prog.Program_Poster ? (
-                    <img 
-                      src={prog.Program_Poster} 
-                      alt={prog.Program_Title} 
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">No Image Available</div>
-                  )}
+                <div className="relative h-48 overflow-hidden bg-slate-900">
+                  <SafeImage 
+                    src={prog.Program_Poster} 
+                    alt={prog.Program_Title}
+                    fallbackCategory="programme"
+                    fallbackText={prog.Program_Title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                  />
                   <div className="absolute top-3 right-3 flex flex-col gap-2">
                     {prog.IsResultPublished && <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md">🏆 Result Out</span>}
                     <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-lg ${prog.IsConducted ? "bg-emerald-500/90 text-white" : "bg-amber-400/90 text-amber-950"}`}>
@@ -231,24 +256,53 @@ export default function StudentProgrammes() {
                 <div className="p-5 flex flex-col flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                      {prog.Category || "Event"}
+                      {meta.categoryMap[prog.Category || ""] || prog.Category || "Event"}
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
+                      {prog.Program_Code}
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">{prog.Program_Title}</h3>
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">{prog.Description || "No registration description provided."}</p>
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">{prog.Description || "Registered participant."}</p>
 
-                  <div className="mt-auto border-t border-gray-50 pt-4 flex items-center justify-between text-xs font-medium text-gray-500">
+                  <div className="border-t border-gray-100 pt-3 flex items-center justify-between text-xs font-medium text-gray-500 mb-3">
                     <div>
                       {formatResultDate(prog.Date)}
                     </div>
                     <div>
-                      {prog.Venue || "TBA"}
+                      {meta.venueMap[prog.Venue || ""] || prog.Venue || "TBA"}
                     </div>
                   </div>
+
+                  {/* Feedback action: Permitted because this student officially registered/participated in this programme */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFeedbackModal({
+                        isOpen: true,
+                        code: prog.Program_Code,
+                        title: prog.Program_Title || prog.Program_Code,
+                      })
+                    }
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                  >
+                    <MessageSquare size={14} /> Submit Programme Feedback
+                  </button>
                 </div>
               </div>
             ))}
           </div>
+        )}
+
+        {/* Feedback Modal for Participated Programme */}
+        {feedbackModal.isOpen && (
+          <ProgrammeFeedbackModal
+            isOpen={feedbackModal.isOpen}
+            programCode={feedbackModal.code}
+            programTitle={feedbackModal.title}
+            studentAddNo={student?.AddNo}
+            onClose={() => setFeedbackModal({ isOpen: false, code: "", title: "" })}
+          />
         )}
       </div>
     </div>
