@@ -11,7 +11,15 @@ export default function GetWay() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState<"success" | "error" | "">("");
-
+useEffect(() => {
+  document.title = "Anjuman e Huda (CHS)";
+  
+  // Optional: meta description bhi change
+  const metaDescription = document.querySelector('meta[name="description"]');
+  if (metaDescription) {
+    metaDescription.setAttribute("content", "Official digital platform of Anjuman e Huda (CHS)");
+  }
+}, []);
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
