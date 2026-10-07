@@ -116,6 +116,9 @@ export default function AdminPanel() {
                 <NavLink to={`/admin-panel/${actUser}/our-classes`} className={desktopNavLinkClasses}>
                   Our Classes
                 </NavLink>
+                <NavLink to={`/admin-panel/${actUser}/our-batches`} className={desktopNavLinkClasses}>
+                  Our Batches
+                </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/our-categories`} className={desktopNavLinkClasses}>
                   Our Categories
                 </NavLink>

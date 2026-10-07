@@ -4,6 +4,7 @@ import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import type {
   OurClassesRecord,
+  OurBatchesRecord,
   OurCategoryRecord,
   OurVenuesRecord,
   PointsTemplateRecord,
@@ -25,7 +26,7 @@ import {
   Users,
 } from "lucide-react";
 
-export type MasterTab = "classes" | "categories" | "venues" | "templates";
+export type MasterTab = "classes" | "batches" | "categories" | "venues" | "templates";
 
 export default function MasterConfigHub() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,7 +38,7 @@ export default function MasterConfigHub() {
   // Sync state with URL params
   useEffect(() => {
     const tabParam = searchParams.get("tab") as MasterTab;
-    if (tabParam && ["classes", "categories", "venues", "templates"].includes(tabParam)) {
+    if (tabParam && ["classes", "batches", "categories", "venues", "templates"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -62,7 +63,7 @@ export default function MasterConfigHub() {
               System Master Configurations
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
-              Define and manage core campus entities: Academic Classes, Programme Categories, Campus
+              Define and manage core campus entities: Academic Classes, Batches (Collaborators), Programme Categories, Campus
               Venues, and Points Templates with foreign key relations.
             </p>
           </div>
@@ -77,7 +78,7 @@ export default function MasterConfigHub() {
           </button>
         </div>
 
-        {/* 4 Tabs Navigation Bar */}
+        {/* 5 Tabs Navigation Bar */}
         <div className="flex items-center gap-2 overflow-x-auto pt-6 border-t border-white/10 mt-6 scrollbar-none">
           <button
             type="button"
@@ -90,6 +91,19 @@ export default function MasterConfigHub() {
           >
             <GraduationCap size={16} />
             Our Classes ({meta.classes.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange("batches")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "batches"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Users size={16} />
+            Our Batches ({meta.batches.length})
           </button>
 
           <button
@@ -134,7 +148,14 @@ export default function MasterConfigHub() {
       </div>
 
       {/* Tab Panels */}
-      {activeTab === "classes" && <ClassesManager onDataChanged={meta.refetch} />}
+      {activeTab === "classes" && (
+        <ClassesManager
+          batches={meta.batches}
+          batchMap={meta.batchMap}
+          onDataChanged={meta.refetch}
+        />
+      )}
+      {activeTab === "batches" && <BatchesManager onDataChanged={meta.refetch} />}
       {activeTab === "categories" && (
         <CategoriesManager
           classes={meta.classes}
@@ -160,7 +181,15 @@ export default function MasterConfigHub() {
      constraint Our_Classes_pkey primary key (class_id)
    )
    ========================================================================= */
-function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
+function ClassesManager({
+  batches,
+  batchMap,
+  onDataChanged,
+}: {
+  batches: OurBatchesRecord[];
+  batchMap: Record<string, string>;
+  onDataChanged: () => void;
+}) {
   const [classes, setClasses] = useState<OurClassesRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -173,7 +202,9 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
   const [formError, setFormError] = useState("");
 
   const [formData, setFormData] = useState({
-    class_title: "",
+    standard_name: "",
+    class_nick_name: "",
+    batch_uuid: "",
     class_serial_number: 1,
     total_student: 0,
     is_active: true,
@@ -203,7 +234,9 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
   const openCreateModal = () => {
     setEditingItem(null);
     setFormData({
-      class_title: "",
+      standard_name: "",
+      class_nick_name: "",
+      batch_uuid: batches[0]?.batch_id || "",
       class_serial_number: (classes.length ? Math.max(...classes.map(c => c.class_serial_number || 0)) + 1 : 1),
       total_student: 0,
       is_active: true,
@@ -215,7 +248,9 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
   const openEditModal = (item: OurClassesRecord) => {
     setEditingItem(item);
     setFormData({
-      class_title: item.class_title || "",
+      standard_name: item.standard_name || item.class_title || "",
+      class_nick_name: item.class_nick_name || "",
+      batch_uuid: item.batch_uuid || "",
       class_serial_number: item.class_serial_number || 1,
       total_student: item.total_student || 0,
       is_active: item.is_active !== false,
@@ -226,8 +261,8 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.class_title.trim()) {
-      setFormError("Class title is required.");
+    if (!formData.standard_name.trim()) {
+      setFormError("Class standard name is required.");
       return;
     }
 
@@ -236,7 +271,10 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
       setFormError("");
 
       const payload = {
-        class_title: formData.class_title.trim(),
+        standard_name: formData.standard_name.trim(),
+        class_title: formData.standard_name.trim(),
+        class_nick_name: formData.class_nick_name ? formData.class_nick_name.trim() : null,
+        batch_uuid: formData.batch_uuid || null,
         class_serial_number: Number(formData.class_serial_number) || 1,
         total_student: Number(formData.total_student) || 0,
         is_active: Boolean(formData.is_active),
@@ -281,7 +319,8 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
   };
 
   const handleDelete = async (item: OurClassesRecord) => {
-    if (!window.confirm(`Are you sure you want to delete class "${item.class_title}"? Note: Deletion will fail if categories are referencing this class.`)) {
+    const title = item.standard_name || item.class_title || "this class";
+    if (!window.confirm(`Are you sure you want to delete class "${title}"? Note: Deletion will fail if categories are referencing this class.`)) {
       return;
     }
     try {
@@ -299,8 +338,10 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
 
   const filtered = useMemo(() => {
     return classes.filter(c => {
-      const matchesSearch = !searchTerm.trim() ||
-        (c.class_title && c.class_title.toLowerCase().includes(searchTerm.toLowerCase()));
+      const name = (c.standard_name || c.class_title || "").toLowerCase();
+      const nick = (c.class_nick_name || "").toLowerCase();
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch = !q || name.includes(q) || nick.includes(q);
       const matchesStatus =
         statusFilter === "all" ? true :
         statusFilter === "active" ? c.is_active !== false :
@@ -354,7 +395,7 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               type="text"
-              placeholder="Search classes by title..."
+              placeholder="Search classes by standard name or nick..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -401,7 +442,8 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                   <th className="py-3.5 px-4 w-16 text-center">#</th>
-                  <th className="py-3.5 px-4">Class Title</th>
+                  <th className="py-3.5 px-4">Standard & Nickname</th>
+                  <th className="py-3.5 px-4">Associated Batch</th>
                   <th className="py-3.5 px-4 text-center">Total Students</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
@@ -417,11 +459,22 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900 text-sm">
-                        {item.class_title}
+                        {item.standard_name || item.class_title}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        UUID: {item.class_id}
-                      </div>
+                      {item.class_nick_name && (
+                        <div className="text-xs text-indigo-600 font-medium mt-0.5">
+                          Tag: {item.class_nick_name}
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {item.batch_uuid && batchMap[item.batch_uuid] ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-purple-50 text-purple-700 font-semibold text-xs border border-purple-200">
+                          <Users size={12} /> {batchMap[item.batch_uuid]}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs italic">Unassigned Batch</span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs">
@@ -506,19 +559,47 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                  Class Title <span className="text-red-500">*</span>
+                  Standard Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Bidaya, Ula, Thaniya, Thalitha, Rabia, Khamsa..."
-                  value={formData.class_title}
-                  onChange={(e) => setFormData({ ...formData, class_title: e.target.value })}
+                  placeholder="e.g. Secondary First Year, Thanawiyya First Year..."
+                  value={formData.standard_name}
+                  onChange={(e) => setFormData({ ...formData, standard_name: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
                 />
-                <p className="text-[11px] text-slate-400 mt-1">
-                  This title is displayed across candidate selection, categories, and grade reports.
-                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Class Nick Name / Tag
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. U1 - M1, U2 - M2"
+                  value={formData.class_nick_name}
+                  onChange={(e) => setFormData({ ...formData, class_nick_name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Associated Batch (Our_Batches)
+                </label>
+                <select
+                  value={formData.batch_uuid}
+                  onChange={(e) => setFormData({ ...formData, batch_uuid: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white"
+                >
+                  <option value="">None / Open Batch</option>
+                  {batches.map((b) => (
+                    <option key={b.batch_id} value={b.batch_id}>
+                      {b.batch_name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -576,6 +657,486 @@ function ClassesManager({ onDataChanged }: { onDataChanged: () => void }) {
                   className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   {saving ? "Saving..." : editingItem ? "Update Class" : "Create Class"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================================
+   1.5 OUR BATCHES MANAGER (Collaborators)
+   create table public."Our_Batches" (
+     batch_id uuid not null default gen_random_uuid (),
+     created_at timestamp with time zone not null default now(),
+     batch_name character varying null default 'batch_name'::character varying,
+     batch_president character varying null default 'batch_president'::character varying,
+     batch_secratery character varying null default 'batch_joint_secratery'::character varying,
+     batch_joint_secratery character varying null default 'batch_joint_secratery'::character varying,
+     batch_treasurer character varying null default 'batch_treasurer'::character varying,
+     batch_logo text null,
+     is_active boolean null default true,
+     constraint Our_Batches_pkey primary key (batch_id)
+   )
+   ========================================================================= */
+function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
+  const [batches, setBatches] = useState<OurBatchesRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<OurBatchesRecord | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const [formData, setFormData] = useState({
+    batch_name: "",
+    batch_president: "",
+    batch_secratery: "",
+    batch_joint_secratery: "",
+    batch_treasurer: "",
+    batch_logo: "",
+    is_active: true,
+  });
+
+  const fetchBatches = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await SupaBaseFunction
+        .from("Our_Batches")
+        .select("*")
+        .order("batch_name", { ascending: true });
+
+      if (error) throw error;
+      setBatches((data as OurBatchesRecord[]) || []);
+    } catch (err: any) {
+      console.error("Error fetching batches:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBatches();
+  }, []);
+
+  const openCreateModal = () => {
+    setEditingItem(null);
+    setFormData({
+      batch_name: "",
+      batch_president: "",
+      batch_secratery: "",
+      batch_joint_secratery: "",
+      batch_treasurer: "",
+      batch_logo: "",
+      is_active: true,
+    });
+    setFormError("");
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (item: OurBatchesRecord) => {
+    setEditingItem(item);
+    setFormData({
+      batch_name: item.batch_name || "",
+      batch_president: item.batch_president || "",
+      batch_secratery: item.batch_secratery || "",
+      batch_joint_secratery: item.batch_joint_secratery || "",
+      batch_treasurer: item.batch_treasurer || "",
+      batch_logo: item.batch_logo || "",
+      is_active: item.is_active !== false,
+    });
+    setFormError("");
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.batch_name.trim()) {
+      setFormError("Batch name is required.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setFormError("");
+
+      const payload = {
+        batch_name: formData.batch_name.trim(),
+        batch_president: formData.batch_president.trim() || null,
+        batch_secratery: formData.batch_secratery.trim() || null,
+        batch_joint_secratery: formData.batch_joint_secratery.trim() || null,
+        batch_treasurer: formData.batch_treasurer.trim() || null,
+        batch_logo: formData.batch_logo.trim() || null,
+        is_active: Boolean(formData.is_active),
+      };
+
+      if (editingItem) {
+        const { error } = await SupaBaseFunction
+          .from("Our_Batches")
+          .update(payload)
+          .eq("batch_id", editingItem.batch_id);
+        if (error) throw error;
+      } else {
+        const { error } = await SupaBaseFunction
+          .from("Our_Batches")
+          .insert([payload]);
+        if (error) throw error;
+      }
+
+      setIsModalOpen(false);
+      await fetchBatches();
+      onDataChanged();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save batch record.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleStatus = async (item: OurBatchesRecord) => {
+    try {
+      const nextStatus = !item.is_active;
+      const { error } = await SupaBaseFunction
+        .from("Our_Batches")
+        .update({ is_active: nextStatus })
+        .eq("batch_id", item.batch_id);
+      if (error) throw error;
+      setBatches(prev => prev.map(b => b.batch_id === item.batch_id ? { ...b, is_active: nextStatus } : b));
+      onDataChanged();
+    } catch (err: any) {
+      alert("Error toggling batch status: " + err.message);
+    }
+  };
+
+  const handleDelete = async (item: OurBatchesRecord) => {
+    if (!window.confirm(`Are you sure you want to delete batch "${item.batch_name}"?`)) {
+      return;
+    }
+    try {
+      const { error } = await SupaBaseFunction
+        .from("Our_Batches")
+        .delete()
+        .eq("batch_id", item.batch_id);
+      if (error) throw error;
+      setBatches(prev => prev.filter(b => b.batch_id !== item.batch_id));
+      onDataChanged();
+    } catch (err: any) {
+      alert("Cannot delete batch: " + err.message);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    return batches.filter(b => {
+      const name = (b.batch_name || "").toLowerCase();
+      const pres = (b.batch_president || "").toLowerCase();
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch = !q || name.includes(q) || pres.includes(q);
+      const matchesStatus =
+        statusFilter === "all" ? true :
+        statusFilter === "active" ? b.is_active !== false :
+        b.is_active === false;
+      return matchesSearch && matchesStatus;
+    });
+  }, [batches, searchTerm, statusFilter]);
+
+  const activeCount = batches.filter(b => b.is_active !== false).length;
+
+  return (
+    <div className="space-y-6">
+      {/* Metric summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Batches</p>
+            <p className="text-2xl font-black text-slate-900 mt-1">{batches.length}</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+            <Users size={22} />
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Collaborator Batches</p>
+            <p className="text-2xl font-black text-emerald-600 mt-1">{activeCount}</p>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+            <CheckCircle2 size={22} />
+          </div>
+        </div>
+      </div>
+
+      {/* Controls Bar */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Search batches by name or president..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+            />
+          </div>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+        </div>
+
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+        >
+          <Plus size={16} />
+          Create New Batch
+        </button>
+      </div>
+
+      {/* Data Table */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
+            <Loader2 className="animate-spin text-indigo-600" size={28} />
+            <span className="text-xs font-semibold">Loading batch records...</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center text-slate-400">
+            <Users className="mx-auto text-slate-300 mb-2" size={36} />
+            <p className="text-sm font-bold text-slate-700">No batches found</p>
+            <p className="text-xs text-slate-400 mt-1">Click Create New Batch to add your first batch.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                  <th className="py-3.5 px-4">Batch Name</th>
+                  <th className="py-3.5 px-4">President</th>
+                  <th className="py-3.5 px-4">Secretary</th>
+                  <th className="py-3.5 px-4">Treasurer</th>
+                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((item) => (
+                  <tr key={item.batch_id} className="hover:bg-slate-50/60 transition">
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900 text-sm">
+                        {item.batch_name}
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        UUID: {item.batch_id}
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-700">
+                      {item.batch_president || <span className="text-slate-400 italic">Not set</span>}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-700">
+                      {item.batch_secratery || <span className="text-slate-400 italic">Not set</span>}
+                    </td>
+                    <td className="py-3.5 px-4 font-semibold text-slate-700">
+                      {item.batch_treasurer || <span className="text-slate-400 italic">Not set</span>}
+                    </td>
+                    <td className="py-3.5 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => toggleStatus(item)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold cursor-pointer transition ${
+                          item.is_active !== false
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                            : "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"
+                        }`}
+                        title="Click to toggle status"
+                      >
+                        {item.is_active !== false ? (
+                          <>
+                            <CheckCircle2 size={12} /> Active
+                          </>
+                        ) : (
+                          <>
+                            <XCircle size={12} /> Inactive
+                          </>
+                        )}
+                      </button>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(item)}
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                          title="Edit Batch"
+                        >
+                          <Edit2 size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                          title="Delete Batch"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* CREATE / EDIT BATCH MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Users className="text-indigo-600" size={20} />
+                {editingItem ? "Edit Batch Record" : "Create New Batch"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {formError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Batch Name (Collaborator Value) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. ShaadMate (24th Batch), Afnan Friends (23rd Batch)..."
+                  value={formData.batch_name}
+                  onChange={(e) => setFormData({ ...formData, batch_name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    President
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Batch President"
+                    value={formData.batch_president}
+                    onChange={(e) => setFormData({ ...formData, batch_president: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Secretary
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Batch Secretary"
+                    value={formData.batch_secratery}
+                    onChange={(e) => setFormData({ ...formData, batch_secratery: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Joint Secretary
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Joint Secretary"
+                    value={formData.batch_joint_secratery}
+                    onChange={(e) => setFormData({ ...formData, batch_joint_secratery: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                    Treasurer
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Batch Treasurer"
+                    value={formData.batch_treasurer}
+                    onChange={(e) => setFormData({ ...formData, batch_treasurer: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+                  Batch Logo / Monogram URL
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/batch-logo.png"
+                  value={formData.batch_logo}
+                  onChange={(e) => setFormData({ ...formData, batch_logo: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-1">
+                <input
+                  type="checkbox"
+                  id="batch_is_active"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                />
+                <label htmlFor="batch_is_active" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Mark this batch as Active for programme collaboration
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+                >
+                  {saving ? "Saving..." : editingItem ? "Update Batch" : "Create Batch"}
                 </button>
               </div>
             </form>

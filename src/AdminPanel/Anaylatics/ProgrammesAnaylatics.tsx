@@ -35,16 +35,49 @@ interface FilterOptions {
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6', '#10b981'];
 
+interface VenueOption {
+  venue_id: string;
+  venue_title: string;
+  venue_capacity?: number;
+}
+
+interface AcademicOption {
+  accademic_id: string;
+  accademic_year?: string;
+  accademic_title?: string;
+}
+
 export default function ProgrammesAnalytics() {
   const meta = useProgrammeMeta();
   const [programmes, setProgrammes] = useState<ProgrammeRecord[]>([]);
   const [wings, setWings] = useState<WingSummary[]>([]);
+  const [venuesList, setVenuesList] = useState<VenueOption[]>([]);
+  const [academicYearsList, setAcademicYearsList] = useState<AcademicOption[]>([]);
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Dynamic Lookup Maps
+  const venueMap = useMemo(() => {
+    const map: Record<string, string> = { ...meta.venueMap };
+    venuesList.forEach(v => {
+      if (v.venue_id) map[v.venue_id] = v.venue_title;
+    });
+    return map;
+  }, [meta.venueMap, venuesList]);
+
+  const academicMap = useMemo(() => {
+    const map: Record<string, string> = { ...meta.academicMap };
+    academicYearsList.forEach(a => {
+      if (a.accademic_id) {
+        map[a.accademic_id] = a.accademic_year || a.accademic_title || "Academic Year";
+      }
+    });
+    return map;
+  }, [meta.academicMap, academicYearsList]);
+
   const getVenueName = (ven?: string | null) => {
-    if (!ven) return "TBA";
-    return meta.venueMap[ven] || ven;
+    if (!ven) return "TBA (Campus)";
+    return venueMap[ven] || ven;
   };
 
   const getCategoryName = (cat?: string | null) => {
@@ -53,8 +86,8 @@ export default function ProgrammesAnalytics() {
   };
 
   const getAcademicYearName = (year?: string | null) => {
-    if (!year) return "General";
-    return meta.academicMap[year] || year;
+    if (!year) return "Current Academic Cycle";
+    return academicMap[year] || year;
   };
 
   // Filters State
@@ -73,35 +106,44 @@ export default function ProgrammesAnalytics() {
     collaborators: []
   });
 
-  // 1. Fetch Data
+  // 1. Fetch Data Directly (ProgrammesBox, Chs-WingS, Our_Venues, Accademic_Info)
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const { data: progData, error: progError } = await SupaBaseFunction
-          .from("ProgrammesBox")
-          .select("*")
-          .order("Date", { ascending: false });
+        const [progRes, wingRes, venRes, acadRes] = await Promise.all([
+          SupaBaseFunction.from("ProgrammesBox").select("*").order("Date", { ascending: false }),
+          SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle"),
+          SupaBaseFunction.from("Our_Venues").select("venue_id, venue_title, venue_capacity").order("venue_title"),
+          SupaBaseFunction.from("Accademic_Info").select("accademic_id, accademic_year, accademic_title").order("created_at", { ascending: false }),
+        ]);
 
-        const { data: wingData, error: wingError } = await SupaBaseFunction
-          .from("Chs-WingS")
-          .select("WingCode, WingTitle");
+        if (progRes.error) throw progRes.error;
+        if (wingRes.error) throw wingRes.error;
 
-        if (progError) throw progError;
-        if (wingError) throw wingError;
-
-        const typedProgs = (progData as ProgrammeRecord[]) || [];
-        const typedWings = (wingData as WingSummary[]) || [];
+        const typedProgs = (progRes.data as ProgrammeRecord[]) || [];
+        const typedWings = (wingRes.data as WingSummary[]) || [];
+        const typedVenues = (venRes.data as VenueOption[]) || [];
+        const typedAcad = (acadRes.data as AcademicOption[]) || [];
 
         setProgrammes(typedProgs);
         setWings(typedWings);
+        setVenuesList(typedVenues);
+        setAcademicYearsList(typedAcad);
 
-        // Extract unique, non-null filter options
+        // Extract groups from programmes
+        const progGroups = Array.from(new Set(typedProgs.map(p => p.Group).filter(Boolean))) as string[];
+        
+        // Extract collaborators from both Our_Batches and programmes
+        const progCollabs = typedProgs.map(p => p.Collaborator).filter(Boolean) as string[];
+        const batchCollabs = (meta.batches || []).map(b => b.batch_name).filter(Boolean);
+        const mergedCollabs = Array.from(new Set([...batchCollabs, ...progCollabs])).filter(c => c !== "No Collaboration");
+
         setFilterOptions({
-          years: Array.from(new Set(typedProgs.map(p => p.AccademicYear).filter(Boolean))) as string[],
-          groups: Array.from(new Set(typedProgs.map(p => p.Group).filter(Boolean))) as string[],
-          venues: Array.from(new Set(typedProgs.map(p => p.Venue).filter(Boolean))) as string[],
-          collaborators: Array.from(new Set(typedProgs.map(p => p.Collaborator).filter(Boolean))) as string[]
+          years: [],
+          groups: progGroups,
+          venues: [],
+          collaborators: mergedCollabs
         });
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -110,18 +152,125 @@ export default function ProgrammesAnalytics() {
       }
     };
     fetchData();
-  }, []);
+  }, [meta.batches]);
+
+  // Combined Academic Year Options (from Accademic_Info, state, meta + any in programmes)
+  const availableAcademicYears = useMemo(() => {
+    const list: { id: string; label: string }[] = [];
+    const seen = new Set<string>();
+
+    const mergedYears = [...academicYearsList, ...(meta.academicYears || [])];
+    mergedYears.forEach(a => {
+      if (a.accademic_id && !seen.has(a.accademic_id)) {
+        seen.add(a.accademic_id);
+        const label = a.accademic_year ? `${a.accademic_year} (${a.accademic_title || 'Academic'})` : a.accademic_title || "Academic Year";
+        list.push({ id: a.accademic_id, label });
+      }
+    });
+
+    // Also include any raw string/id from programmes
+    programmes.forEach(p => {
+      if (p.AccademicYear && !seen.has(p.AccademicYear)) {
+        seen.add(p.AccademicYear);
+        const resolvedName = academicMap[p.AccademicYear] || p.AccademicYear;
+        list.push({ id: p.AccademicYear, label: resolvedName });
+      }
+    });
+
+    // Option for programmes without year
+    const hasUnassigned = programmes.some(p => !p.AccademicYear);
+    if (hasUnassigned) {
+      list.push({ id: "__unassigned__", label: "Unassigned / General Cycle" });
+    }
+
+    return list;
+  }, [academicYearsList, meta.academicYears, academicMap, programmes]);
+
+  // Combined Venue Options (from Our_Venues, state, meta + any in programmes)
+  const availableVenues = useMemo(() => {
+    const list: { id: string; label: string }[] = [];
+    const seen = new Set<string>();
+
+    const mergedVenues = [...venuesList, ...(meta.venues || [])];
+    mergedVenues.forEach(v => {
+      if (v.venue_id && !seen.has(v.venue_id)) {
+        seen.add(v.venue_id);
+        const cap = v.venue_capacity ? ` (Cap: ${v.venue_capacity})` : "";
+        list.push({ id: v.venue_id, label: `${v.venue_title}${cap}` });
+      }
+    });
+
+    programmes.forEach(p => {
+      if (p.Venue && !seen.has(p.Venue)) {
+        seen.add(p.Venue);
+        const resolved = venueMap[p.Venue] || p.Venue;
+        list.push({ id: p.Venue, label: resolved });
+      }
+    });
+
+    // Option for programmes without venue
+    const hasUnassigned = programmes.some(p => !p.Venue);
+    if (hasUnassigned) {
+      list.push({ id: "__unassigned__", label: "TBA / Campus (No Venue Set)" });
+    }
+
+    return list;
+  }, [venuesList, meta.venues, venueMap, programmes]);
+
+  // Combined Collaborator Options (from Our_Batches + programmes)
+  const availableCollaborators = useMemo(() => {
+    const batchNames = (meta.batches || []).map(b => b.batch_name).filter(Boolean);
+    const progCollabs = programmes.map(p => p.Collaborator).filter(Boolean) as string[];
+    const all = Array.from(new Set([...batchNames, ...progCollabs])).filter(c => c !== "No Collaboration");
+    return all.sort();
+  }, [meta.batches, programmes]);
 
   // 2. Derive Filtered Data cleanly with useMemo
   const filteredData = useMemo(() => {
     let result = [...programmes];
-    if (filters.AccademicYear) result = result.filter(p => p.AccademicYear === filters.AccademicYear);
-    if (filters.Group) result = result.filter(p => p.Group === filters.Group);
-    if (filters.Venue) result = result.filter(p => p.Venue === filters.Venue);
-    if (filters.WingCode) result = result.filter(p => p.WingCode === filters.WingCode);
-    if (filters.Collaborator) result = result.filter(p => p.Collaborator === filters.Collaborator);
+
+    if (filters.AccademicYear) {
+      if (filters.AccademicYear === "__unassigned__") {
+        result = result.filter(p => !p.AccademicYear);
+      } else {
+        const selectedYearObj = availableAcademicYears.find(y => y.id === filters.AccademicYear);
+        result = result.filter(p => {
+          if (!p.AccademicYear) return false;
+          if (p.AccademicYear === filters.AccademicYear) return true;
+          if (academicMap[p.AccademicYear] === selectedYearObj?.label) return true;
+          return false;
+        });
+      }
+    }
+
+    if (filters.Group) {
+      result = result.filter(p => p.Group === filters.Group);
+    }
+
+    if (filters.Venue) {
+      if (filters.Venue === "__unassigned__") {
+        result = result.filter(p => !p.Venue);
+      } else {
+        const selectedVenueObj = venuesList.find(v => v.venue_id === filters.Venue) || meta.venues.find(v => v.venue_id === filters.Venue);
+        result = result.filter(p => {
+          if (!p.Venue) return false;
+          if (p.Venue === filters.Venue) return true;
+          if (selectedVenueObj && (p.Venue === selectedVenueObj.venue_title || venueMap[p.Venue] === selectedVenueObj.venue_title)) return true;
+          return false;
+        });
+      }
+    }
+
+    if (filters.WingCode) {
+      result = result.filter(p => p.WingCode === filters.WingCode);
+    }
+
+    if (filters.Collaborator) {
+      result = result.filter(p => p.Collaborator === filters.Collaborator);
+    }
+
     return result;
-  }, [programmes, filters]);
+  }, [programmes, filters, availableAcademicYears, availableVenues, venuesList, meta.venues, venueMap, academicMap]);
 
   // Handle Export cleanly using the excel utility
   const handleExport = () => {
@@ -294,17 +443,17 @@ export default function ProgrammesAnalytics() {
             name="AccademicYear"
             value={filters.AccademicYear}
             onChange={handleFilterChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
           >
             <option value="">All Academic Years</option>
-            {filterOptions.years.map(y => <option key={y} value={y}>{getAcademicYearName(y)}</option>)}
+            {availableAcademicYears.map(y => <option key={y.id} value={y.id}>{y.label}</option>)}
           </select>
 
           <select
             name="Group"
             value={filters.Group}
             onChange={handleFilterChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
           >
             <option value="">All Groups</option>
             {filterOptions.groups.map(g => <option key={g} value={g}>{g}</option>)}
@@ -314,17 +463,17 @@ export default function ProgrammesAnalytics() {
             name="Venue"
             value={filters.Venue}
             onChange={handleFilterChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
           >
             <option value="">All Venues</option>
-            {filterOptions.venues.map(v => <option key={v} value={v}>{getVenueName(v)}</option>)}
+            {availableVenues.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
           </select>
 
           <select
             name="WingCode"
             value={filters.WingCode}
             onChange={handleFilterChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
           >
             <option value="">All Wings</option>
             {wings.map(w => <option key={w.WingCode} value={w.WingCode}>{w.WingTitle || w.WingCode}</option>)}
@@ -334,10 +483,10 @@ export default function ProgrammesAnalytics() {
             name="Collaborator"
             value={filters.Collaborator}
             onChange={handleFilterChange}
-            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer"
+            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
           >
             <option value="">All Collaborators</option>
-            {filterOptions.collaborators.map(c => <option key={c} value={c}>{c}</option>)}
+            {availableCollaborators.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
       </div>

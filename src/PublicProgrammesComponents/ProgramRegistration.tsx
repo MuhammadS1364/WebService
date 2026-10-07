@@ -5,14 +5,11 @@ import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../src/lib/i
 import { useProgrammeMeta } from "../../src/lib/programmeMeta";
 import {
   Calendar,
-  MapPin,
-  Tag,
   Building2,
   Users,
   BookOpen,
   Camera,
   Trash2,
-  Plus,
   CheckCircle2,
   AlertCircle,
   FileText,
@@ -40,19 +37,6 @@ export default function ProgrammeRegistration() {
   // Success Feedback
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Quick Inline Creation Modals
-  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
-  const [newCategoryTitle, setNewCategoryTitle] = useState("");
-  const [newCategoryClass1, setNewCategoryClass1] = useState("");
-  const [newCategoryClass2, setNewCategoryClass2] = useState("");
-  const [newCategoryClass3, setNewCategoryClass3] = useState("");
-  const [addingCategory, setAddingCategory] = useState(false);
-
-  const [showAddVenueModal, setShowAddVenueModal] = useState(false);
-  const [newVenueTitle, setNewVenueTitle] = useState("");
-  const [newVenueCapacity, setNewVenueCapacity] = useState<number>(50);
-  const [addingVenue, setAddingVenue] = useState(false);
-
   // Extract user email/identifier from the URL
   const { actUser, actWing } = useParams<{ actUser?: string; actWing?: string }>();
   const loggedInEmail = actUser || actWing;
@@ -74,6 +58,8 @@ export default function ProgrammeRegistration() {
     is_group_program: false,
     IsOpenRegistration: true,
     IsApproved: false,
+    isContentRequired: false,
+    ContentSubmition_deadLine: "",
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -107,19 +93,6 @@ export default function ProgrammeRegistration() {
     "After Ishaa-10:20PM",
     "Full Day Programme",
     "Custom Schedule",
-  ];
-
-  const collaboratorOptions = [
-    "No Collaboration",
-    "ShaadMate (24th Batch)",
-    "Afnan Friends (23th Batch)",
-    "Al Misbah Friends (25th Batch)",
-    "Saba Friends (26th Batch)",
-    "Sidra Friends (27th Batch)",
-    "Wahda Friends (28th Batch)",
-    "Falah Friends (28th Batch)",
-    "Central Academic Council",
-    "External Partner",
   ];
 
   // Populate default foreign key selections once metadata is loaded
@@ -240,52 +213,6 @@ export default function ProgrammeRegistration() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // Inline Quick Add Category
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCategoryTitle.trim()) return;
-    setAddingCategory(true);
-    try {
-      const created = await meta.addCategory(
-        newCategoryTitle,
-        newCategoryClass1 || null,
-        newCategoryClass2 || null,
-        newCategoryClass3 || null
-      );
-      if (created) {
-        setFormData((prev) => ({ ...prev, Category: created.category_id }));
-        setNewCategoryTitle("");
-        setNewCategoryClass1("");
-        setNewCategoryClass2("");
-        setNewCategoryClass3("");
-        setShowAddCategoryModal(false);
-      }
-    } catch (err: any) {
-      alert("Failed to add category: " + err.message);
-    } finally {
-      setAddingCategory(false);
-    }
-  };
-
-  // Inline Quick Add Venue
-  const handleCreateVenue = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newVenueTitle.trim()) return;
-    setAddingVenue(true);
-    try {
-      const created = await meta.addVenue(newVenueTitle, newVenueCapacity);
-      if (created) {
-        setFormData((prev) => ({ ...prev, Venue: created.venue_id }));
-        setNewVenueTitle("");
-        setShowAddVenueModal(false);
-      }
-    } catch (err: any) {
-      alert("Failed to add venue: " + err.message);
-    } finally {
-      setAddingVenue(false);
-    }
-  };
-
   // Main Submit Handler
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -349,6 +276,11 @@ export default function ProgrammeRegistration() {
         Category: formData.Category || null,
         AccademicYear: formData.AccademicYear || meta.activeAcademicYearId || null,
         points_template: formData.points_template || meta.defaultTemplateId || null,
+        isContentRequired: Boolean(formData.isContentRequired),
+        ContentSubmition_deadLine:
+          formData.isContentRequired && formData.ContentSubmition_deadLine
+            ? formData.ContentSubmition_deadLine
+            : null,
         created_at: new Date().toTimeString().split(" ")[0],
       };
 
@@ -572,18 +504,9 @@ export default function ProgrammeRegistration() {
 
               {/* Category (UUID foreign key to Our_Category) */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    Category *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddCategoryModal(true)}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <Plus size={12} /> Add
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                  Category *
+                </label>
                 <select
                   name="Category"
                   value={formData.Category}
@@ -608,18 +531,9 @@ export default function ProgrammeRegistration() {
 
               {/* Venue (UUID foreign key to Our_Venues) */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                    Venue *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddVenueModal(true)}
-                    className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <Plus size={12} /> Add
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                  Venue *
+                </label>
                 <select
                   name="Venue"
                   value={formData.Venue}
@@ -735,10 +649,10 @@ export default function ProgrammeRegistration() {
               </div>
             </div>
 
-            {/* Collaborator */}
+            {/* Collaborator (Loaded from Our_Batches) */}
             <div className="mt-4">
               <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
-                Collaborator / Batch Partner
+                Collaborator / Batch Partner (Our_Batches)
               </label>
               <select
                 name="Collaborator"
@@ -746,18 +660,21 @@ export default function ProgrammeRegistration() {
                 onChange={handleChange}
                 className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm font-medium bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition"
               >
-                {collaboratorOptions.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                <option value="No Collaboration">No Collaboration</option>
+                {meta.batches.map((b) => (
+                  <option key={b.batch_id} value={b.batch_name}>
+                    {b.batch_name}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* SECTION 4: Group Event & Registration Config */}
-          <div className="border-t border-slate-100 pt-6">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2 mb-4">
+          {/* SECTION 4: Group Event, Registration & Content Submission Config */}
+          <div className="border-t border-slate-100 pt-6 space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
               <Users className="w-4 h-4 text-indigo-600" />
-              4. Event Type & Permissions
+              4. Event Type, Content Submission & Permissions
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -802,8 +719,49 @@ export default function ProgrammeRegistration() {
               </div>
             </div>
 
+            {/* Content Submission Requirement */}
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="isContentRequired"
+                  name="isContentRequired"
+                  checked={Boolean(formData.isContentRequired)}
+                  onChange={handleChange}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <label htmlFor="isContentRequired" className="cursor-pointer">
+                  <span className="block text-xs font-bold text-amber-950">
+                    Candidate Content Submission Required (Content_Table)
+                  </span>
+                  <span className="block text-[11px] text-amber-800 mt-0.5">
+                    If enabled, registered candidates must submit their essay, presentation topic, or speech content before the deadline date.
+                  </span>
+                </label>
+              </div>
+
+              {formData.isContentRequired && (
+                <div className="pt-2 border-t border-amber-200/60">
+                  <label className="block text-xs font-bold text-amber-900 mb-1 uppercase tracking-wide">
+                    Content Submission Deadline Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="ContentSubmition_deadLine"
+                    required={Boolean(formData.isContentRequired)}
+                    value={formData.ContentSubmition_deadLine}
+                    onChange={handleChange}
+                    className="w-full sm:w-64 rounded-xl border border-amber-300 p-2 text-xs sm:text-sm text-slate-800 bg-white focus:ring-2 focus:ring-amber-500 outline-none font-medium"
+                  />
+                  <p className="text-[10px] text-amber-700 mt-1">
+                    When this date passes, student submissions are automatically locked.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {isAdmin && (
-              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/50 p-4 flex items-start gap-3">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 flex items-start gap-3">
                 <input
                   type="checkbox"
                   id="IsApproved"
@@ -1007,184 +965,6 @@ export default function ProgrammeRegistration() {
 
         </form>
       </div>
-
-      {/* QUICK ADD CATEGORY MODAL */}
-      {showAddCategoryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Tag className="w-4 h-4 text-indigo-600" />
-                Add New Programme Category
-              </h4>
-              <button
-                type="button"
-                onClick={() => setShowAddCategoryModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateCategory} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Category Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Junior (Bidaya & Ula), Thanawiyya..."
-                  value={newCategoryTitle}
-                  onChange={(e) => setNewCategoryTitle(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-              </div>
-
-              {/* Class Foreign Key Selects */}
-              <div className="space-y-2 pt-1 border-t border-slate-100">
-                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide">
-                  Assign Classes (Our_Classes)
-                </label>
-
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">
-                    Class 1 (class_1)
-                  </label>
-                  <select
-                    value={newCategoryClass1}
-                    onChange={(e) => setNewCategoryClass1(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 p-2 text-xs font-semibold bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="">None / Open</option>
-                    {meta.classes.map((cls) => (
-                      <option key={cls.class_id} value={cls.class_id}>
-                        {cls.class_title} (Batch #{cls.class_serial_number ?? 1})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">
-                    Class 2 (class_2)
-                  </label>
-                  <select
-                    value={newCategoryClass2}
-                    onChange={(e) => setNewCategoryClass2(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 p-2 text-xs font-semibold bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="">None / Open</option>
-                    {meta.classes.map((cls) => (
-                      <option key={cls.class_id} value={cls.class_id}>
-                        {cls.class_title} (Batch #{cls.class_serial_number ?? 1})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] text-slate-500 font-semibold mb-0.5">
-                    Class 3 (class_3)
-                  </label>
-                  <select
-                    value={newCategoryClass3}
-                    onChange={(e) => setNewCategoryClass3(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 p-2 text-xs font-semibold bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  >
-                    <option value="">None / Open</option>
-                    {meta.classes.map((cls) => (
-                      <option key={cls.class_id} value={cls.class_id}>
-                        {cls.class_title} (Batch #{cls.class_serial_number ?? 1})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddCategoryModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={addingCategory}
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
-                >
-                  {addingCategory ? "Adding..." : "Add Category"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* QUICK ADD VENUE MODAL */}
-      {showAddVenueModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-indigo-600" />
-                Add New Campus Venue
-              </h4>
-              <button
-                type="button"
-                onClick={() => setShowAddVenueModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleCreateVenue} className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Venue Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Masjid Conference Hall, NIICS Amphitheatre"
-                  value={newVenueTitle}
-                  onChange={(e) => setNewVenueTitle(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Estimated Capacity
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  value={newVenueCapacity}
-                  onChange={(e) => setNewVenueCapacity(Number(e.target.value) || 0)}
-                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddVenueModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={addingVenue}
-                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg"
-                >
-                  {addingVenue ? "Adding..." : "Add Venue"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

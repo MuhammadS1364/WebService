@@ -6,6 +6,7 @@ import type {
   AccademicInfoRecord,
   PointsTemplateRecord,
   OurClassesRecord,
+  OurBatchesRecord,
 } from "./types";
 
 export interface WingLookup {
@@ -19,6 +20,7 @@ export interface ProgrammeMetaState {
   academicYears: AccademicInfoRecord[];
   pointsTemplates: PointsTemplateRecord[];
   classes: OurClassesRecord[];
+  batches: OurBatchesRecord[];
   wings: WingLookup[];
   loading: boolean;
   error: string | null;
@@ -29,6 +31,7 @@ export interface ProgrammeMetaState {
   academicMap: Record<string, string>;
   templateMap: Record<string, string>;
   classMap: Record<string, string>;
+  batchMap: Record<string, string>;
   wingMap: Record<string, string>;
 
   // Defaults
@@ -44,10 +47,13 @@ export interface ProgrammeMetaState {
   ) => Promise<OurCategoryRecord | null>;
   addVenue: (title: string, capacity?: number) => Promise<OurVenuesRecord | null>;
   addClass: (
-    title: string,
+    standardName: string,
+    nickName?: string,
+    batchUuid?: string,
     serialNumber?: number,
     totalStudent?: number
   ) => Promise<OurClassesRecord | null>;
+  addBatch: (batchName: string, president?: string) => Promise<OurBatchesRecord | null>;
   addPointsTemplate: (
     title: string,
     values?: Partial<PointsTemplateRecord>
@@ -62,6 +68,7 @@ let inMemoryMetaCache: {
   academicYears: AccademicInfoRecord[];
   pointsTemplates: PointsTemplateRecord[];
   classes: OurClassesRecord[];
+  batches: OurBatchesRecord[];
   wings: WingLookup[];
   timestamp: number;
 } | null = null;
@@ -84,6 +91,9 @@ export function useProgrammeMeta(): ProgrammeMetaState {
   const [classes, setClasses] = useState<OurClassesRecord[]>(
     () => inMemoryMetaCache?.classes || []
   );
+  const [batches, setBatches] = useState<OurBatchesRecord[]>(
+    () => inMemoryMetaCache?.batches || []
+  );
   const [wings, setWings] = useState<WingLookup[]>(
     () => inMemoryMetaCache?.wings || []
   );
@@ -97,6 +107,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       setAcademicYears(inMemoryMetaCache.academicYears);
       setPointsTemplates(inMemoryMetaCache.pointsTemplates);
       setClasses(inMemoryMetaCache.classes);
+      setBatches(inMemoryMetaCache.batches);
       setWings(inMemoryMetaCache.wings);
       setLoading(false);
       return;
@@ -106,12 +117,13 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       setLoading(true);
       setError(null);
 
-      const [catRes, venRes, acadRes, ptsRes, clsRes, wingRes] = await Promise.all([
+      const [catRes, venRes, acadRes, ptsRes, clsRes, batchRes, wingRes] = await Promise.all([
         SupaBaseFunction.from("Our_Category").select("*").order("category_title"),
         SupaBaseFunction.from("Our_Venues").select("*").order("venue_title"),
         SupaBaseFunction.from("Accademic_Info").select("*").order("created_at", { ascending: false }),
         SupaBaseFunction.from("Points_Templates").select("*").order("point_template_title"),
         SupaBaseFunction.from("Our_Classes").select("*").order("class_serial_number"),
+        SupaBaseFunction.from("Our_Batches").select("*").order("batch_name"),
         SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle").order("WingTitle"),
       ]);
 
@@ -120,6 +132,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       const acadData = (acadRes.data as AccademicInfoRecord[]) || [];
       const ptsData = (ptsRes.data as PointsTemplateRecord[]) || [];
       const clsData = (clsRes.data as OurClassesRecord[]) || [];
+      const batchData = (batchRes.data as OurBatchesRecord[]) || [];
       const wingData = (wingRes.data as WingLookup[]) || [];
 
       inMemoryMetaCache = {
@@ -128,6 +141,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         academicYears: acadData,
         pointsTemplates: ptsData,
         classes: clsData,
+        batches: batchData,
         wings: wingData,
         timestamp: Date.now(),
       };
@@ -137,6 +151,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       setAcademicYears(acadData);
       setPointsTemplates(ptsData);
       setClasses(clsData);
+      setBatches(batchData);
       setWings(wingData);
     } catch (err: any) {
       console.error("Failed to load programme meta lookups:", err);
@@ -163,7 +178,9 @@ export function useProgrammeMeta(): ProgrammeMetaState {
 
   const academicMap: Record<string, string> = {};
   academicYears.forEach((a) => {
-    if (a.accademic_id) academicMap[a.accademic_id] = a.accademic_year || a.accademic_title || "Year";
+    if (a.accademic_id) {
+      academicMap[a.accademic_id] = a.accademic_year || a.accademic_title || "Academic Year";
+    }
   });
 
   const templateMap: Record<string, string> = {};
@@ -171,9 +188,17 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     if (t.p_template_id) templateMap[t.p_template_id] = t.point_template_title;
   });
 
+  const batchMap: Record<string, string> = {};
+  batches.forEach((b) => {
+    if (b.batch_id) batchMap[b.batch_id] = b.batch_name;
+  });
+
   const classMap: Record<string, string> = {};
   classes.forEach((cl) => {
-    if (cl.class_id) classMap[cl.class_id] = cl.class_title || `Class #${cl.class_serial_number || 1}`;
+    if (cl.class_id) {
+      const name = cl.standard_name || cl.class_title || `Class #${cl.class_serial_number || 1}`;
+      classMap[cl.class_id] = cl.class_nick_name ? `${name} (${cl.class_nick_name})` : name;
+    }
   });
 
   const wingMap: Record<string, string> = {};
@@ -252,17 +277,22 @@ export function useProgrammeMeta(): ProgrammeMetaState {
 
   // Quick Inline Class Addition
   const addClass = async (
-    title: string,
+    standardName: string,
+    nickName?: string,
+    batchUuid?: string,
     serialNumber: number = 1,
     totalStudent: number = 0
   ): Promise<OurClassesRecord | null> => {
-    if (!title.trim()) return null;
+    if (!standardName.trim()) return null;
     try {
       const { data, error: insertErr } = await SupaBaseFunction
         .from("Our_Classes")
         .insert([
           {
-            class_title: title.trim(),
+            standard_name: standardName.trim(),
+            class_nick_name: nickName?.trim() || null,
+            batch_uuid: batchUuid || null,
+            class_title: standardName.trim(),
             class_serial_number: serialNumber,
             total_student: totalStudent,
             is_active: true,
@@ -281,6 +311,40 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       }
     } catch (e: any) {
       console.error("Error creating class:", e);
+      throw e;
+    }
+    return null;
+  };
+
+  // Quick Inline Batch Addition
+  const addBatch = async (
+    batchName: string,
+    president?: string
+  ): Promise<OurBatchesRecord | null> => {
+    if (!batchName.trim()) return null;
+    try {
+      const { data, error: insertErr } = await SupaBaseFunction
+        .from("Our_Batches")
+        .insert([
+          {
+            batch_name: batchName.trim(),
+            batch_president: president?.trim() || null,
+            is_active: true,
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertErr) throw insertErr;
+      if (data) {
+        setBatches((prev) => [...prev, data]);
+        if (inMemoryMetaCache) {
+          inMemoryMetaCache.batches = [...inMemoryMetaCache.batches, data];
+        }
+        return data as OurBatchesRecord;
+      }
+    } catch (e: any) {
+      console.error("Error creating batch:", e);
       throw e;
     }
     return null;
@@ -335,6 +399,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     academicYears,
     pointsTemplates,
     classes,
+    batches,
     wings,
     loading,
     error,
@@ -343,12 +408,14 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     academicMap,
     templateMap,
     classMap,
+    batchMap,
     wingMap,
     activeAcademicYearId,
     defaultTemplateId,
     addCategory,
     addVenue,
     addClass,
+    addBatch,
     addPointsTemplate,
     refetch: () => fetchMeta(true),
   };

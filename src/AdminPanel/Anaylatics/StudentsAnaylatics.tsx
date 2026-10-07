@@ -87,6 +87,17 @@ import {
   PieChart, Pie, Cell,
   ComposedChart, Line, Area
 } from "recharts";
+import {
+  LayoutGrid,
+  List,
+  Trophy,
+  Calendar,
+  Building2,
+  X,
+  Zap,
+  Clock,
+  Eye,
+} from "lucide-react";
 
 export interface Student {
   AddNo: string;
@@ -108,6 +119,19 @@ export interface Student {
   Student_Photo_Urls: string | null;
   StnState: string | null;
   StnDistrict: string | null;
+}
+
+interface StudentProgramItem {
+  Program_Code: string;
+  Program_Title: string;
+  WingCode?: string | null;
+  Category?: string | null;
+  Group?: string | null;
+  Date?: string | null;
+  Venue?: string | null;
+  IsConducted?: boolean;
+  positionWon?: string | null;
+  pointsEarned?: number;
 }
 
 interface FilterState {
@@ -132,6 +156,12 @@ export default function StudentsAnalyticsGeneral() {
   const [filteredData, setFilteredData] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Student Detail Modal & Programmes
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [studentPrograms, setStudentPrograms] = useState<StudentProgramItem[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState<boolean>(false);
+  const [programViewMode, setProgramViewMode] = useState<"card" | "table">("card");
 
   const [filters, setFilters] = useState<FilterState>({
     Class: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "true"
@@ -170,6 +200,82 @@ export default function StudentsAnalyticsGeneral() {
     };
     fetchStudents();
   }, []);
+
+  // When a student is selected, fetch their enrolled programmes & result positions
+  const handleSelectStudent = async (student: Student) => {
+    setSelectedStudent(student);
+    setLoadingPrograms(true);
+    setStudentPrograms([]);
+
+    try {
+      // 1. Fetch Candidate Registrations
+      const { data: regRows } = await SupaBaseFunction
+        .from("CandidateRegistrationTable")
+        .select("Program_Code")
+        .eq("Candidate_Code", student.AddNo);
+
+      const progCodes = Array.from(
+        new Set((regRows || []).map((r: any) => r.Program_Code).filter(Boolean))
+      );
+
+      if (progCodes.length === 0) {
+        setStudentPrograms([]);
+        return;
+      }
+
+      // 2. Fetch Programmes Details
+      const { data: progRows } = await SupaBaseFunction
+        .from("ProgrammesBox")
+        .select("Program_Code, Program_Title, WingCode, Category, Group, Date, Venue, IsConducted")
+        .in("Program_Code", progCodes);
+
+      // 3. Fetch ResultBox for this student
+      const { data: results } = await SupaBaseFunction
+        .from("ResultBox")
+        .select("*")
+        .or(
+          `First_Holder.eq.${student.AddNo},Second_Holder.eq.${student.AddNo},Third_Holder.eq.${student.AddNo},AGrade.eq.${student.AddNo},BGrade.eq.${student.AddNo}`
+        );
+
+      const resultMap = new Map<string, { position: string; points: number }>();
+      (results || []).forEach((r: any) => {
+        if (!r.Program_Id) return;
+        if (r.First_Holder === student.AddNo) {
+          resultMap.set(r.Program_Id, { position: "1st Place Winner", points: 10 });
+        } else if (r.Second_Holder === student.AddNo) {
+          resultMap.set(r.Program_Id, { position: "2nd Runner-Up", points: 7 });
+        } else if (r.Third_Holder === student.AddNo) {
+          resultMap.set(r.Program_Id, { position: "3rd Place", points: 5 });
+        } else if (r.AGrade === student.AddNo) {
+          resultMap.set(r.Program_Id, { position: "A-Grade", points: 5 });
+        } else if (r.BGrade === student.AddNo) {
+          resultMap.set(r.Program_Id, { position: "B-Grade", points: 3 });
+        }
+      });
+
+      const mapped: StudentProgramItem[] = (progRows || []).map((p: any) => {
+        const res = resultMap.get(p.Program_Code);
+        return {
+          Program_Code: p.Program_Code,
+          Program_Title: p.Program_Title || "Untitled",
+          WingCode: p.WingCode,
+          Category: p.Category,
+          Group: p.Group,
+          Date: p.Date,
+          Venue: p.Venue,
+          IsConducted: Boolean(p.IsConducted),
+          positionWon: res?.position || null,
+          pointsEarned: res?.points || 0,
+        };
+      });
+
+      setStudentPrograms(mapped);
+    } catch (err) {
+      console.error("Failed to load student programmes:", err);
+    } finally {
+      setLoadingPrograms(false);
+    }
+  };
 
   useEffect(() => {
     let result = [...students];
@@ -369,11 +475,16 @@ export default function StudentsAnalyticsGeneral() {
                   <th className="p-4 border-b border-slate-200">Location</th>
                   <th className="p-4 border-b border-slate-200">Engagement</th>
                   <th className="p-4 border-b border-slate-200">Total Points</th>
+                  <th className="p-4 border-b border-slate-200 text-right">Programmes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredData.map((student, idx) => (
-                  <tr key={student.AddNo} className={`hover:bg-slate-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                  <tr
+                    key={student.AddNo}
+                    onClick={() => handleSelectStudent(student)}
+                    className={`hover:bg-slate-50 transition-colors cursor-pointer group ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                  >
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shrink-0">
@@ -386,7 +497,9 @@ export default function StudentsAnalyticsGeneral() {
                           />
                         </div>
                         <div className="min-w-0">
-                          <div className="font-bold text-slate-800 truncate">{student.StudentName}</div>
+                          <div className="font-bold text-slate-800 truncate group-hover:text-teal-700 transition-colors">
+                            {student.StudentName}
+                          </div>
                           <div className="text-xs text-slate-500 truncate">#{student.AddNo}</div>
                         </div>
                       </div>
@@ -408,13 +521,257 @@ export default function StudentsAnalyticsGeneral() {
                         {student.Grand_Total_Points || 0}
                       </span>
                     </td>
+                    <td className="p-4 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectStudent(student);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold text-xs rounded-xl border border-teal-200 transition cursor-pointer"
+                      >
+                        <Eye size={13} />
+                        <span>View ({student.Registration_Count || 0})</span>
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {filteredData.length === 0 && (
-                  <tr><td colSpan={5} className="p-8 text-center text-slate-500">No students match your current filters.</td></tr>
+                  <tr><td colSpan={6} className="p-8 text-center text-slate-500">No students match your current filters.</td></tr>
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* STUDENT PROGRAMMES MODAL (WITH CARD VIEW & TABLE ROW VIEW) */}
+      {selectedStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-5">
+          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-start justify-between gap-4 bg-slate-50/60">
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-14 h-14 rounded-2xl border border-slate-200 bg-white p-1 overflow-hidden shrink-0 shadow-xs flex items-center justify-center">
+                  <SafeImage
+                    src={selectedStudent.Student_Photo_Urls}
+                    alt={selectedStudent.StudentName || "Student"}
+                    fallbackCategory="student"
+                    fallbackText={selectedStudent.StudentName || "Student"}
+                    className="w-full h-full rounded-xl object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-200">
+                      #{selectedStudent.AddNo}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">{selectedStudent.Class || "Class"}</span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 truncate mt-0.5">
+                    {selectedStudent.StudentName}
+                  </h3>
+                  <p className="text-xs text-slate-500 truncate">{selectedStudent.CollegeName || "Campus"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="hidden sm:flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-2xl">
+                  <Zap size={14} className="text-amber-500 fill-amber-500" />
+                  <span className="text-xs font-bold text-amber-900">{selectedStudent.Grand_Total_Points || 0} PTS</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedStudent(null)}
+                  className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Sub-Header: Controls & View Mode Toggle */}
+            <div className="p-4 sm:px-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-white">
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Participated Programmes ({studentPrograms.length})
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Toggle between visual cards or compact tabular rows
+                </p>
+              </div>
+
+              {/* View Switcher Toggle */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => setProgramViewMode("card")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    programViewMode === "card"
+                      ? "bg-white text-teal-700 shadow-2xs"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                  title="Card Grid View"
+                >
+                  <LayoutGrid size={13} />
+                  <span>Cards</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProgramViewMode("table")}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    programViewMode === "table"
+                      ? "bg-white text-teal-700 shadow-2xs"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                  title="Table Row View"
+                >
+                  <List size={13} />
+                  <span>Table</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Programmes Content */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50/50">
+              {loadingPrograms ? (
+                <div className="py-16 text-center text-slate-400 space-y-2">
+                  <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs font-semibold">Loading student programmes...</p>
+                </div>
+              ) : studentPrograms.length === 0 ? (
+                <div className="py-16 text-center bg-white rounded-2xl border border-slate-200 p-6 space-y-2">
+                  <Clock className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-sm font-bold text-slate-700">No Programme Registrations Found</p>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    This student has not enrolled in any registered programmes yet.
+                  </p>
+                </div>
+              ) : programViewMode === "card" ? (
+                /* --- CARD VIEW --- */
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {studentPrograms.map((p) => (
+                    <div
+                      key={p.Program_Code}
+                      className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs hover:border-teal-200 hover:shadow-md transition space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                          #{p.Program_Code}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-500">
+                          {p.WingCode || "General"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h5 className="text-sm font-bold text-slate-900 leading-snug line-clamp-2" title={p.Program_Title}>
+                          {p.Program_Title}
+                        </h5>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                          {p.Date && (
+                            <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                              <Calendar size={11} /> {p.Date}
+                            </span>
+                          )}
+                          {p.Venue && (
+                            <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                              <Building2 size={11} /> {p.Venue}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Position / Points Result Banner */}
+                      {p.positionWon ? (
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-xs">
+                          <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                            <Trophy size={13} className="text-amber-500" /> {p.positionWon}
+                          </span>
+                          <span className="font-black text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-md text-[11px]">
+                            +{p.pointsEarned} PTS
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-2 text-[11px] text-slate-500 font-medium">
+                          <span>Participant Entry</span>
+                          <span className={p.IsConducted ? "text-emerald-600 font-semibold" : "text-amber-600"}>
+                            {p.IsConducted ? "Conducted" : "Upcoming"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* --- TABLE ROW VIEW --- */
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+                        <th className="py-3 px-3.5">Code & Title</th>
+                        <th className="py-3 px-3">Wing & Group</th>
+                        <th className="py-3 px-3">Date & Venue</th>
+                        <th className="py-3 px-3">Result / Position</th>
+                        <th className="py-3 px-3 text-right">Points</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {studentPrograms.map((p) => (
+                        <tr key={p.Program_Code} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-3 px-3.5">
+                            <span className="font-mono font-bold text-indigo-600 text-[11px] block">
+                              #{p.Program_Code}
+                            </span>
+                            <span className="font-bold text-slate-900 block truncate max-w-xs" title={p.Program_Title}>
+                              {p.Program_Title}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-700">
+                            <span className="font-semibold block">{p.WingCode || "General"}</span>
+                            <span className="text-[11px] text-slate-400 block">{p.Group || "Assembly"}</span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-600">
+                            <span className="block font-medium">{p.Date || "TBA"}</span>
+                            <span className="text-[11px] text-slate-400 block">{p.Venue || "Campus Venue"}</span>
+                          </td>
+                          <td className="py-3 px-3">
+                            {p.positionWon ? (
+                              <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-[10px]">
+                                <Trophy size={11} className="text-amber-500" />
+                                {p.positionWon}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">Enrolled Candidate</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-right font-black">
+                            {p.pointsEarned ? (
+                              <span className="text-emerald-600 font-bold">+{p.pointsEarned} PTS</span>
+                            ) : (
+                              <span className="text-slate-300">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedStudent(null)}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

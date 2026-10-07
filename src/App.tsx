@@ -125,6 +125,7 @@ export default function App() {
           <Route path='wing-general-anaylatics' element={<GeneralWingsAnaylatics />} />
           <Route path='master-config' element={<MasterConfigHub />} />
           <Route path='our-classes' element={<MasterConfigWrapper defaultTab="classes" />} />
+          <Route path='our-batches' element={<MasterConfigWrapper defaultTab="batches" />} />
           <Route path='our-categories' element={<MasterConfigWrapper defaultTab="categories" />} />
           <Route path='our-venues' element={<MasterConfigWrapper defaultTab="venues" />} />
           <Route path='points-templates' element={<MasterConfigWrapper defaultTab="templates" />} />

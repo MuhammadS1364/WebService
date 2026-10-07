@@ -230,6 +230,8 @@ export interface ProgrammesBoxRecord {
   Category: string | null; // uuid references Our_Category(category_id)
   AccademicYear: string | null; // uuid references Accademic_Info(accademic_id)
   points_template: string | null; // uuid references Points_Templates(p_template_id)
+  isContentRequired?: boolean;
+  ContentSubmition_deadLine?: string | null;
 }
 
 /**
@@ -246,7 +248,22 @@ export interface OurCategoryRecord {
 }
 
 /**
- * Classes Table
+ * Batches Table (Our_Batches)
+ */
+export interface OurBatchesRecord {
+  batch_id: string;
+  created_at?: string;
+  batch_name: string;
+  batch_president?: string | null;
+  batch_secratery?: string | null;
+  batch_joint_secratery?: string | null;
+  batch_treasurer?: string | null;
+  batch_logo?: string | null;
+  is_active?: boolean;
+}
+
+/**
+ * Classes Table (Our_Classes)
  */
 export interface OurClassesRecord {
   class_id: string;
@@ -254,11 +271,22 @@ export interface OurClassesRecord {
   class_serial_number?: number;
   total_student?: number;
   is_active?: boolean;
-  class_title: string;
-  batch_name?: string;
-  class_teacher?: string;
-  batch_president?: string;
-  batch_secretary?: string;
+  batch_uuid?: string | null;
+  class_nick_name?: string | null;
+  standard_name: string;
+  class_title?: string; // fallback / alias
+}
+
+/**
+ * Content Submission Table (Content_Table)
+ */
+export interface ContentTableRecord {
+  content_id: string;
+  created_at?: string;
+  content_title?: string | null;
+  programe_code?: string | null;
+  student_addNo?: string | null;
+  like_count?: number | null;
 }
 
 /**

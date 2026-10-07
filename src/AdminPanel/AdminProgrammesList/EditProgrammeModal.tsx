@@ -3,7 +3,7 @@ import { SupaBaseFunction } from "../../lib/SupaBase";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import type { Programme } from "./AdminProgrammesList";
-import { X, Upload, Save, Loader2, Plus, Tag, MapPin } from "lucide-react";
+import { X, Upload, Save, Loader2 } from "lucide-react";
 
 interface EditProgrammeModalProps {
   program: Programme | null;
@@ -27,11 +27,6 @@ export default function EditProgrammeModal({
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const [showAddCat, setShowAddCat] = useState(false);
-  const [newCatTitle, setNewCatTitle] = useState("");
-  const [showAddVen, setShowAddVen] = useState(false);
-  const [newVenTitle, setNewVenTitle] = useState("");
-
   useEffect(() => {
     if (program) {
       setFormData({
@@ -54,6 +49,8 @@ export default function EditProgrammeModal({
         is_group_program: Boolean((program as any).is_group_program),
         IsResulted: Boolean(program.IsResulted),
         IsResultPublished: Boolean(program.IsResultPublished),
+        isContentRequired: Boolean((program as any).isContentRequired),
+        ContentSubmition_deadLine: (program as any).ContentSubmition_deadLine || "",
       });
       setErrorMsg("");
     }
@@ -96,36 +93,6 @@ export default function EditProgrammeModal({
     }
   };
 
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCatTitle.trim()) return;
-    try {
-      const created = await meta.addCategory(newCatTitle);
-      if (created) {
-        setFormData((prev: any) => ({ ...prev, Category: created.category_id }));
-        setNewCatTitle("");
-        setShowAddCat(false);
-      }
-    } catch (err: any) {
-      alert("Failed to add category: " + err.message);
-    }
-  };
-
-  const handleCreateVenue = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newVenTitle.trim()) return;
-    try {
-      const created = await meta.addVenue(newVenTitle);
-      if (created) {
-        setFormData((prev: any) => ({ ...prev, Venue: created.venue_id }));
-        setNewVenTitle("");
-        setShowAddVen(false);
-      }
-    } catch (err: any) {
-      alert("Failed to add venue: " + err.message);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -152,6 +119,11 @@ export default function EditProgrammeModal({
         is_group_program: Boolean(formData.is_group_program),
         IsResulted: Boolean(formData.IsResulted),
         IsResultPublished: Boolean(formData.IsResultPublished),
+        isContentRequired: Boolean(formData.isContentRequired),
+        ContentSubmition_deadLine:
+          formData.isContentRequired && formData.ContentSubmition_deadLine
+            ? formData.ContentSubmition_deadLine
+            : null,
       };
 
       const { error } = await SupaBaseFunction
@@ -230,16 +202,7 @@ export default function EditProgrammeModal({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-gray-700 font-bold">Category</label>
-                <button
-                  type="button"
-                  onClick={() => setShowAddCat(true)}
-                  className="text-[11px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-0.5 cursor-pointer"
-                >
-                  <Plus size={11} /> Add
-                </button>
-              </div>
+              <label className="block text-gray-700 font-bold mb-1">Category</label>
               <select
                 name="Category"
                 value={formData.Category || ""}
@@ -309,16 +272,7 @@ export default function EditProgrammeModal({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-gray-700 font-bold">Venue</label>
-                <button
-                  type="button"
-                  onClick={() => setShowAddVen(true)}
-                  className="text-[11px] text-emerald-600 hover:text-emerald-800 font-bold flex items-center gap-0.5 cursor-pointer"
-                >
-                  <Plus size={11} /> Add
-                </button>
-              </div>
+              <label className="block text-gray-700 font-bold mb-1">Venue</label>
               <select
                 name="Venue"
                 value={formData.Venue || ""}
@@ -350,15 +304,20 @@ export default function EditProgrammeModal({
           {/* Collaborator & Points Template */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-700 font-bold mb-1">Collaborator(s)</label>
-              <input
-                type="text"
+              <label className="block text-gray-700 font-bold mb-1">Collaborator / Batch Partner (Our_Batches)</label>
+              <select
                 name="Collaborator"
-                placeholder="e.g. No Collaboration, ShaadMate (24th Batch)"
-                value={formData.Collaborator || ""}
+                value={formData.Collaborator || "No Collaboration"}
                 onChange={handleChange}
-                className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden"
-              />
+                className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden bg-white"
+              >
+                <option value="No Collaboration">No Collaboration</option>
+                {meta.batches.map((b) => (
+                  <option key={b.batch_id} value={b.batch_name}>
+                    {b.batch_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -498,6 +457,40 @@ export default function EditProgrammeModal({
             </label>
           </div>
 
+          {/* Candidate Content Submission Requirement */}
+          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                name="isContentRequired"
+                checked={Boolean(formData.isContentRequired)}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+              />
+              <span className="font-bold text-amber-950">
+                Candidate Content Submission Required (Content_Table)
+              </span>
+            </label>
+            <p className="text-[11px] text-amber-800 pl-6.5">
+              If enabled, students registered for this event must submit their speech or essay before the deadline date.
+            </p>
+
+            {formData.isContentRequired && (
+              <div className="pt-2 pl-6.5">
+                <label className="block text-[11px] font-bold text-amber-900 mb-1 uppercase tracking-wide">
+                  Content Submission Deadline Date
+                </label>
+                <input
+                  type="date"
+                  name="ContentSubmition_deadLine"
+                  value={formData.ContentSubmition_deadLine || ""}
+                  onChange={handleChange}
+                  className="p-2 border border-amber-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            )}
+          </div>
+
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
@@ -525,74 +518,6 @@ export default function EditProgrammeModal({
           </div>
         </form>
       </div>
-
-      {/* QUICK ADD CATEGORY MODAL */}
-      {showAddCat && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3">
-            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              <Tag size={16} className="text-emerald-600" /> Add Category
-            </h4>
-            <input
-              type="text"
-              placeholder="e.g. Thanawiyya High School"
-              value={newCatTitle}
-              onChange={(e) => setNewCatTitle(e.target.value)}
-              className="w-full p-2 border rounded-xl text-xs"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAddCat(false)}
-                className="px-3 py-1.5 text-xs text-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateCategory}
-                className="px-4 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* QUICK ADD VENUE MODAL */}
-      {showAddVen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl p-5 max-w-sm w-full space-y-3">
-            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              <MapPin size={16} className="text-emerald-600" /> Add Venue
-            </h4>
-            <input
-              type="text"
-              placeholder="e.g. Darul Hikma Amphitheatre"
-              value={newVenTitle}
-              onChange={(e) => setNewVenTitle(e.target.value)}
-              className="w-full p-2 border rounded-xl text-xs"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAddVen(false)}
-                className="px-3 py-1.5 text-xs text-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateVenue}
-                className="px-4 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

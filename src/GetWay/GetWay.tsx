@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; // Ensure this path is correct
 import dhiuLogo from "../ImgBox/Dhiu.jpg";
