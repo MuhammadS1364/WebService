@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; 
 import formatResultDate from "./DateFormatConvertor";
 import SafeImage from "../lib/SafeImage";
 import SquadRegistrationModal from "./SquadRegistrationModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
-import { Users, User, Calendar, MapPin } from "lucide-react";
+import { Users, User, Calendar, MapPin, Search, X } from "lucide-react";
 
 interface ProgramData {
   Program_Code: string;
@@ -44,6 +44,11 @@ export default function ProgrammesRegistrationCard() {
     programCode: "",
     programTitle: "",
   });
+
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedFormat, setSelectedFormat] = useState<"all" | "individual" | "group">("all");
+  const [selectedWing, setSelectedWing] = useState<string>("all");
 
   const fetchProgrammes = async () => {
     try {
@@ -91,6 +96,44 @@ export default function ProgrammesRegistrationCard() {
     }
   };
 
+  // Filtered Programmes based on search query, format, and wing
+  const filteredProgrammes = useMemo(() => {
+    return programmes.filter((p) => {
+      // 1. Format filter
+      if (selectedFormat === "individual" && p.is_group_program) return false;
+      if (selectedFormat === "group" && !p.is_group_program) return false;
+
+      // 2. Wing filter
+      if (selectedWing !== "all" && p.WingCode !== selectedWing) return false;
+
+      // 3. Search query matching
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      const code = (p.Program_Code || "").toLowerCase();
+      const title = (p.Program_Title || "").toLowerCase();
+      const desc = (p.Description || "").toLowerCase();
+      const group = (p.Group || "").toLowerCase();
+      const wing = (p.WingCode || "").toLowerCase();
+      const wingName = (meta.wingMap[p.WingCode || ""] || "").toLowerCase();
+      const venue = (meta.venueMap[p.Venue || ""] || p.Venue || "").toLowerCase();
+
+      return (
+        code.includes(q) ||
+        title.includes(q) ||
+        desc.includes(q) ||
+        group.includes(q) ||
+        wing.includes(q) ||
+        wingName.includes(q) ||
+        venue.includes(q)
+      );
+    });
+  }, [programmes, searchQuery, selectedFormat, selectedWing, meta]);
+
+  const uniqueWings = useMemo(() => {
+    const list = Array.from(new Set(programmes.map((p) => p.WingCode).filter(Boolean))) as string[];
+    return list.sort();
+  }, [programmes]);
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[50vh]">
@@ -106,7 +149,7 @@ export default function ProgrammesRegistrationCard() {
   return (
     <div className="md:p-5 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div>
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
               Upcoming Programmes
@@ -125,14 +168,104 @@ export default function ProgrammesRegistrationCard() {
             </button>
           )}
         </div>
+
+        {/* --- SEARCH & QUICK FILTER BAR --- */}
+        <div className="mb-6 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Real-time Search Input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+            <input
+              type="text"
+              placeholder="Search by programme code, title, wing, group or venue..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm bg-slate-50 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-indigo-500 focus:bg-white transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          {/* Format Tabs (All / Individual / Group) */}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start md:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => setSelectedFormat("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                selectedFormat === "all" ? "bg-white text-indigo-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All ({programmes.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedFormat("individual")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                selectedFormat === "individual" ? "bg-white text-blue-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <User size={12} /> Individual
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedFormat("group")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                selectedFormat === "group" ? "bg-white text-purple-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Users size={12} /> Group
+            </button>
+          </div>
+
+          {/* Wing Filter */}
+          {uniqueWings.length > 0 && (
+            <div className="shrink-0">
+              <select
+                value={selectedWing}
+                onChange={(e) => setSelectedWing(e.target.value)}
+                className="w-full md:w-auto px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-hidden focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="all">All Wings</option>
+                {uniqueWings.map((w) => (
+                  <option key={w} value={w}>
+                    {meta.wingMap[w] || w}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
         
-        {programmes.length === 0 ? (
+        {filteredProgrammes.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200">
-            <p className="text-slate-500 font-semibold">No open programmes available for registration at the moment.</p>
+            <p className="text-slate-500 font-semibold">
+              {searchQuery || selectedFormat !== "all" || selectedWing !== "all"
+                ? "No matching programmes found for this search/filter criteria."
+                : "No open programmes available for registration at the moment."}
+            </p>
+            {(searchQuery || selectedFormat !== "all" || selectedWing !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedFormat("all");
+                  setSelectedWing("all");
+                }}
+                className="mt-3 text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
+              >
+                Clear all filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {programmes.map((program) => {
+            {filteredProgrammes.map((program) => {
               const isGroup = Boolean(program.is_group_program);
 
               return (

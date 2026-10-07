@@ -1,6 +1,8 @@
 
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { BookOpen, ArrowRight, Sparkles } from "lucide-react";
 
 import OverviewClipBox from "../PublicDashboardComp/OverViewBox";
 import ProgrammesCalendar from "../PublicProgrammesComponents/ProgramCelender";
@@ -185,6 +187,32 @@ export default function PublicPageDashboard() {
                     }
                 />
             </div>
+
+            {/* Student Content Creative Hub Feature Banner */}
+            <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 rounded-3xl p-6 sm:p-8 mt-7 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
+                <div className="relative z-10 max-w-xl">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold mb-3">
+                        <Sparkles size={13} className="text-emerald-400" />
+                        <span>Student Publications & Works</span>
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                        Explore Student Articles, Speeches & Creative Submissions
+                    </h3>
+                    <p className="text-slate-300 text-xs sm:text-sm mt-1.5 leading-relaxed">
+                        Read scholarly articles, Arabic prose, and competition writings submitted by registered students across all academic wings.
+                    </p>
+                </div>
+
+                <Link
+                    to="/public-panel/student-content"
+                    className="relative z-10 inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm shadow-md transition-all hover:scale-105 active:scale-95 shrink-0 cursor-pointer"
+                >
+                    <BookOpen size={16} />
+                    <span>View Student Showcases</span>
+                    <ArrowRight size={15} />
+                </Link>
+            </div>
+
             <div className="mx-auto">
                 <ProgrammesCalendar />
             </div>

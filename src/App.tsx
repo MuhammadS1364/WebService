@@ -45,6 +45,7 @@ import CreateOutReach from './OutReachPanel/OutReach/CreateOutReach';
 import OutReachAndAchievements from './PublicHome/OutReachAndAchievements/OutReachAndAchievements';
 import PublicHomePanel from './PublicHome/PublicHomePanel';
 import PublicPageDashboard from './PublicHome/PublicDashboard';
+import StudentContentShowcase from './PublicHome/StudentContentShowcase';
 import OurHighLights from './PublicHome/OutReachAndAchievements/OurHighlights';
 import CreateHighLight from './AdminPanel/OurHighLight/CreateHighLight';
 import CreateDonationForUs from './PublicHome/OutReachAndAchievements/CreateDonation';
@@ -85,6 +86,7 @@ export default function App() {
         <Route path='/public-panel' element={<PublicHomePanel />} >
           <Route index element={<PublicPageDashboard />} /> {/* This renders automatically at /public-panel */}
           <Route path='dashboard' element={<PublicPageDashboard />} />
+          <Route path='student-content' element={<StudentContentShowcase />} />
           <Route path='our-hightligths-evens' element={<OurHighLights />} />
           <Route path='our-wing-list' element={<AllWingsList />} />
           <Route path='our-programmes-list' element={<PublicProgrammesList />} />

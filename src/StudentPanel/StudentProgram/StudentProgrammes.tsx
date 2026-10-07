@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
@@ -7,7 +7,7 @@ import SafeImage from "../../lib/SafeImage";
 import ProgrammeFeedbackModal from "../../PublicProgrammesComponents/ProgrammeFeedbackModal";
 import { resolveStudentProfile } from "../../lib/accountResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Search, X } from "lucide-react";
 
 // 1. Define explicit structures matching your Supabase Database Schemas
 interface StudentProfile {
@@ -52,6 +52,7 @@ export default function StudentProgrammes() {
   // Filters Layout Context State
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Feedback Modal State for participated programmes
   const [feedbackModal, setFeedbackModal] = useState<{ isOpen: boolean; code: string; title: string }>({
@@ -121,16 +122,28 @@ export default function StudentProgrammes() {
   const categories = ["All", ...new Set(programs.map(p => p.Category).filter((cat): cat is string => Boolean(cat)))];
 
   // Structural Processing Filters
-  const filteredPrograms = programs.filter(prog => {
-    const matchesCategory = categoryFilter === "All" || prog.Category === categoryFilter;
-    let matchesStatus = true;
-    
-    if (statusFilter === "Upcoming") matchesStatus = !prog.IsConducted;
-    if (statusFilter === "Completed") matchesStatus = prog.IsConducted;
-    if (statusFilter === "Result Out") matchesStatus = prog.IsResultPublished;
+  const filteredPrograms = useMemo(() => {
+    return programs.filter(prog => {
+      const matchesCategory = categoryFilter === "All" || prog.Category === categoryFilter;
+      let matchesStatus = true;
+      
+      if (statusFilter === "Upcoming") matchesStatus = !prog.IsConducted;
+      if (statusFilter === "Completed") matchesStatus = prog.IsConducted;
+      if (statusFilter === "Result Out") matchesStatus = prog.IsResultPublished;
 
-    return matchesCategory && matchesStatus;
-  });
+      let matchesSearch = true;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const code = (prog.Program_Code || "").toLowerCase();
+        const title = (prog.Program_Title || "").toLowerCase();
+        const desc = (prog.Description || "").toLowerCase();
+        const venue = (meta.venueMap[prog.Venue || ""] || prog.Venue || "").toLowerCase();
+        matchesSearch = code.includes(q) || title.includes(q) || desc.includes(q) || venue.includes(q);
+      }
+
+      return matchesCategory && matchesStatus && matchesSearch;
+    });
+  }, [programs, categoryFilter, statusFilter, searchQuery, meta]);
 
   if (loading) {
     return (
@@ -192,36 +205,59 @@ export default function StudentProgrammes() {
         </div>
 
         {/* Filters Action Control Section */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 overflow-x-auto w-full md:w-auto">
-            {["All", "Upcoming", "Completed", "Result Out"].map(status => (
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3">
+          {/* Real-time Search Box */}
+          <div className="relative w-full">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={17} />
+            <input
+              type="text"
+              placeholder="Search your programmes by title, code (#PRG), description or venue..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-9 py-2.5 text-xs sm:text-sm bg-gray-50 rounded-xl border border-gray-200 text-gray-800 placeholder-gray-400 focus:outline-hidden focus:border-blue-500 focus:bg-white transition"
+            />
+            {searchQuery && (
               <button
-                key={status}
                 type="button"
-                onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
-                  statusFilter === status 
-                    ? "bg-white text-blue-700 shadow-sm border border-gray-200" 
-                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                }`}
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
               >
-                {status}
+                <X size={15} />
               </button>
-            ))}
+            )}
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-            <label htmlFor="category-select" className="text-sm font-medium text-gray-500 whitespace-nowrap">Category:</label>
-            <select
-              id="category-select"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-            >
-              {categories.map((cat, idx) => (
-                <option key={idx} value={cat}>{cat || "Uncategorized"}</option>
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between pt-1">
+            <div className="flex space-x-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 overflow-x-auto w-full md:w-auto">
+              {["All", "Upcoming", "Completed", "Result Out"].map(status => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                    statusFilter === status 
+                      ? "bg-white text-blue-700 shadow-sm border border-gray-200" 
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {status}
+                </button>
               ))}
-            </select>
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+              <label htmlFor="category-select" className="text-sm font-medium text-gray-500 whitespace-nowrap">Category:</label>
+              <select
+                id="category-select"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none font-medium cursor-pointer"
+              >
+                {categories.map((cat, idx) => (
+                  <option key={idx} value={cat}>{cat || "Uncategorized"}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

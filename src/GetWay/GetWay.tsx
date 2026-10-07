@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; // Ensure this path is correct
+import anjumanLogo from "../ImgBox/anjumanehuda-logo.svg";
 import dhiuLogo from "../ImgBox/Dhiu.jpg";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 export default function GetWay() {
   const navigate = useNavigate();
@@ -12,9 +14,9 @@ export default function GetWay() {
   const [msg, setMsg] = useState("");
   const [msgType, setMsgType] = useState<"success" | "error" | "">("");
 
-  // Title set karne ke liye
+  // Official Branded Page Title
   useEffect(() => {
-    document.title = "Anjuman e Huda (CHS)";
+    document.title = "Member Login | Anjuman-e-Huda (CHS) - Darul Huda Islamic University";
   }, []);
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -87,17 +89,22 @@ export default function GetWay() {
         
         {/* Branding/Header Section */}
         <div className="text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white p-1.5 shadow-lg ring-2 ring-indigo-500/20 overflow-hidden">
-            <img src={dhiuLogo} alt="DHIU Logo" className="w-full h-full object-contain" />
+          <div className="mx-auto flex items-center justify-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white p-1.5 shadow-lg ring-2 ring-emerald-500/20 overflow-hidden">
+              <img src={anjumanLogo} alt="Anjuman-e-Huda Official Logo" className="w-full h-full object-contain" />
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 p-1 shadow-md border border-slate-200 overflow-hidden">
+              <img src={dhiuLogo} alt="DHIU Logo" className="w-full h-full object-contain" />
+            </div>
           </div>
-          <span className="mt-3 inline-block text-[11px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
-            Darul Huda Islamic University
+          <span className="mt-3 inline-block text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-full border border-emerald-200">
+            Anjuman-e-Huda (CHS) • DHIU
           </span>
           <h2 className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-            Welcome to Portal
+            Member Gateway
           </h2>
-          <p className="mt-1 text-sm font-medium text-slate-500">
-            Sign in to access your dashboard gateway
+          <p className="mt-1 text-xs sm:text-sm font-medium text-slate-500">
+            Sign in to access your administrative, wing or student portal
           </p>
         </div>
 
@@ -186,7 +193,7 @@ export default function GetWay() {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center rounded-xl bg-indigo-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-indigo-100 outline-none transition-all hover:bg-indigo-700 hover:shadow-indigo-200 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50"
+            className="flex w-full items-center justify-center rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-100 outline-none transition-all hover:bg-emerald-700 hover:shadow-emerald-200 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
           >
             {loading ? (
               <div className="flex items-center gap-2">
@@ -197,9 +204,23 @@ export default function GetWay() {
                 <span>Signing In...</span>
               </div>
             ) : (
-              "Secure Login"
+              <span className="flex items-center gap-2">
+                <ShieldCheck size={18} />
+                <span>Secure Member Login</span>
+              </span>
             )}
           </button>
+
+          {/* Navigation Line for moving to Public Page just below login button */}
+          <div className="pt-2 text-center">
+            <Link
+              to="/public-panel/dashboard"
+              className="inline-flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold text-slate-600 hover:text-emerald-700 hover:underline transition py-1.5 px-3 rounded-lg hover:bg-slate-50 group"
+            >
+              <ArrowLeft size={16} className="text-slate-400 group-hover:text-emerald-600 transition-transform group-hover:-translate-x-0.5" />
+              <span>Back to Public Portal & Showcases</span>
+            </Link>
+          </div>
         </form>
       </div>
     </div>

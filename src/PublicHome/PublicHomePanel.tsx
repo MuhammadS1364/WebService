@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import SiteFooter from './SiteFooter';
-import dhiuLogo from '../ImgBox/Dhiu.jpg';
+import anjumanLogo from '../ImgBox/anjumanehuda-logo.svg';
 import {
   LayoutDashboard,
   Calendar,
@@ -8,7 +8,8 @@ import {
   HeartHandshake,
   Sparkles,
   Award,
-  LogIn
+  LogIn,
+  BookOpen
 } from 'lucide-react';
 
 export default function PublicHomePanel() {
@@ -30,14 +31,14 @@ export default function PublicHomePanel() {
       {/* DESKTOP SIDEBAR - Only visible on 1025px+ screens, Clean White */}
       <aside className="hidden min-[1025px]:flex h-full w-64 bg-white text-slate-700 flex-col border-r border-slate-200 shrink-0">
         
-        {/* Brand Header with DHIU Official Logo */}
-        <div className="p-5 text-xl font-bold border-b border-slate-100 tracking-tight flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-slate-50 p-1 shadow-xs border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-            <img src={dhiuLogo} alt="DHIU Logo" className="w-full h-full object-contain" />
+        {/* Brand Header with Anjuman & DHIU Official Logos */}
+        <div className="p-4 text-xl font-bold border-b border-slate-100 tracking-tight flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-white p-1 shadow-xs border border-emerald-200 overflow-hidden shrink-0 flex items-center justify-center">
+            <img src={anjumanLogo} alt="Anjuman-e-Huda Logo" className="w-full h-full object-contain" />
           </div>
-          <div>
-            <span className="text-sm font-bold text-slate-900">DHIU<span className="text-emerald-600"> Portal</span></span>
-            <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Public Gateway</span>
+          <div className="min-w-0">
+            <span className="text-sm font-black text-slate-900 block truncate">Anjuman-e-Huda</span>
+            <span className="text-[10px] text-emerald-700 font-bold block uppercase tracking-wider">CHS • Public Gateway</span>
           </div>
         </div>
 
@@ -45,6 +46,10 @@ export default function PublicHomePanel() {
           <NavLink to={`/public-panel/dashboard`} className={desktopNavLinkClasses}>
             <LayoutDashboard size={16} />
             <span>Dashboard</span>
+          </NavLink>
+          <NavLink to={`/public-panel/student-content`} className={desktopNavLinkClasses}>
+            <BookOpen size={16} className="text-emerald-600" />
+            <span>Student Content</span>
           </NavLink>
           <NavLink to={`/public-panel/our-wing-list`} className={desktopNavLinkClasses}>
             <Building2 size={16} />
@@ -83,15 +88,15 @@ export default function PublicHomePanel() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative bg-slate-50">
         
-        {/* Mobile Header (< 1025px) with DHIU Official Logo */}
+        {/* Mobile Header (< 1025px) with Anjuman-e-Huda & DHIU Official Logos */}
         <header className="min-[1025px]:hidden flex items-center justify-between p-3.5 bg-white text-slate-900 shadow-xs shrink-0 border-b border-slate-200 z-30">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-slate-50 p-1 overflow-hidden shrink-0 flex items-center justify-center border border-slate-200">
-              <img src={dhiuLogo} alt="DHIU Logo" className="w-full h-full object-contain" />
+            <div className="w-8 h-8 rounded-xl bg-white p-0.5 overflow-hidden shrink-0 flex items-center justify-center border border-emerald-200">
+              <img src={anjumanLogo} alt="Anjuman Logo" className="w-full h-full object-contain" />
             </div>
             <div>
-              <span className="font-bold text-sm text-slate-900 block leading-tight">Darul Huda</span>
-              <span className="text-[10px] text-emerald-600 font-semibold block">Public Portal</span>
+              <span className="font-bold text-sm text-slate-900 block leading-tight">Anjuman-e-Huda</span>
+              <span className="text-[10px] text-emerald-600 font-bold block">CHS • DHIU Portal</span>
             </div>
           </div>
           
@@ -114,7 +119,7 @@ export default function PublicHomePanel() {
           </div>
         </main>
 
-        {/* MOBILE BOTTOM NAVIGATION BAR: CLEAN WHITE BACKGROUND, DIRECT 5 TABS (NO (...) BUTTON) */}
+        {/* MOBILE BOTTOM NAVIGATION BAR: CLEAN WHITE BACKGROUND */}
         <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center justify-around py-1.5 px-1 shadow-lg backdrop-blur-md">
           <NavLink
             to="/public-panel/dashboard"
@@ -122,6 +127,14 @@ export default function PublicHomePanel() {
           >
             <LayoutDashboard size={19} className="mb-0.5" />
             <span>Home</span>
+          </NavLink>
+
+          <NavLink
+            to="/public-panel/student-content"
+            className={bottomBarLinkClasses}
+          >
+            <BookOpen size={19} className="mb-0.5 text-emerald-600" />
+            <span>Content</span>
           </NavLink>
 
           <NavLink
@@ -138,14 +151,6 @@ export default function PublicHomePanel() {
           >
             <Sparkles size={19} className="mb-0.5 text-amber-500" />
             <span>Highlights</span>
-          </NavLink>
-
-          <NavLink
-            to="/public-panel/our-achievements"
-            className={bottomBarLinkClasses}
-          >
-            <Award size={19} className="mb-0.5 text-purple-600" />
-            <span>Honors</span>
           </NavLink>
 
           <NavLink

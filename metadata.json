@@ -1,6 +1,6 @@
 {
-  "name": "Anjuman e Huda Management Portal",
-  "description": "Comprehensive administrative, wing, student, outreach, and treasury management system for Anjuman e Huda.",
+  "name": "Anjuman-e-Huda (CHS) | Official Portal & Management Platform",
+  "description": "Official portal of Anjuman-e-Huda, Darul Huda Islamic University (CHS). Explore student programmes, literary showcases, wing standings, and academic achievements.",
   "permissions": [],
   "capabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
