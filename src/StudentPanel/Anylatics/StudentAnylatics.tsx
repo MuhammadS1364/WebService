@@ -501,95 +501,122 @@ export default function StudentAnalytics() {
               return (
                 <div
                   key={prog.Program_Code}
-                  className="border border-slate-200 rounded-3xl p-5 hover:shadow-md hover:border-indigo-200 transition bg-slate-50/50 flex flex-col justify-between space-y-4"
+                  className="border border-slate-200/90 rounded-3xl overflow-hidden hover:shadow-lg hover:border-indigo-200 transition-all duration-300 bg-white flex flex-col justify-between group"
                 >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                  {/* Poster / Image Display */}
+                  <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
+                    <SafeImage
+                      src={prog.Program_Poster}
+                      alt={prog.Program_Title || prog.Program_Code}
+                      fallbackCategory="programme"
+                      fallbackText={prog.Program_Title || prog.Program_Code}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full shadow-xs">
                         {prog.Group || "General"}
                       </span>
-                      <span className="text-[10px] font-mono font-bold text-slate-400">
+                    </div>
+                    <div className="absolute top-3 right-3 z-10">
+                      <span className="text-[10px] font-mono font-bold text-white bg-slate-900/80 backdrop-blur-xs px-2 py-0.5 rounded-md">
                         #{prog.Program_Code}
                       </span>
                     </div>
-
-                    <h3
-                      className="text-sm font-bold text-slate-900 leading-snug line-clamp-2"
-                      title={prog.Program_Title}
-                    >
-                      {prog.Program_Title}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                      {prog.Description || "No description provided."}
-                    </p>
-
-                    {/* Metadata chips */}
-                    <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-slate-500">
-                      {prog.Date && (
-                        <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                          <Calendar size={11} /> {prog.Date}
-                        </span>
-                      )}
-                      {prog.Venue && (
-                        <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                          <Building2 size={11} /> {meta.venueMap[prog.Venue] || prog.Venue}
-                        </span>
-                      )}
-                    </div>
                   </div>
 
-                  {/* Content Submission Status on Card */}
-                  {isRequired && (
-                    <div className="p-3 rounded-2xl bg-white border border-slate-200 text-xs space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-bold text-slate-700 flex items-center gap-1">
-                          <FileText size={12} className="text-amber-600" /> Content Submission:
-                        </span>
-                        {prog.ContentSubmition_deadLine && (
-                          <span className="text-[10px] text-slate-500">
-                            Due: {prog.ContentSubmition_deadLine}
+                  <div className="p-5 flex flex-col justify-between flex-1 space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        {prog.WingCode && (
+                          <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-200">
+                            {meta.wingMap[prog.WingCode] || prog.WingCode}
+                          </span>
+                        )}
+                        {prog.Category && (
+                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-md border border-purple-200">
+                            {meta.categoryMap[prog.Category] || prog.Category}
                           </span>
                         )}
                       </div>
 
-                      {submission ? (
-                        <div className="flex items-center justify-between bg-emerald-50 text-emerald-800 p-2 rounded-xl text-[11px] border border-emerald-200 font-semibold">
-                          <span className="flex items-center gap-1 truncate" title={submission.content_title || ""}>
-                            <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                            Submitted: {submission.content_title}
-                          </span>
-                          <span className="flex items-center gap-0.5 text-rose-600 text-[10px] shrink-0 font-bold">
-                            <Heart size={11} className="fill-rose-500" /> {submission.like_count || 0}
-                          </span>
-                        </div>
-                      ) : isOpen ? (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenContentModal(prog)}
-                          className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          <Send size={12} /> Submit Required Content
-                        </button>
-                      ) : (
-                        <div className="text-[11px] text-slate-400 bg-slate-50 p-1.5 rounded-xl text-center border border-slate-200 font-medium">
-                          Submission Closed (Deadline Passed)
-                        </div>
-                      )}
-                    </div>
-                  )}
+                      <h3
+                        className="text-sm font-bold text-slate-900 leading-snug line-clamp-2"
+                        title={prog.Program_Title}
+                      >
+                        {prog.Program_Title}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">
+                        {prog.Description || "No description provided."}
+                      </p>
 
-                  {/* Footer status */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">{prog.Category ? meta.categoryMap[prog.Category] || prog.Category : "Standard"}</span>
-                    <span
-                      className={`font-bold px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider ${
-                        prog.IsConducted
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : "bg-amber-50 text-amber-700 border border-amber-200"
-                      }`}
-                    >
-                      {prog.IsConducted ? "Conducted" : "Upcoming"}
-                    </span>
+                      {/* Metadata chips */}
+                      <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] text-slate-500">
+                        {prog.Date && (
+                          <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                            <Calendar size={11} className="text-indigo-500" /> {prog.Date}
+                          </span>
+                        )}
+                        {prog.Venue && (
+                          <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                            <Building2 size={11} className="text-slate-400" /> {meta.venueMap[prog.Venue] || prog.Venue}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Content Submission Status on Card */}
+                    {isRequired && (
+                      <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-amber-900 flex items-center gap-1">
+                            <FileText size={12} className="text-amber-600" /> Content Submission:
+                          </span>
+                          {prog.ContentSubmition_deadLine && (
+                            <span className="text-[10px] text-amber-700 font-semibold">
+                              Due: {prog.ContentSubmition_deadLine}
+                            </span>
+                          )}
+                        </div>
+
+                        {submission ? (
+                          <div className="flex items-center justify-between bg-white text-emerald-800 p-2 rounded-xl text-[11px] border border-emerald-200 font-semibold">
+                            <span className="flex items-center gap-1 truncate" title={submission.content_title || ""}>
+                              <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                              Submitted: {submission.content_title}
+                            </span>
+                            <span className="flex items-center gap-0.5 text-rose-600 text-[10px] shrink-0 font-bold">
+                              <Heart size={11} className="fill-rose-500" /> {submission.like_count || 0}
+                            </span>
+                          </div>
+                        ) : isOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenContentModal(prog)}
+                            className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                          >
+                            <Send size={12} /> Submit Required Content
+                          </button>
+                        ) : (
+                          <div className="text-[11px] text-slate-400 bg-white p-1.5 rounded-xl text-center border border-slate-200 font-medium">
+                            Submission Closed (Deadline Passed)
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Footer status */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">{prog.Category ? meta.categoryMap[prog.Category] || prog.Category : "Standard"}</span>
+                      <span
+                        className={`font-bold px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider ${
+                          prog.IsConducted
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}
+                      >
+                        {prog.IsConducted ? "Conducted" : "Upcoming"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               );
@@ -621,17 +648,30 @@ export default function StudentAnalytics() {
                       key={prog.Program_Code}
                       className="hover:bg-slate-50/80 transition-colors"
                     >
-                      {/* Title & Code */}
+                      {/* Title & Code with Poster Thumbnail */}
                       <td className="py-3.5 px-4">
-                        <span className="font-mono font-bold text-indigo-600 block text-[11px]">
-                          #{prog.Program_Code}
-                        </span>
-                        <span
-                          className="font-bold text-slate-900 block truncate max-w-xs"
-                          title={prog.Program_Title}
-                        >
-                          {prog.Program_Title}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-xl bg-slate-900 overflow-hidden shrink-0 shadow-2xs border border-slate-200">
+                            <SafeImage
+                              src={prog.Program_Poster}
+                              alt={prog.Program_Title}
+                              fallbackCategory="programme"
+                              fallbackText={prog.Program_Title || prog.Program_Code}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-mono font-bold text-indigo-600 block text-[11px]">
+                              #{prog.Program_Code}
+                            </span>
+                            <span
+                              className="font-bold text-slate-900 block truncate max-w-xs"
+                              title={prog.Program_Title}
+                            >
+                              {prog.Program_Title}
+                            </span>
+                          </div>
+                        </div>
                       </td>
 
                       {/* Group & Wing */}

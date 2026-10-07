@@ -16,7 +16,7 @@ export default function GetWay() {
 
   // Official Branded Page Title
   useEffect(() => {
-    document.title = "Member Login | Anjuman-e-Huda (CHS) - Darul Huda Islamic University";
+    document.title = "Anjuman e Huda (chs)";
   }, []);
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

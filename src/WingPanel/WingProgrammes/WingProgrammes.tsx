@@ -12,7 +12,10 @@ import {
   Filter,
   MapPin,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileText,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 
 // --- INTERFACES MATCHING UPDATED PROGRAMMESBOX TABLE ---
@@ -37,6 +40,8 @@ interface Programme {
   Expected_Time: string | null;
   Collaborator: string | null;
   is_group_program: boolean;
+  isContentRequired?: boolean;
+  ContentSubmition_deadLine?: string | null;
 }
 
 interface Student {
@@ -61,6 +66,8 @@ export default function WingProgrammes() {
   });
 
   const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [contentCounts, setContentCounts] = useState<Record<string, number>>({});
+  const [contentMap, setContentMap] = useState<Record<string, Record<string, string>>>({});
   const [candidates, setCandidates] = useState<Record<string, Student[]>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loadingCands, setLoadingCands] = useState<Record<string, boolean>>({});
@@ -79,16 +86,39 @@ export default function WingProgrammes() {
           setWingData(wing);
         }
 
-        const { data: progs, error: progErr } = await SupaBaseFunction
-          .from("ProgrammesBox")
-          .select("*")
-          .eq("WingCode", wing.WingCode)
-          .order("Date", { ascending: false });
+        const [progsRes, contentsRes] = await Promise.all([
+          SupaBaseFunction
+            .from("ProgrammesBox")
+            .select("*")
+            .eq("WingCode", wing.WingCode)
+            .order("Date", { ascending: false }),
+          SupaBaseFunction
+            .from("Content_Table")
+            .select("programe_code, student_addNo, content_title")
+        ]);
 
-        if (progErr) throw progErr;
+        if (progsRes.error) throw progsRes.error;
 
         if (isMounted) {
-          setProgrammes((progs as Programme[]) || []);
+          setProgrammes((progsRes.data as Programme[]) || []);
+
+          if (contentsRes.data) {
+            const counts: Record<string, number> = {};
+            const stnContents: Record<string, Record<string, string>> = {};
+            contentsRes.data.forEach((c: any) => {
+              if (c.programe_code) {
+                counts[c.programe_code] = (counts[c.programe_code] || 0) + 1;
+                if (c.student_addNo) {
+                  if (!stnContents[c.programe_code]) {
+                    stnContents[c.programe_code] = {};
+                  }
+                  stnContents[c.programe_code][c.student_addNo] = c.content_title || "Submitted";
+                }
+              }
+            });
+            setContentCounts(counts);
+            setContentMap(stnContents);
+          }
         }
       } catch (err) {
         console.error("Error loading wing programmes:", err);
@@ -118,6 +148,26 @@ export default function WingProgrammes() {
       // Revert on error
       setProgrammes(prev =>
         prev.map(p => (p.Program_Code === code ? { ...p, IsOpenRegistration: currentStatus } : p))
+      );
+    }
+  };
+
+  const toggleContentReq = async (code: string, currentStatus: boolean) => {
+    const nextStatus = !currentStatus;
+    setProgrammes(prev =>
+      prev.map(p => (p.Program_Code === code ? { ...p, isContentRequired: nextStatus } : p))
+    );
+
+    try {
+      await SupaBaseFunction
+        .from("ProgrammesBox")
+        .update({ isContentRequired: nextStatus })
+        .eq("Program_Code", code);
+    } catch (e) {
+      console.error("Failed to update content submission requirement:", e);
+      // Revert on error
+      setProgrammes(prev =>
+        prev.map(p => (p.Program_Code === code ? { ...p, isContentRequired: currentStatus } : p))
       );
     }
   };
@@ -283,42 +333,44 @@ export default function WingProgrammes() {
                     <th className="px-6 py-4">Programme Details</th>
                     <th className="px-4 py-4">Category & Group</th>
                     <th className="px-4 py-4">Date & Venue</th>
-                    <th className="px-4 py-4 text-center">Registrations</th>
-                    <th className="px-4 py-4 text-center">Registration</th>
+                    <th className="px-4 py-4 text-center">Registrations & Content</th>
+                    <th className="px-4 py-4 text-center">Registration Control</th>
+                    <th className="px-4 py-4 text-center">Content Submission</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredProgrammes.map((p) => {
                     const isExp = expanded.has(p.Program_Code);
+                    const contentsSubmitted = contentCounts[p.Program_Code] || 0;
+                    const isContentReq = Boolean(p.isContentRequired);
+
                     return (
                       <React.Fragment key={p.Program_Code}>
                         <tr className="hover:bg-slate-50/60 transition-colors">
                           {/* Programme Info */}
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              {p.Program_Poster && (
-                                <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
-                                  <SafeImage
-                                    src={p.Program_Poster}
-                                    alt={p.Program_Title || "Poster"}
-                                    fallbackCategory="programme"
-                                    fallbackText={p.Program_Title || "Event"}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              )}
-                              <div>
+                              <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shrink-0 shadow-2xs">
+                                <SafeImage
+                                  src={p.Program_Poster}
+                                  alt={p.Program_Title || "Poster"}
+                                  fallbackCategory="programme"
+                                  fallbackText={p.Program_Title || "Event"}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="min-w-0">
                                 <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                                  {p.Program_Title || "Untitled Programme"}
+                                  <span className="truncate max-w-xs">{p.Program_Title || "Untitled Programme"}</span>
                                   {p.is_group_program && (
-                                    <span className="text-[10px] font-extrabold uppercase tracking-wide bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200">
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wide bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200 shrink-0">
                                       Squad Group
                                     </span>
                                   )}
                                 </div>
                                 <div className="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-2">
-                                  <span>{p.Program_Code}</span>
+                                  <span className="text-indigo-600 font-bold">#{p.Program_Code}</span>
                                   <span>•</span>
                                   <span className={p.IsApproved ? "text-emerald-600 font-semibold" : "text-amber-600 font-semibold"}>
                                     {p.IsApproved ? "Approved" : "Pending Approval"}
@@ -348,7 +400,7 @@ export default function WingProgrammes() {
                           <td className="px-4 py-4">
                             <div className="space-y-1">
                               <div className="font-semibold text-slate-800 flex items-center gap-1.5">
-                                <Calendar size={13} className="text-slate-400 shrink-0" />
+                                <Calendar size={13} className="text-indigo-500 shrink-0" />
                                 <span>{p.Date || "Date TBD"}</span>
                               </div>
                               {p.Venue && (
@@ -360,26 +412,77 @@ export default function WingProgrammes() {
                             </div>
                           </td>
 
-                          {/* Total Registration Count */}
+                          {/* Registrations & Content Count */}
                           <td className="px-4 py-4 text-center">
-                            <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
-                              <Users size={12} className="text-blue-600" />
-                              {p.Total_Registration || 0}
-                            </span>
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg text-xs" title="Total Registered Candidates">
+                                <Users size={12} className="text-blue-600" />
+                                {p.Total_Registration || 0} Reg
+                              </span>
+                              {isContentReq && (
+                                <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-[10px]" title="Content Submissions Received">
+                                  <FileText size={10} className="text-amber-600" />
+                                  {contentsSubmitted} Submitted
+                                </span>
+                              )}
+                            </div>
                           </td>
 
-                          {/* Registration Toggle Status */}
+                          {/* BUTTON 1: Registration Toggle (ON / OFF) */}
                           <td className="px-4 py-4 text-center">
                             <button
+                              type="button"
                               onClick={() => toggleReg(p.Program_Code, p.IsOpenRegistration)}
-                              className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wide transition-all cursor-pointer ${
+                              className={`px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide transition-all cursor-pointer shadow-2xs active:scale-95 inline-flex items-center gap-1.5 ${
                                 p.IsOpenRegistration
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100"
                                   : "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"
                               }`}
+                              title={p.IsOpenRegistration ? "Click to Turn Registration OFF" : "Click to Turn Registration ON"}
                             >
-                              {p.IsOpenRegistration ? "● OPEN" : "○ CLOSED"}
+                              {p.IsOpenRegistration ? (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  <span>Reg: ON</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                  <span>Reg: OFF</span>
+                                </>
+                              )}
                             </button>
+                          </td>
+
+                          {/* BUTTON 2: Content Submission Toggle (ON / OFF) */}
+                          <td className="px-4 py-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggleContentReq(p.Program_Code, isContentReq)}
+                              className={`px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide transition-all cursor-pointer shadow-2xs active:scale-95 inline-flex items-center gap-1.5 ${
+                                isContentReq
+                                  ? "bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100"
+                                  : "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"
+                              }`}
+                              title={isContentReq ? "Click to Turn Content Submission OFF" : "Click to Turn Content Submission ON"}
+                            >
+                              {isContentReq ? (
+                                <>
+                                  <FileText size={12} className="text-amber-600" />
+                                  <span>Content: ON</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                  <span>Content: OFF</span>
+                                </>
+                              )}
+                            </button>
+                            {isContentReq && p.ContentSubmition_deadLine && (
+                              <div className="text-[10px] text-amber-700 font-medium mt-1">
+                                Due: {p.ContentSubmition_deadLine}
+                              </div>
+                            )}
                           </td>
 
                           {/* Actions */}
@@ -401,16 +504,21 @@ export default function WingProgrammes() {
                         {/* Expanded Candidate Details */}
                         {isExp && (
                           <tr>
-                            <td colSpan={6} className="bg-slate-50/70 p-5 border-y border-slate-100">
+                            <td colSpan={7} className="bg-slate-50/70 p-5 border-y border-slate-100">
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                                     <Users size={14} className="text-blue-600" />
                                     Registered Candidates for {p.Program_Title}
                                   </h4>
-                                  <span className="text-[11px] font-semibold text-slate-500">
-                                    {candidates[p.Program_Code]?.length || 0} Enrolled
-                                  </span>
+                                  <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
+                                    <span>{candidates[p.Program_Code]?.length || 0} Enrolled</span>
+                                    {isContentReq && (
+                                      <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                        Content Req: {contentsSubmitted}/{candidates[p.Program_Code]?.length || 0} Submitted
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
 
                                 {loadingCands[p.Program_Code] ? (
@@ -419,30 +527,53 @@ export default function WingProgrammes() {
                                   </div>
                                 ) : candidates[p.Program_Code] && candidates[p.Program_Code].length > 0 ? (
                                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                    {candidates[p.Program_Code].map((c) => (
-                                      <div
-                                        key={c.AddNo}
-                                        className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3"
-                                      >
-                                        <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-50">
-                                          <SafeImage
-                                            src={c.Student_Photo_Urls}
-                                            alt={c.StudentName}
-                                            fallbackCategory="student"
-                                            fallbackText={c.StudentName}
-                                            className="w-full h-full object-cover"
-                                          />
+                                    {candidates[p.Program_Code].map((c) => {
+                                      const stnContentTitle = contentMap[p.Program_Code]?.[c.AddNo];
+
+                                      return (
+                                        <div
+                                          key={c.AddNo}
+                                          className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-2"
+                                        >
+                                          <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-50">
+                                              <SafeImage
+                                                src={c.Student_Photo_Urls}
+                                                alt={c.StudentName}
+                                                fallbackCategory="student"
+                                                fallbackText={c.StudentName}
+                                                className="w-full h-full object-cover"
+                                              />
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="font-bold text-slate-900 text-xs truncate">
+                                                {c.StudentName}
+                                              </p>
+                                              <p className="text-[10px] text-slate-500 font-mono truncate">
+                                                #{c.AddNo} • {c.Class || "Student"}
+                                              </p>
+                                            </div>
+                                          </div>
+
+                                          {/* Candidate Content Submission Status */}
+                                          {isContentReq && (
+                                            <div className="pt-1.5 border-t border-slate-100 text-[10px]">
+                                              {stnContentTitle ? (
+                                                <div className="flex items-center gap-1 text-emerald-700 font-bold truncate" title={stnContentTitle}>
+                                                  <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                                                  <span className="truncate">{stnContentTitle}</span>
+                                                </div>
+                                              ) : (
+                                                <div className="flex items-center gap-1 text-slate-400 font-medium">
+                                                  <Clock size={11} className="shrink-0" />
+                                                  <span>Pending Content</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
                                         </div>
-                                        <div className="min-w-0">
-                                          <p className="font-bold text-slate-900 text-xs truncate">
-                                            {c.StudentName}
-                                          </p>
-                                          <p className="text-[10px] text-slate-500 font-mono truncate">
-                                            {c.AddNo} • {c.Class || "Student"}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 ) : (
                                   <div className="text-center py-6 text-xs text-slate-400 bg-white border border-dashed border-slate-200 rounded-2xl">

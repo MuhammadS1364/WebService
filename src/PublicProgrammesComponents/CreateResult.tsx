@@ -660,36 +660,135 @@ export default function CreateResult() {
               </span>
             </div>
 
-            {/* Template Selector */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Active Points Template:
-                </label>
-                <select
-                  value={selectedTemplateId}
-                  onChange={(e) => setSelectedTemplateId(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-800 focus:bg-white outline-none cursor-pointer"
-                >
-                  {allTemplates.map((t) => (
-                    <option key={t.p_template_id} value={t.p_template_id}>
-                      {t.point_template_title}
-                    </option>
-                  ))}
-                </select>
+            {/* Enhanced Template Selector & Breakdown */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1">
+                    Active Points Template Scheme:
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Defines points awarded to students and calculated for wing standings based on positions and grades.
+                  </p>
+                </div>
+                <div className="sm:w-72 shrink-0">
+                  <select
+                    value={selectedTemplateId}
+                    onChange={(e) => setSelectedTemplateId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none cursor-pointer transition"
+                  >
+                    {allTemplates.map((t) => (
+                      <option key={t.p_template_id} value={t.p_template_id}>
+                        {t.point_template_title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900">
-                <span className="font-black block uppercase text-[10px] tracking-wider text-amber-800">
-                  Template Breakdown
-                </span>
-                <div className="grid grid-cols-3 gap-1 mt-1 text-[11px] font-bold">
-                  <div>1st: <span className="text-slate-900">{activeTemplate.first_only} pts</span> (A: {activeTemplate.first_A_grade}, B: {activeTemplate.first_B_grade})</div>
-                  <div>2nd: <span className="text-slate-900">{activeTemplate.second_only} pts</span> (A: {activeTemplate.second_A_grade}, B: {activeTemplate.second_B_grade})</div>
-                  <div>3rd: <span className="text-slate-900">{activeTemplate.third_only} pts</span> (A: {activeTemplate.third_A_grade}, B: {activeTemplate.third_B_grade})</div>
+              {/* Visual Template Breakdown Matrix */}
+              <div className="bg-gradient-to-br from-slate-50 to-indigo-50/30 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black uppercase tracking-wider text-indigo-900 flex items-center gap-1.5">
+                    <Zap size={14} className="text-amber-500" />
+                    <span>Template Scoring Breakdown — {activeTemplate.point_template_title}</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                    Auto-Applied on Publish
+                  </span>
                 </div>
-                <div className="mt-1 text-[11px] text-amber-800 font-semibold">
-                  A-Grade: <span className="font-bold">{activeTemplate.A_grade} pts</span> | B-Grade: <span className="font-bold">{activeTemplate.B_grade} pts</span>
+
+                {/* 3 Positions Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* 1st Place Card */}
+                  <div className="bg-white rounded-2xl p-3.5 border border-amber-200/80 shadow-2xs space-y-2 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-black text-xs">
+                          🥇
+                        </div>
+                        <span className="text-xs font-black text-amber-950">1st Place</span>
+                      </div>
+                      <span className="text-xs font-mono font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        {activeTemplate.first_only} pts base
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1">
+                      <div className="bg-amber-50/60 p-1.5 rounded-lg border border-amber-100 text-center">
+                        <span className="text-slate-500 block font-semibold">+ A-Grade</span>
+                        <span className="font-mono font-black text-amber-900 text-xs">{activeTemplate.first_A_grade} pts</span>
+                      </div>
+                      <div className="bg-amber-50/60 p-1.5 rounded-lg border border-amber-100 text-center">
+                        <span className="text-slate-500 block font-semibold">+ B-Grade</span>
+                        <span className="font-mono font-black text-amber-900 text-xs">{activeTemplate.first_B_grade} pts</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2nd Place Card */}
+                  <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-2xs space-y-2 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-black text-xs">
+                          🥈
+                        </div>
+                        <span className="text-xs font-black text-slate-900">2nd Place</span>
+                      </div>
+                      <span className="text-xs font-mono font-black text-slate-700 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                        {activeTemplate.second_only} pts base
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1">
+                      <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-center">
+                        <span className="text-slate-500 block font-semibold">+ A-Grade</span>
+                        <span className="font-mono font-black text-slate-900 text-xs">{activeTemplate.second_A_grade} pts</span>
+                      </div>
+                      <div className="bg-slate-50 p-1.5 rounded-lg border border-slate-100 text-center">
+                        <span className="text-slate-500 block font-semibold">+ B-Grade</span>
+                        <span className="font-mono font-black text-slate-900 text-xs">{activeTemplate.second_B_grade} pts</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3rd Place Card */}
+                  <div className="bg-white rounded-2xl p-3.5 border border-orange-200/80 shadow-2xs space-y-2 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 rounded-lg bg-orange-100 text-orange-700 flex items-center justify-center font-black text-xs">
+                          🥉
+                        </div>
+                        <span className="text-xs font-black text-orange-950">3rd Place</span>
+                      </div>
+                      <span className="text-xs font-mono font-black text-orange-700 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200">
+                        {activeTemplate.third_only} pts base
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px] pt-1">
+                      <div className="bg-orange-50/60 p-1.5 rounded-lg border border-orange-100 text-center">
+                        <span className="text-slate-500 block font-semibold">+ A-Grade</span>
+                        <span className="font-mono font-black text-orange-900 text-xs">{activeTemplate.third_A_grade} pts</span>
+                      </div>
+                      <div className="bg-orange-50/60 p-1.5 rounded-lg border border-orange-100 text-center">
+                        <span className="text-slate-500 block font-semibold">+ B-Grade</span>
+                        <span className="font-mono font-black text-orange-900 text-xs">{activeTemplate.third_B_grade} pts</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Standalone Grades Banner */}
+                <div className="bg-white rounded-xl p-2.5 border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-bold text-slate-700 text-[11px] flex items-center gap-1">
+                    <Award size={13} className="text-indigo-600" /> Non-Position Standalone Grades:
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold text-[11px]">
+                      A-Grade Only: <span className="font-mono font-black">{activeTemplate.A_grade} pts</span>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 font-bold text-[11px]">
+                      B-Grade Only: <span className="font-mono font-black">{activeTemplate.B_grade} pts</span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
