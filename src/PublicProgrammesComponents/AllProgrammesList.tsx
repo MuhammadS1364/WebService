@@ -82,7 +82,7 @@ export default function PublicProgrammesList() {
         const { data, error: fetchError } = await SupaBaseFunction
           .from('ProgrammesBox')
           .select('*')
-          .order('Date', { ascending: true });
+          .order('Date', { ascending: false });
 
         if (fetchError) throw fetchError;
         setProgrammes((data as ProgramData[]) || []);
