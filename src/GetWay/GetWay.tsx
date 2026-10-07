@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; // Ensure this path is correct
-import anjumanLogo from "../ImgBox/anjumanehuda-logo.svg";
+import anjumanLogo from "../ImgBox/anjumanLogo.png";
 import dhiuLogo from "../ImgBox/Dhiu.jpg";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 

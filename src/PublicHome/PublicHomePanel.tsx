@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import SiteFooter from './SiteFooter';
-import anjumanLogo from '../ImgBox/anjumanehuda-logo.svg';
+import anjumanLogo from '../ImgBox/anjumanLogo.png';
 import {
   LayoutDashboard,
   Calendar,
