@@ -5,9 +5,20 @@ import OverviewClipBox from "../../PublicDashboardComp/OverViewBox";
 import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
 import SafeImage from "../../lib/SafeImage";
 import ProgrammeFeedbackModal from "../../PublicProgrammesComponents/ProgrammeFeedbackModal";
+import SubmitContentModal from "../../PublicProgrammesComponents/SubmitContentModal";
 import { resolveStudentProfile } from "../../lib/accountResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
-import { MessageSquare, Search, X } from "lucide-react";
+import {
+  MessageSquare,
+  Search,
+  X,
+  Maximize2,
+  Download,
+  FileText,
+  Send,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
 
 // 1. Define explicit structures matching your Supabase Database Schemas
 interface StudentProfile {
@@ -30,6 +41,8 @@ interface ProgramItem {
   IsResultPublished: boolean;
   Date?: string | null;
   Venue?: string;
+  isContentRequired?: boolean;
+  ContentSubmition_deadLine?: string | null;
 }
 
 export default function StudentProgrammes() {
@@ -48,6 +61,32 @@ export default function StudentProgrammes() {
   });
   const [loading, setLoading] = useState<boolean>(() => !localStorage.getItem("cached_student_profile"));
   const [programs, setPrograms] = useState<ProgramItem[]>([]);
+  const [submittedContents, setSubmittedContents] = useState<Record<string, { content_title: string }>>({});
+  
+  // Fullscreen image state
+  const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Content Submission Modal State
+  const [contentModalProgram, setContentModalProgram] = useState<ProgramItem | null>(null);
+
+  const handleDownloadImage = async (url: string, title?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      const sanitizedName = (title || "programme-poster").replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.setAttribute("download", `${sanitizedName}.jpg`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.error("Download failed:", err);
+      window.open(url, "_blank");
+    }
+  };
   
   // Filters Layout Context State
   const [statusFilter, setStatusFilter] = useState<string>("All");
@@ -98,6 +137,22 @@ export default function StudentProgrammes() {
           if (isMounted) {
             setPrograms((programsData as ProgramItem[]) || []);
           }
+
+          // Fetch existing content submissions for this student
+          const { data: cData } = await SupaBaseFunction
+            .from("Content_Table")
+            .select("programe_code, content_title")
+            .eq("student_addNo", studentData.AddNo);
+
+          if (cData && isMounted) {
+            const map: Record<string, { content_title: string }> = {};
+            cData.forEach((row: any) => {
+              if (row.programe_code) {
+                map[row.programe_code] = { content_title: row.content_title || "Submitted Content" };
+              }
+            });
+            setSubmittedContents(map);
+          }
         }
       } catch (error) {
         console.error("Error fetching student programs:", error);
@@ -113,6 +168,10 @@ export default function StudentProgrammes() {
       isMounted = false;
     };
   }, [actStn]);
+
+  const handleOpenContentModal = (prog: ProgramItem) => {
+    setContentModalProgram(prog);
+  };
 
   // Derived tracking calculations
   const conductedCount = programs.filter(p => p.IsConducted).length;
@@ -273,15 +332,33 @@ export default function StudentProgrammes() {
                 key={prog.Program_Code} 
                 className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
               >
-                <div className="relative h-48 overflow-hidden bg-slate-900">
+                <div 
+                  className="relative h-48 overflow-hidden bg-slate-900 cursor-pointer group/poster"
+                  onClick={() => {
+                    if (prog.Program_Poster) {
+                      setFullscreenImage({
+                        url: prog.Program_Poster,
+                        title: prog.Program_Title || prog.Program_Code,
+                      });
+                    }
+                  }}
+                  title="Click to view full poster & download"
+                >
                   <SafeImage 
                     src={prog.Program_Poster} 
                     alt={prog.Program_Title}
                     fallbackCategory="programme"
                     fallbackText={prog.Program_Title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover/poster:scale-105" 
                   />
-                  <div className="absolute top-3 right-3 flex flex-col gap-2">
+                  {/* Hover Hint Overlay */}
+                  <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/poster:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <div className="bg-black/75 text-white text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
+                      <Maximize2 size={13} />
+                      <span>View & Download</span>
+                    </div>
+                  </div>
+                  <div className="absolute top-3 right-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                     {prog.IsResultPublished && <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md">🏆 Result Out</span>}
                     <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-lg ${prog.IsConducted ? "bg-emerald-500/90 text-white" : "bg-amber-400/90 text-amber-950"}`}>
                       {prog.IsConducted ? "Completed" : "Upcoming"}
@@ -299,7 +376,40 @@ export default function StudentProgrammes() {
                     </span>
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">{prog.Program_Title}</h3>
-                  <p className="text-sm text-gray-500 line-clamp-2 mb-4 flex-1">{prog.Description || "Registered participant."}</p>
+                  <p className="text-sm text-gray-500 line-clamp-2 mb-3 flex-1">{prog.Description || "Registered participant."}</p>
+
+                  {/* Content Submission Required Section */}
+                  {prog.isContentRequired && (
+                    <div className="mb-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                          <FileText size={13} className="text-amber-600 shrink-0" />
+                          Content Submission Required
+                        </span>
+                        {prog.ContentSubmition_deadLine && (
+                          <span className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
+                            <Clock size={11} /> Due: {prog.ContentSubmition_deadLine}
+                          </span>
+                        )}
+                      </div>
+
+                      {submittedContents[prog.Program_Code] ? (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-white p-2 rounded-lg border border-emerald-200">
+                          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                          <span className="truncate">Submitted: {submittedContents[prog.Program_Code].content_title}</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenContentModal(prog)}
+                          className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                        >
+                          <Send size={13} />
+                          <span>Submit Your Content</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   <div className="border-t border-gray-100 pt-3 flex items-center justify-between text-xs font-medium text-gray-500 mb-3">
                     <div>
@@ -327,6 +437,70 @@ export default function StudentProgrammes() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Modal: Submit Content for Required Programmes */}
+        {contentModalProgram && (
+          <SubmitContentModal
+            isOpen={Boolean(contentModalProgram)}
+            onClose={() => setContentModalProgram(null)}
+            onSuccess={(submission) => {
+              setSubmittedContents((prev) => ({
+                ...prev,
+                [submission.programe_code]: {
+                  content_title: submission.content_title,
+                },
+              }));
+            }}
+            program={contentModalProgram}
+            studentAddNo={student?.AddNo || ""}
+          />
+        )}
+
+        {/* Fullscreen Image Preview & Download Modal */}
+        {fullscreenImage && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setFullscreenImage(null)}
+          >
+            {/* Close Button */}
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }} 
+              className="absolute top-6 right-6 text-white/80 hover:text-white p-3 rounded-full bg-white/10 hover:bg-white/20 transition cursor-pointer z-10"
+              title="Close Preview"
+            >
+              <X size={24} />
+            </button>
+
+            {/* Download Button */}
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDownloadImage(fullscreenImage.url, fullscreenImage.title); }} 
+              className="absolute top-6 right-20 text-white flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-lg transition cursor-pointer z-10"
+              title="Download Poster"
+            >
+              <Download size={18} /> 
+              <span>Download Poster</span>
+            </button>
+
+            {/* Image Container */}
+            <div 
+              className="max-w-4xl max-h-[85vh] w-full flex flex-col items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img 
+                src={fullscreenImage.url} 
+                alt={fullscreenImage.title} 
+                className="max-h-[80vh] w-auto max-w-full rounded-2xl shadow-2xl object-contain border border-white/10" 
+              />
+              {fullscreenImage.title && (
+                <p className="text-white text-xs sm:text-sm font-semibold mt-3 text-center truncate max-w-xl">
+                  {fullscreenImage.title}
+                </p>
+              )}
+            </div>
           </div>
         )}
 

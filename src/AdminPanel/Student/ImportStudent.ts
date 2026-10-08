@@ -27,6 +27,19 @@ export async function importStudentsBatch(rawRows: any[]): Promise<BulkImportRes
   }
 
   // 1. Sanitize and normalize rows with fuzzy header mapping
+  const classMap = new Map<string, string>();
+  try {
+    const { data: classesData } = await SupaBaseFunction.from("Our_Classes").select("class_id, standard_name, class_nick_name");
+    if (classesData) {
+      for (const cls of classesData) {
+        if (cls.standard_name) classMap.set(cls.standard_name.toLowerCase().trim(), cls.class_id);
+        if (cls.class_nick_name) classMap.set(cls.class_nick_name.toLowerCase().trim(), cls.class_id);
+      }
+    }
+  } catch (e) {
+    console.warn("Could not load Our_Classes during import:", e);
+  }
+
   const validStudents: StudentRecord[] = [];
   const usersToCreate: { UserEmail: string; UserPassword: string; UserRole: string }[] = [];
   const seenEmails = new Set<string>();
@@ -42,6 +55,7 @@ export async function importStudentsBatch(rawRows: any[]): Promise<BulkImportRes
     const fatherName = String(row.FatherName || row["Father Name"] || row.Father || "").trim();
     const collegeName = String(row.CollegeName || row["College Name"] || row.College || "").trim();
     const className = String(row.Class || row["Class Target"] || "").trim();
+    const stnClassUuid = className ? classMap.get(className.toLowerCase().trim()) || null : null;
     const stnState = String(row.StnState || row.State || "Not Provided").trim();
     const stnDistrict = String(row.StnDistrict || row.District || "Not Provided").trim();
 
@@ -65,6 +79,7 @@ export async function importStudentsBatch(rawRows: any[]): Promise<BulkImportRes
       FatherName: fatherName,
       CollegeName: collegeName,
       Class: className,
+      Stn_Class: stnClassUuid || undefined,
       StnState: stnState,
       StnDistrict: stnDistrict,
       StnUserId: studentEmail,
@@ -102,9 +117,17 @@ export async function importStudentsBatch(rawRows: any[]): Promise<BulkImportRes
     }
 
     // 3. Batch upsert Student records into StudentsBox
-    const { error: studentError } = await SupaBaseFunction
+    let { error: studentError } = await SupaBaseFunction
       .from("StudentsBox")
       .upsert(validStudents, { onConflict: "AddNo", ignoreDuplicates: true });
+
+    if (studentError && studentError.message?.toLowerCase().includes("class")) {
+      const sanitized = validStudents.map(({ Class: _cls, ...rest }) => rest);
+      const retry = await SupaBaseFunction
+        .from("StudentsBox")
+        .upsert(sanitized, { onConflict: "AddNo", ignoreDuplicates: true });
+      studentError = retry.error;
+    }
 
     if (studentError) {
       throw new Error(`StudentsBox ingestion failed: ${studentError.message}`);

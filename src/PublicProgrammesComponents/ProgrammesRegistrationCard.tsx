@@ -4,6 +4,7 @@ import { SupaBaseFunction } from "../lib/SupaBase";
 import formatResultDate from "./DateFormatConvertor";
 import SafeImage from "../lib/SafeImage";
 import SquadRegistrationModal from "./SquadRegistrationModal";
+import SubmitContentModal from "./SubmitContentModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { resolveStudentProfile } from "../lib/accountResolver";
 import {
@@ -17,8 +18,10 @@ import {
   Clock,
   Send,
   CheckCircle2,
-  AlertTriangle,
-  Loader2
+  Maximize2,
+  Download,
+  GraduationCap,
+  Layers,
 } from "lucide-react";
 
 interface ProgramData {
@@ -49,6 +52,7 @@ export default function ProgrammesRegistrationCard() {
   const [programmes, setProgrammes] = useState<ProgramData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [studentProfile, setStudentProfile] = useState<any>(null);
   const [studentAddNo, setStudentAddNo] = useState<string | null>(null);
   const [submittedContents, setSubmittedContents] = useState<Record<string, { content_title: string; like_count?: number }>>({});
 
@@ -63,22 +67,80 @@ export default function ProgrammesRegistrationCard() {
     programTitle: "",
   });
 
-  // Content Submission Modal State
-  const [contentModal, setContentModal] = useState<{
-    isOpen: boolean;
-    program: ProgramData | null;
-    contentTitle: string;
-    submitting: boolean;
-    error: string | null;
-    success: string | null;
-  }>({
-    isOpen: false,
-    program: null,
-    contentTitle: "",
-    submitting: false,
-    error: null,
-    success: null,
-  });
+  // Dedicated Content Submission Modal State
+  const [contentModalProgram, setContentModalProgram] = useState<ProgramData | null>(null);
+
+  // Fullscreen Image Preview & Download State
+  const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Category Bonding Resolution for Active Student
+  const studentCategory = useMemo(() => {
+    if (!studentProfile || !actStn) return null;
+    const classId = studentProfile.Stn_Class;
+    const className = studentProfile.Class;
+
+    // 1. Match class in meta.classes
+    const matchedClass = meta.classes.find(
+      (c) =>
+        (classId && c.class_id === classId) ||
+        (className && (c.standard_name === className || c.class_nick_name === className))
+    );
+    const resolvedClassId = matchedClass?.class_id || classId;
+    const resolvedClassName = matchedClass?.standard_name || className || "Your Class";
+
+    // 2. Find Category that binds to this class
+    if (resolvedClassId) {
+      const cat = meta.categories.find(
+        (c) =>
+          c.class_1 === resolvedClassId ||
+          c.class_2 === resolvedClassId ||
+          c.class_3 === resolvedClassId
+      );
+      if (cat) {
+        return {
+          id: cat.category_id,
+          title: cat.category_title,
+          className: resolvedClassName,
+        };
+      }
+    }
+
+    // 3. Fallback: match category title directly
+    if (className) {
+      const cat = meta.categories.find(
+        (c) => c.category_title.toLowerCase().trim() === className.toLowerCase().trim()
+      );
+      if (cat) {
+        return {
+          id: cat.category_id,
+          title: cat.category_title,
+          className: resolvedClassName,
+        };
+      }
+    }
+
+    return null;
+  }, [studentProfile, actStn, meta.classes, meta.categories]);
+
+  const handleDownloadImage = async (url: string, title?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      const sanitizedName = (title || "programme-poster").replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.setAttribute("download", `${sanitizedName}.jpg`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.error("Download failed:", err);
+      // Fallback
+      window.open(url, "_blank");
+    }
+  };
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -101,13 +163,14 @@ export default function ProgrammesRegistrationCard() {
 
       // If student is logged in, fetch student profile and existing submissions
       if (actStn) {
-        const studentProfile = await resolveStudentProfile(actStn);
-        if (studentProfile?.AddNo) {
-          setStudentAddNo(studentProfile.AddNo);
+        const profile = await resolveStudentProfile(actStn);
+        if (profile?.AddNo) {
+          setStudentProfile(profile);
+          setStudentAddNo(profile.AddNo);
           const { data: cData } = await SupaBaseFunction
             .from("Content_Table")
             .select("programe_code, content_title, like_count")
-            .eq("student_addNo", studentProfile.AddNo);
+            .eq("student_addNo", profile.AddNo);
 
           if (cData) {
             const map: Record<string, { content_title: string; like_count?: number }> = {};
@@ -139,6 +202,27 @@ export default function ProgrammesRegistrationCard() {
   const handleRegisterClick = (program: ProgramData) => {
     if (!program.IsOpenRegistration) return;
 
+    // Strict Category Bonding Enforcement
+    if (actStn && studentCategory && program.Category) {
+      const progCatTitle = meta.categoryMap[program.Category] || program.Category;
+      if (
+        progCatTitle &&
+        progCatTitle.toLowerCase() !== "general" &&
+        progCatTitle.toLowerCase() !== "all"
+      ) {
+        const isMatch =
+          program.Category === studentCategory.id ||
+          progCatTitle.toLowerCase().trim() === studentCategory.title.toLowerCase().trim();
+
+        if (!isMatch) {
+          alert(
+            `⚠️ Category Bonding Enforcement:\nThis programme is strictly for "${progCatTitle}" category students.\nYour current category is "${studentCategory.title}" (${studentCategory.className}).`
+          );
+          return;
+        }
+      }
+    }
+
     if (program.is_group_program) {
       // Group Programme: Suggest forming a group and open squad registration
       setSquadModal({
@@ -162,89 +246,7 @@ export default function ProgrammesRegistrationCard() {
       navigate("/login");
       return;
     }
-    setContentModal({
-      isOpen: true,
-      program,
-      contentTitle: "",
-      submitting: false,
-      error: null,
-      success: null,
-    });
-  };
-
-  // Submit Content
-  const handleSubmitContent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contentModal.program) return;
-    if (!studentAddNo) {
-      setContentModal(prev => ({ ...prev, error: "Please log in to submit your content." }));
-      return;
-    }
-    if (!contentModal.contentTitle.trim()) {
-      setContentModal(prev => ({ ...prev, error: "Please provide your content / essay title." }));
-      return;
-    }
-
-    // Check deadline
-    if (contentModal.program.ContentSubmition_deadLine) {
-      const todayStr = new Date().toISOString().split("T")[0];
-      if (todayStr > contentModal.program.ContentSubmition_deadLine) {
-        setContentModal(prev => ({
-          ...prev,
-          error: "The deadline for content submission has expired.",
-        }));
-        return;
-      }
-    }
-
-    try {
-      setContentModal(prev => ({ ...prev, submitting: true, error: null }));
-      const payload = {
-        content_title: contentModal.contentTitle.trim(),
-        programe_code: contentModal.program.Program_Code,
-        student_addNo: studentAddNo,
-        like_count: 0,
-      };
-
-      const { error: insertError } = await SupaBaseFunction
-        .from("Content_Table")
-        .insert([payload])
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      setSubmittedContents(prev => ({
-        ...prev,
-        [contentModal.program!.Program_Code]: {
-          content_title: contentModal.contentTitle.trim(),
-          like_count: 0,
-        },
-      }));
-
-      setContentModal(prev => ({
-        ...prev,
-        submitting: false,
-        success: "Content submitted successfully!",
-      }));
-
-      setTimeout(() => {
-        setContentModal({
-          isOpen: false,
-          program: null,
-          contentTitle: "",
-          submitting: false,
-          error: null,
-          success: null,
-        });
-      }, 1500);
-    } catch (err: any) {
-      setContentModal(prev => ({
-        ...prev,
-        submitting: false,
-        error: err.message || "Failed submitting content.",
-      }));
-    }
+    setContentModalProgram(program);
   };
 
   // Filtered Programmes based on search query, format, and wing - ALWAYS LATEST FIRST
@@ -257,7 +259,22 @@ export default function ProgrammesRegistrationCard() {
       // 2. Wing filter
       if (selectedWing !== "all" && p.WingCode !== selectedWing) return false;
 
-      // 3. Search query matching
+      // 3. Category Bonding for Student Panel:
+      // Display only programmes that match the category of the student
+      if (actStn && studentCategory) {
+        const progCatId = p.Category;
+        const progCatTitle = meta.categoryMap[p.Category || ""] || p.Category;
+
+        // If programme has a specific category (not General/All)
+        if (progCatId && progCatTitle && progCatTitle.toLowerCase() !== "general" && progCatTitle.toLowerCase() !== "all") {
+          const isMatch =
+            progCatId === studentCategory.id ||
+            progCatTitle.toLowerCase().trim() === studentCategory.title.toLowerCase().trim();
+          if (!isMatch) return false;
+        }
+      }
+
+      // 4. Search query matching
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase().trim();
       const code = (p.Program_Code || "").toLowerCase();
@@ -327,6 +344,35 @@ export default function ProgrammesRegistrationCard() {
             </button>
           )}
         </div>
+
+        {/* CATEGORY BONDING ACTIVE BANNER (FOR LOGGED-IN STUDENTS) */}
+        {actStn && studentCategory && (
+          <div className="mb-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-3xl p-5 shadow-sm border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20">
+                <GraduationCap className="w-6 h-6 text-emerald-100" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-black tracking-widest bg-emerald-950/40 text-emerald-200 px-2 py-0.5 rounded-md border border-emerald-400/20">
+                    Category Bonding Active
+                  </span>
+                  <span className="text-xs font-black bg-white text-emerald-800 px-2.5 py-0.5 rounded-full shadow-xs">
+                    {studentCategory.title} Category
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-white mt-1">
+                  Exclusively displaying upcoming programmes tailored for your category ({studentCategory.className}).
+                </p>
+              </div>
+            </div>
+
+            <div className="shrink-0 flex items-center gap-2 bg-emerald-900/40 px-3.5 py-2 rounded-xl text-xs font-semibold text-emerald-100 border border-emerald-300/20">
+              <Layers size={14} className="text-emerald-300" />
+              <span>Registration restricted to {studentCategory.title}</span>
+            </div>
+          </div>
+        )}
 
         {/* --- SEARCH & QUICK FILTER BAR --- */}
         <div className="mb-6 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
@@ -438,18 +484,40 @@ export default function ProgrammesRegistrationCard() {
                   key={program.Program_Code} 
                   className="bg-white rounded-3xl shadow-sm border border-slate-200/80 flex flex-col overflow-hidden hover:shadow-xl transition-all duration-300"
                 >
-                  {/* --- Image Section with SafeImage Dual-Layer Fallback --- */}
-                  <div className="relative h-48 w-full bg-slate-900 overflow-hidden">
+                  {/* --- Image Section with Click-to-Preview and Download --- */}
+                  <div 
+                    className="relative h-48 w-full bg-slate-900 overflow-hidden cursor-pointer group"
+                    onClick={() => {
+                      if (program.Program_Poster) {
+                        setFullscreenImage({
+                          url: program.Program_Poster,
+                          title: program.Program_Title || program.Program_Code,
+                        });
+                      }
+                    }}
+                    title="Click to view full poster & download"
+                  >
                     <SafeImage
                       src={program.Program_Poster}
                       alt={program.Program_Title || "Program Presentation Art"}
                       fallbackCategory="programme"
                       fallbackText={program.Program_Title || program.Program_Code}
-                      className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
 
+                    {/* Hover Hint Overlay */}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <div className="bg-black/70 text-white text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
+                        <Maximize2 size={13} />
+                        <span>View & Download</span>
+                      </div>
+                    </div>
+
                     {/* Format Badge: Group vs Individual Event */}
-                    <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
+                    <div 
+                      className="absolute top-3 left-3 z-10 flex flex-col gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black shadow-md backdrop-blur-md ${
                         isGroup 
                           ? "bg-purple-600/90 text-white border border-purple-400/30"
@@ -467,7 +535,10 @@ export default function ProgrammesRegistrationCard() {
                     </div>
 
                     {/* Registration Status Pill */}
-                    <div className="absolute top-3 right-3 z-10">
+                    <div 
+                      className="absolute top-3 right-3 z-10"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase shadow-md ${
                         program.IsOpenRegistration 
                           ? "bg-emerald-500 text-white" 
@@ -614,100 +685,66 @@ export default function ProgrammesRegistrationCard() {
           />
         )}
 
-        {/* Modal: Submit Content for Required Programmes */}
-        {contentModal.isOpen && contentModal.program && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
-            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in duration-200">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
-                    <FileText size={18} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900">Submit Event Content</h3>
-                    <span className="text-[11px] font-mono font-bold text-indigo-600">
-                      #{contentModal.program.Program_Code}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setContentModal(prev => ({ ...prev, isOpen: false }))}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+        {/* Modal: Submit Content for Required Programmes (Content_Table with docx/pdf/tsx upload & paste fallback) */}
+        {contentModalProgram && (
+          <SubmitContentModal
+            isOpen={Boolean(contentModalProgram)}
+            onClose={() => setContentModalProgram(null)}
+            onSuccess={(submission) => {
+              setSubmittedContents((prev) => ({
+                ...prev,
+                [submission.programe_code]: {
+                  content_title: submission.content_title,
+                  like_count: 0,
+                },
+              }));
+            }}
+            program={contentModalProgram}
+            studentAddNo={studentAddNo || ""}
+          />
+        )}
+        {/* Fullscreen Image Preview & Download Modal */}
+        {fullscreenImage && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setFullscreenImage(null)}
+          >
+            {/* Close Button */}
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }} 
+              className="absolute top-6 right-6 text-white/80 hover:text-white p-3 rounded-full bg-white/10 hover:bg-white/20 transition cursor-pointer z-10"
+              title="Close Preview"
+            >
+              <X size={24} />
+            </button>
 
-              <div>
-                <p className="text-xs text-slate-500 font-medium">Programme:</p>
-                <p className="text-sm font-bold text-slate-900">{contentModal.program.Program_Title}</p>
-                {contentModal.program.ContentSubmition_deadLine && (
-                  <p className="text-[11px] text-amber-700 font-semibold mt-1 flex items-center gap-1">
-                    <Clock size={12} /> Deadline: {contentModal.program.ContentSubmition_deadLine}
-                  </p>
-                )}
-              </div>
+            {/* Download Button */}
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDownloadImage(fullscreenImage.url, fullscreenImage.title); }} 
+              className="absolute top-6 right-20 text-white flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-lg transition cursor-pointer z-10"
+              title="Download Poster"
+            >
+              <Download size={18} /> 
+              <span>Download Poster</span>
+            </button>
 
-              <form onSubmit={handleSubmitContent} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                    Content Title / Topic / Submission Abstract
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Enter your essay title, poem name, speech topic, or submission headline..."
-                    value={contentModal.contentTitle}
-                    onChange={e => setContentModal(prev => ({ ...prev, contentTitle: e.target.value }))}
-                    className="w-full p-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-amber-500 focus:bg-white resize-none"
-                    required
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    This work will be registered under your Admission Number and featured in the Public Student Showcase.
-                  </p>
-                </div>
-
-                {contentModal.error && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center gap-2">
-                    <AlertTriangle size={15} className="shrink-0 text-rose-600" />
-                    <span>{contentModal.error}</span>
-                  </div>
-                )}
-
-                {contentModal.success && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2 font-bold">
-                    <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
-                    <span>{contentModal.success}</span>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setContentModal(prev => ({ ...prev, isOpen: false }))}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={contentModal.submitting}
-                    className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-md shadow-amber-600/20 disabled:opacity-50"
-                  >
-                    {contentModal.submitting ? (
-                      <>
-                        <Loader2 size={13} className="animate-spin" />
-                        <span>Submitting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send size={13} />
-                        <span>Submit Content</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+            {/* Image Container */}
+            <div 
+              className="max-w-4xl max-h-[85vh] w-full flex flex-col items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img 
+                src={fullscreenImage.url} 
+                alt={fullscreenImage.title} 
+                className="max-h-[80vh] w-auto max-w-full rounded-2xl shadow-2xl object-contain border border-white/10" 
+              />
+              {fullscreenImage.title && (
+                <p className="text-white text-xs sm:text-sm font-semibold mt-3 text-center truncate max-w-xl">
+                  {fullscreenImage.title}
+                </p>
+              )}
             </div>
           </div>
         )}

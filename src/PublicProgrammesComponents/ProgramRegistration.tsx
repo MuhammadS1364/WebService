@@ -293,11 +293,11 @@ export default function ProgrammeRegistration() {
         throw new Error(`Database Error: ${insertError.message}`);
       }
 
-      // Update Registrations Count in Wing
+      // Update Registrations Count in Wing (Hold points until the program is resulted)
       try {
         const { data: wingRecord } = await SupaBaseFunction
           .from("Chs-WingS")
-          .select("Total_Registrations, Total_Points")
+          .select("Total_Registrations")
           .eq("WingCode", formData.WingCode)
           .maybeSingle();
 
@@ -306,7 +306,7 @@ export default function ProgrammeRegistration() {
             .from("Chs-WingS")
             .update({
               Total_Registrations: (wingRecord.Total_Registrations || 0) + 1,
-              Total_Points: (wingRecord.Total_Points || 0) + 1,
+              // Total_Points are held until the programme results are officially declared in CreateResult
             })
             .eq("WingCode", formData.WingCode);
         }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import SafeImage from "../../lib/SafeImage";
 import EditWingModal from "./EditWingModal";
 import { exportToExcel } from "../../lib/excelService";
@@ -44,7 +44,46 @@ interface WingData {
 
 export default function AllWingsList() {
   const { actUser } = useParams<{ actUser: string }>();
+  const location = useLocation();
   const decodedEmail = actUser ? decodeURIComponent(actUser) : null;
+
+  // Detect public view strictly: either on /public-panel or when not in an authenticated admin/wing route
+  const isPublicView = useMemo(() => {
+    if (location.pathname.includes("/public-panel")) return true;
+    if (location.pathname.startsWith("/our-wing-list")) return true;
+    if (!actUser) return true;
+    return !location.pathname.startsWith("/admin-panel") && !location.pathname.startsWith("/wing-panel");
+  }, [location.pathname, actUser]);
+
+  // Determine current logged in user & role
+  const currentUser = useMemo(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const isAdmin = useMemo(() => {
+    // In public unauthenticated view, NO administrative actions are permitted
+    if (isPublicView) return false;
+    return Boolean(currentUser && currentUser.UserRole === "Admin" && actUser);
+  }, [currentUser, isPublicView, actUser]);
+
+  const canEditWing = (wing: WingData) => {
+    // In public unauthenticated view, visitors cannot edit or delete any wing
+    if (isPublicView) return false;
+    if (isAdmin) return true;
+    if (currentUser && currentUser.UserRole === "Wing") {
+      const email = (currentUser.UserEmail || "").toLowerCase().trim();
+      const wingEmail = (wing.WingEmail || "").toLowerCase().trim();
+      const userCode = (currentUser.WingCode || "").toLowerCase().trim();
+      const wingCode = (wing.WingCode || "").toLowerCase().trim();
+      return Boolean((email && wingEmail && email === wingEmail) || (userCode && wingCode && userCode === wingCode));
+    }
+    return false;
+  };
 
   const [wings, setWings] = useState<WingData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -256,25 +295,27 @@ export default function AllWingsList() {
           </p>
         </div>
 
-        {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer"
-          >
-            <Download size={14} />
-            <span>Export Excel ({filteredAndSortedWings.length})</span>
-          </button>
+        {/* Header Action Buttons (Admin Only) */}
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-bold rounded-xl transition cursor-pointer"
+            >
+              <Download size={14} />
+              <span>Export Excel ({filteredAndSortedWings.length})</span>
+            </button>
 
-          <Link
-            to={actUser ? `/admin-panel/${actUser}/create-wing` : "#"}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs shadow-indigo-200 transition cursor-pointer"
-          >
-            <Plus size={15} />
-            <span>Create New Wing</span>
-          </Link>
-        </div>
+            <Link
+              to={actUser ? `/admin-panel/${actUser}/create-wing` : "#"}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs shadow-indigo-200 transition cursor-pointer"
+            >
+              <Plus size={15} />
+              <span>Create New Wing</span>
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* --- KPI SUMMARY METRICS --- */}
@@ -462,25 +503,29 @@ export default function AllWingsList() {
                     </div>
                   </div>
 
-                  {/* Actions Menu */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleEditWing(wing)}
-                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition cursor-pointer"
-                      title="Edit Wing"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteWing(wing)}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
-                      title="Delete Wing"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {/* Actions Menu - Only for Admin or Active Wing User */}
+                  {(isAdmin || canEditWing(wing)) && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleEditWing(wing)}
+                        className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition cursor-pointer"
+                        title="Edit Wing"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteWing(wing)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
+                          title="Delete Wing"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* POINTS HIGHLIGHT BANNER */}
@@ -505,8 +550,8 @@ export default function AllWingsList() {
                   </div>
                 </div>
 
-                {/* CREDENTIALS SECTION */}
-                {decodedEmail && (
+                {/* CREDENTIALS SECTION (Admin Only) */}
+                {isAdmin && decodedEmail && (
                   <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/90 p-3 space-y-2">
                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       <span className="flex items-center gap-1 text-indigo-700 font-extrabold">
@@ -601,19 +646,33 @@ export default function AllWingsList() {
                     </span>
                   </div>
 
-                  {/* Active Toggle Switch */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleActive(wing)}
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition cursor-pointer border ${
-                      wing.IsActive
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                        : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${wing.IsActive ? "bg-emerald-500" : "bg-slate-400"}`} />
-                    {wing.IsActive ? "Active" : "Inactive"}
-                  </button>
+                  {/* Active Status: Toggle Switch for Admin, Read-Only Badge for Public */}
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(wing)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition cursor-pointer border ${
+                        wing.IsActive
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                          : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200"
+                      }`}
+                      title="Click to toggle status"
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${wing.IsActive ? "bg-emerald-500" : "bg-slate-400"}`} />
+                      {wing.IsActive ? "Active" : "Inactive"}
+                    </button>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                        wing.IsActive
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-slate-100 text-slate-500 border-slate-200"
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${wing.IsActive ? "bg-emerald-500" : "bg-slate-400"}`} />
+                      {wing.IsActive ? "Active" : "Inactive"}
+                    </span>
+                  )}
                 </div>
               </div>
             );

@@ -295,3 +295,19 @@ create table public."SquadMate" (
   constraint SquadMate_member5_uuid_fkey foreign KEY (member5_uuid) references "StudentsBox" ("AddNo") on update CASCADE on delete CASCADE,
   constraint SquadMate_member2_uuid_fkey foreign KEY (member2_uuid) references "StudentsBox" ("AddNo") on update CASCADE on delete CASCADE
 ) TABLESPACE pg_default;
+
+=== Content_Table ===
+create table public."Content_Table" (
+  content_id uuid not null default gen_random_uuid (),
+  created_at timestamp with time zone not null default now(),
+  content_title character varying null default 'content_title'::character varying,
+  programe_code character varying null,
+  "student_addNo" character varying null,
+  like_count integer null default 0,
+  content_text text null default 'content_text'::text,
+  content_file text null,
+  constraint "Content_Table_pkey" primary key (content_id),
+  constraint "Content_Table_programe_code_fkey" foreign KEY (programe_code) references "ProgrammesBox" ("Program_Code") on update CASCADE on delete RESTRICT,
+  constraint "Content_Table_student_addNo_fkey" foreign KEY ("student_addNo") references "StudentsBox" ("AddNo") on update CASCADE on delete RESTRICT
+) TABLESPACE pg_default;
+

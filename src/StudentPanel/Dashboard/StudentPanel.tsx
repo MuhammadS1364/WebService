@@ -14,7 +14,8 @@ import {
   LogOut,
   User,
   Compass,
-  CheckSquare
+  CheckSquare,
+  Trophy
 } from "lucide-react";
 
 export default function StudentPanel() {
@@ -125,6 +126,11 @@ export default function StudentPanel() {
           <NavLink to={`/student-panel/${actStn || ""}/stn-program`} className={navLinkClasses}>
             <CheckSquare size={16} className="text-emerald-600" />
             <span>My Registered Events</span>
+          </NavLink>
+
+          <NavLink to={`/student-panel/${actStn || ""}/stn-results`} className={navLinkClasses}>
+            <Trophy size={16} className="text-amber-600" />
+            <span>My Results</span>
           </NavLink>
 
           <NavLink to={`/student-panel/${actStn || ""}/stn-achievements-list`} className={navLinkClasses}>
@@ -300,6 +306,14 @@ export default function StudentPanel() {
           >
             <Award size={19} className="mb-0.5 text-amber-500" />
             <span>Honors</span>
+          </NavLink>
+
+          <NavLink
+            to={`/student-panel/${actStn || ""}/stn-results`}
+            className={bottomBarLinkClasses}
+          >
+            <Trophy size={19} className="mb-0.5 text-amber-600" />
+            <span>Results</span>
           </NavLink>
 
           <NavLink

@@ -59,8 +59,8 @@ export default function AdminPanel() {
     }`;
 
   const bottomBarLinkClasses = ({ isActive }: { isActive: boolean }) =>
-    `flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-2xl transition-all text-[10px] font-bold ${
-      isActive ? "text-indigo-600 font-black scale-105" : "text-slate-500 hover:text-slate-800"
+    `flex flex-col items-center justify-center min-w-[58px] py-1 px-1 rounded-xl transition-all text-[9px] font-bold shrink-0 ${
+      isActive ? "text-indigo-600 font-black bg-indigo-50/90 shadow-2xs" : "text-slate-500 hover:text-slate-800"
     }`;
 
   return (
@@ -326,21 +326,21 @@ export default function AdminPanel() {
           </div>
         </main>
 
-        {/* MOBILE BOTTOM NAVIGATION BAR: CLEAN WHITE BACKGROUND, DIRECT 5 TABS (NO (...) BUTTON) */}
-        <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center justify-around py-1.5 px-1 shadow-lg backdrop-blur-md">
+        {/* MOBILE BOTTOM NAVIGATION BAR: SHOWS ALL BUTTONS WITH SMOOTH HORIZONTAL SCROLL */}
+        <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center overflow-x-auto scrollbar-none py-1.5 px-1 shadow-lg backdrop-blur-md gap-1">
           <NavLink
             to={`/admin-panel/${actUser}/dashboard`}
             className={bottomBarLinkClasses}
           >
-            <LayoutDashboard size={19} className="mb-0.5" />
-            <span>Dashboard</span>
+            <LayoutDashboard size={17} className="mb-0.5" />
+            <span>Home</span>
           </NavLink>
 
           <NavLink
             to={`/admin-panel/${actUser}/Programmes-List`}
             className={bottomBarLinkClasses}
           >
-            <Calendar size={19} className="mb-0.5" />
+            <Calendar size={17} className="mb-0.5 text-indigo-600" />
             <span>Programs</span>
           </NavLink>
 
@@ -348,7 +348,7 @@ export default function AdminPanel() {
             to={`/admin-panel/${actUser}/all-students`}
             className={bottomBarLinkClasses}
           >
-            <Users size={19} className="mb-0.5 text-emerald-600" />
+            <Users size={17} className="mb-0.5 text-emerald-600" />
             <span>Students</span>
           </NavLink>
 
@@ -356,17 +356,58 @@ export default function AdminPanel() {
             to={`/admin-panel/${actUser}/all-wings-list`}
             className={bottomBarLinkClasses}
           >
-            <Building2 size={19} className="mb-0.5 text-amber-600" />
+            <Building2 size={17} className="mb-0.5 text-amber-600" />
             <span>Wings</span>
+          </NavLink>
+
+          <NavLink
+            to={`/admin-panel/${actUser}/master-config`}
+            className={bottomBarLinkClasses}
+          >
+            <Database size={17} className="mb-0.5 text-violet-600" />
+            <span>Master</span>
           </NavLink>
 
           <NavLink
             to={`/admin-panel/${actUser}/economy-analytics`}
             className={bottomBarLinkClasses}
           >
-            <CreditCard size={19} className="mb-0.5 text-sky-600" />
+            <CreditCard size={17} className="mb-0.5 text-sky-600" />
             <span>Finance</span>
           </NavLink>
+
+          <NavLink
+            to={`/admin-panel/${actUser}/all-donators`}
+            className={bottomBarLinkClasses}
+          >
+            <Award size={17} className="mb-0.5 text-rose-500" />
+            <span>Donations</span>
+          </NavLink>
+
+          <NavLink
+            to={`/admin-panel/${actUser}/all-users`}
+            className={bottomBarLinkClasses}
+          >
+            <UserCheck size={17} className="mb-0.5 text-teal-600" />
+            <span>Users</span>
+          </NavLink>
+
+          <NavLink
+            to={`/admin-panel/${actUser}/profile`}
+            className={bottomBarLinkClasses}
+          >
+            <TrendingUp size={17} className="mb-0.5 text-blue-600" />
+            <span>Profile</span>
+          </NavLink>
+
+          <button
+            type="button"
+            onClick={() => setIsMobileDrawerOpen(true)}
+            className="flex flex-col items-center justify-center min-w-[58px] py-1 px-1 rounded-xl transition-all text-[9px] font-bold shrink-0 text-slate-500 hover:text-slate-800 cursor-pointer"
+          >
+            <Menu size={17} className="mb-0.5 text-slate-600" />
+            <span>More</span>
+          </button>
         </nav>
 
         {/* MOBILE FULL DRAWER (Clean white background, opened via Header menu button) */}

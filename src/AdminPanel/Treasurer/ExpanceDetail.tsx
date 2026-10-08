@@ -4,7 +4,7 @@ import {
   Wallet, Calendar, AlertCircle, ChevronDown, ChevronUp 
 } from "lucide-react";
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
 import { SupaBaseFunction } from "../../lib/SupaBase";
@@ -278,7 +278,6 @@ export default function ExpancesDetail() {
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
                     <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
                     <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                    <Legend iconType="circle" wrapperStyle={{paddingTop: '20px'}} />
                     <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={50} />
                     <Bar dataKey="Expense" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={50} />
                   </BarChart>
@@ -287,6 +286,12 @@ export default function ExpancesDetail() {
                 <div className="h-full flex items-center justify-center text-slate-400">No data available</div>
               )}
             </div>
+            {barChartData.length > 0 && (
+              <div className="flex items-center justify-center gap-4 text-xs font-medium text-slate-600 pt-3">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" /> Income</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f43f5e]" /> Expense</span>
+              </div>
+            )}
           </div>
 
           {/* Pie Chart */}
@@ -304,13 +309,22 @@ export default function ExpancesDetail() {
                       ))}
                     </Pie>
                     <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}} />
-                    <Legend iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-400">No data available</div>
               )}
             </div>
+            {pieChartData.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600 pt-3">
+                {pieChartData.map((item, idx) => (
+                  <span key={item.name} className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                    {item.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

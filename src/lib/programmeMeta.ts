@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { SupaBaseFunction } from "./SupaBase";
 import type {
   OurCategoryRecord,
@@ -102,13 +102,6 @@ export function useProgrammeMeta(): ProgrammeMetaState {
 
   const fetchMeta = useCallback(async (force = false) => {
     if (!force && inMemoryMetaCache && Date.now() - inMemoryMetaCache.timestamp < CACHE_TTL) {
-      setCategories(inMemoryMetaCache.categories);
-      setVenues(inMemoryMetaCache.venues);
-      setAcademicYears(inMemoryMetaCache.academicYears);
-      setPointsTemplates(inMemoryMetaCache.pointsTemplates);
-      setClasses(inMemoryMetaCache.classes);
-      setBatches(inMemoryMetaCache.batches);
-      setWings(inMemoryMetaCache.wings);
       setLoading(false);
       return;
     }
@@ -165,46 +158,67 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     fetchMeta();
   }, [fetchMeta]);
 
-  // Construct Lookup Maps
-  const categoryMap: Record<string, string> = {};
-  categories.forEach((c) => {
-    if (c.category_id) categoryMap[c.category_id] = c.category_title;
-  });
+  // Construct Lookup Maps with useMemo to maintain stable references
+  const categoryMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    categories.forEach((c) => {
+      if (c.category_id) map[c.category_id] = c.category_title;
+    });
+    return map;
+  }, [categories]);
 
-  const venueMap: Record<string, string> = {};
-  venues.forEach((v) => {
-    if (v.venue_id) venueMap[v.venue_id] = v.venue_title;
-  });
+  const venueMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    venues.forEach((v) => {
+      if (v.venue_id) map[v.venue_id] = v.venue_title;
+    });
+    return map;
+  }, [venues]);
 
-  const academicMap: Record<string, string> = {};
-  academicYears.forEach((a) => {
-    if (a.accademic_id) {
-      academicMap[a.accademic_id] = a.accademic_year || a.accademic_title || "Academic Year";
-    }
-  });
+  const academicMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    academicYears.forEach((a) => {
+      if (a.accademic_id) {
+        map[a.accademic_id] = a.accademic_year || a.accademic_title || "Academic Year";
+      }
+    });
+    return map;
+  }, [academicYears]);
 
-  const templateMap: Record<string, string> = {};
-  pointsTemplates.forEach((t) => {
-    if (t.p_template_id) templateMap[t.p_template_id] = t.point_template_title;
-  });
+  const templateMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    pointsTemplates.forEach((t) => {
+      if (t.p_template_id) map[t.p_template_id] = t.point_template_title;
+    });
+    return map;
+  }, [pointsTemplates]);
 
-  const batchMap: Record<string, string> = {};
-  batches.forEach((b) => {
-    if (b.batch_id) batchMap[b.batch_id] = b.batch_name;
-  });
+  const batchMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    batches.forEach((b) => {
+      if (b.batch_id) map[b.batch_id] = b.batch_name;
+    });
+    return map;
+  }, [batches]);
 
-  const classMap: Record<string, string> = {};
-  classes.forEach((cl) => {
-    if (cl.class_id) {
-      const name = cl.standard_name || cl.class_title || `Class #${cl.class_serial_number || 1}`;
-      classMap[cl.class_id] = cl.class_nick_name ? `${name} (${cl.class_nick_name})` : name;
-    }
-  });
+  const classMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    classes.forEach((cl) => {
+      if (cl.class_id) {
+        const name = cl.standard_name || cl.class_nick_name || `Class #${cl.class_serial_number || 1}`;
+        map[cl.class_id] = cl.class_nick_name ? `${name} (${cl.class_nick_name})` : name;
+      }
+    });
+    return map;
+  }, [classes]);
 
-  const wingMap: Record<string, string> = {};
-  wings.forEach((w) => {
-    if (w.WingCode) wingMap[w.WingCode] = w.WingTitle || w.WingCode;
-  });
+  const wingMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    wings.forEach((w) => {
+      if (w.WingCode) map[w.WingCode] = w.WingTitle || w.WingCode;
+    });
+    return map;
+  }, [wings]);
 
   const activeAcademicYear = academicYears.find((a) => a.is_active) || academicYears[0];
   const activeAcademicYearId = activeAcademicYear?.accademic_id || "";
@@ -292,7 +306,6 @@ export function useProgrammeMeta(): ProgrammeMetaState {
             standard_name: standardName.trim(),
             class_nick_name: nickName?.trim() || null,
             batch_uuid: batchUuid || null,
-            class_title: standardName.trim(),
             class_serial_number: serialNumber,
             total_student: totalStudent,
             is_active: true,

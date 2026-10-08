@@ -4,7 +4,19 @@ import * as XLSX from "xlsx";
 import EditProgrammeModal from "./EditProgrammeModal";
 import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
-import { Edit3 } from "lucide-react"; 
+import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
+import { 
+  Edit3, 
+  Calendar, 
+  MapPin, 
+  Users, 
+  Layers, 
+  Maximize2, 
+  FileText, 
+  X,
+  Award,
+  Key
+} from "lucide-react"; 
 
 export interface Programme {
   Program_Title: string | null;
@@ -60,6 +72,8 @@ export default function AdminProgrammesList() {
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [editingProgram, setEditingProgram] = useState<Programme | null>(null);
+  const [fullscreenPoster, setFullscreenPoster] = useState<{ url: string; title: string } | null>(null);
+  const [isUuidModalOpen, setIsUuidModalOpen] = useState(false);
   
   const [isLoading, setIsLoading] = useState({ fetch: true, import: false, export: false, action: false });
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -309,10 +323,14 @@ export default function AdminProgrammesList() {
               <button onClick={() => setViewMode("calendar")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-emerald-600'}`}>Calendar</button>
             </div>
             <input type="file" accept=".xlsx, .xls" ref={fileInputRef} style={{ display: 'none' }} onChange={processImportedFile} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={isLoading.import} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-70 shadow-sm">
+            <button onClick={() => fileInputRef.current?.click()} disabled={isLoading.import} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-70 shadow-sm cursor-pointer">
               {isLoading.import ? <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span> : "Import Excel"}
             </button>
-            <button onClick={handleExport} disabled={isLoading.export} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-white border-2 border-emerald-600 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-50 transition disabled:opacity-70 shadow-sm">
+            <button onClick={() => setIsUuidModalOpen(true)} type="button" className="flex items-center gap-1.5 px-3.5 py-2.5 bg-purple-50 border border-purple-200 text-purple-700 rounded-xl text-xs sm:text-sm font-bold hover:bg-purple-100 transition shadow-xs cursor-pointer" title="View copyable UUIDs for Classes & Categories for Excel import">
+              <Key size={14} className="text-purple-600" />
+              <span>Reference UUIDs</span>
+            </button>
+            <button onClick={handleExport} disabled={isLoading.export} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-white border-2 border-emerald-600 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-50 transition disabled:opacity-70 shadow-sm cursor-pointer">
               {isLoading.export ? <span className="animate-spin h-4 w-4 border-2 border-emerald-700 border-t-transparent rounded-full"></span> : "Export Excel (All)"}
             </button>
           </div>
@@ -377,64 +395,189 @@ export default function AdminProgrammesList() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProgrammes.map((prog) => {
               const isSelected = selectedPrograms.has(prog.Program_Code);
+              const catTitle = getCategoryName(prog.Category);
+              const isGroup = Boolean((prog as any).is_group_program);
+              const isContentReq = Boolean((prog as any).isContentRequired);
+
               return (
-                <div key={prog.Program_Code} className={`relative flex flex-col bg-white rounded-2xl overflow-hidden transition-all duration-200 ${isSelected ? 'ring-2 ring-emerald-500 shadow-md' : 'border border-emerald-100 shadow-sm hover:shadow-md'}`}>
-                  
+                <div
+                  key={prog.Program_Code}
+                  className={`relative flex flex-col bg-white rounded-3xl overflow-hidden transition-all duration-300 group ${
+                    isSelected
+                      ? "ring-2 ring-emerald-500 shadow-xl border-transparent"
+                      : "border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-emerald-300"
+                  }`}
+                >
                   {/* MULTIPLE SELECTION CHECKBOX */}
-                  <div className="absolute top-3 left-3 z-10 bg-white/80 p-1.5 rounded-lg backdrop-blur-sm shadow-sm">
-                    <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-emerald-600 cursor-pointer" checked={isSelected} onChange={() => {
+                  <div className="absolute top-3 left-3 z-20 bg-slate-900/60 backdrop-blur-md p-1.5 rounded-xl border border-white/20 shadow-md">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer block"
+                      checked={isSelected}
+                      onChange={() => {
                         const next = new Set(selectedPrograms);
-                        if (next.has(prog.Program_Code)) next.delete(prog.Program_Code); else next.add(prog.Program_Code);
+                        if (next.has(prog.Program_Code)) next.delete(prog.Program_Code);
+                        else next.add(prog.Program_Code);
                         setSelectedPrograms(next);
                       }}
                     />
                   </div>
 
-                  <div className="h-48 w-full bg-slate-900 relative overflow-hidden">
+                  {/* POSTER BANNER */}
+                  <div className="h-52 w-full bg-slate-950 relative overflow-hidden group/img">
                     <SafeImage
                       src={prog.Program_Poster}
                       alt={prog.Program_Title || "Program"}
                       fallbackCategory="programme"
                       fallbackText={prog.Program_Title || prog.Program_Code}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase shadow-sm ${prog.IsApproved ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-white'}`}>{prog.IsApproved ? "Approved" : "Pending"}</span>
-                      <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase shadow-sm ${prog.IsOpenRegistration ? 'bg-white text-emerald-800' : 'bg-red-500 text-white'}`}>{prog.IsOpenRegistration ? 'Reg Open' : 'Reg Closed'}</span>
+
+                    {/* Gradient Overlay for badge contrast */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
+
+                    {/* Top-Right Status Pills */}
+                    <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border ${
+                          prog.IsApproved
+                            ? "bg-emerald-500/90 text-white border-emerald-400/30"
+                            : "bg-amber-500/90 text-slate-950 border-amber-300/30"
+                        }`}
+                      >
+                        {prog.IsApproved ? "Approved" : "Pending"}
+                      </span>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border ${
+                          prog.IsOpenRegistration
+                            ? "bg-teal-500/90 text-white border-teal-300/30 animate-pulse"
+                            : "bg-rose-500/90 text-white border-rose-300/30"
+                        }`}
+                      >
+                        {prog.IsOpenRegistration ? "Reg Open" : "Reg Closed"}
+                      </span>
+                    </div>
+
+                    {/* Bottom Badges on Image */}
+                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Category Badge */}
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wide bg-slate-900/80 text-emerald-300 backdrop-blur-md border border-emerald-500/30 shadow-xs flex items-center gap-1">
+                          <Layers size={11} className="text-emerald-400" />
+                          {catTitle || "General"}
+                        </span>
+                        {/* Group/Individual format */}
+                        <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/20 shadow-xs">
+                          {isGroup ? "Squad" : "Individual"}
+                        </span>
+                      </div>
+
+                      {/* Poster Expand Button */}
+                      {prog.Program_Poster && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFullscreenPoster({
+                              url: prog.Program_Poster!,
+                              title: prog.Program_Title || prog.Program_Code,
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition shadow-xs cursor-pointer"
+                          title="Preview Full Poster"
+                        >
+                          <Maximize2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="p-5 flex flex-col flex-grow">
-                    <h3 className="font-bold text-gray-900 text-lg leading-tight line-clamp-2">{prog.Program_Title}</h3>
-                    <p className="text-xs text-emerald-600 font-mono mt-1 mb-4 font-semibold">{prog.Program_Code}</p>
-                    
-                    <div className="mt-auto space-y-2 text-sm mb-4">
-                      <div className="flex items-center gap-2 text-gray-700 font-semibold"><span className="truncate">{getWingName(prog.WingCode)}</span></div>
-                      <div className="flex items-center gap-2 text-gray-600 font-medium"><span>{prog.Date || "TBA"}</span> | <span>{getVenueName(prog.Venue)}</span></div>
+                  {/* CARD BODY */}
+                  <div className="p-5 flex flex-col flex-grow bg-white space-y-3.5">
+                    {/* Header */}
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          #{prog.Program_Code}
+                        </span>
+                        {prog.IsResultPublished && (
+                          <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <Award size={11} /> Results Published
+                          </span>
+                        )}
+                        {isContentReq && !prog.IsResultPublished && (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <FileText size={11} /> Content Req
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-2 group-hover:text-emerald-700 transition-colors">
+                        {prog.Program_Title || "Untitled Programme"}
+                      </h3>
                     </div>
-                    
-                    {/* EDIT & STATUS UPDATE BUTTONS */}
-                    <div className="flex flex-col gap-2 pt-4 border-t border-gray-100">
+
+                    {/* Metadata Details */}
+                    <div className="space-y-2 text-xs pt-1 border-t border-slate-100">
+                      <div className="flex items-center gap-2 text-slate-700 font-semibold truncate">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="truncate">{getWingName(prog.WingCode)}</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-slate-600 font-medium text-[11px]">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Calendar size={13} className="text-slate-400 shrink-0" />
+                          <span className="truncate">{prog.Date || "TBA"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 truncate">
+                          <MapPin size={13} className="text-slate-400 shrink-0" />
+                          <span className="truncate">{getVenueName(prog.Venue)}</span>
+                        </div>
+                      </div>
+
+                      {/* Registration Stats Counter */}
+                      <div className="flex items-center justify-between pt-1 text-[11px]">
+                        <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                          <Users size={13} className="text-indigo-600" />
+                          <span>{prog.Total_Registration || 0} Registered</span>
+                        </div>
+                        {prog.AccademicYear && (
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {getAcademicYearName(prog.AccademicYear)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* EDIT & STATUS ACTION BUTTONS */}
+                    <div className="flex flex-col gap-2 pt-3 border-t border-slate-100 mt-auto">
                       <button
                         type="button"
                         onClick={() => setEditingProgram(prog)}
-                        className="w-full py-2 px-3 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                       >
                         <Edit3 size={13} /> Edit Programme Details
                       </button>
 
                       <div className="flex gap-2">
-                        <button 
+                        <button
                           disabled={isLoading.action}
                           onClick={() => handleSingleAction(prog.Program_Code, "ToggleApprove")}
-                          className="flex-1 py-2 rounded-lg text-xs font-bold border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition disabled:opacity-50 cursor-pointer"
+                          className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-bold border transition disabled:opacity-50 cursor-pointer text-center ${
+                            prog.IsApproved
+                              ? "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                              : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                          }`}
                         >
                           {prog.IsApproved ? "Mark Pending" : "Approve Now"}
                         </button>
-                        <button 
+                        <button
                           disabled={isLoading.action}
                           onClick={() => handleSingleAction(prog.Program_Code, "ToggleReg")}
-                          className={`flex-1 py-2 rounded-lg text-xs font-bold transition disabled:opacity-50 cursor-pointer ${prog.IsOpenRegistration ? 'bg-red-50 text-red-700 hover:bg-red-100' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}
+                          className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-bold transition disabled:opacity-50 cursor-pointer text-center ${
+                            prog.IsOpenRegistration
+                              ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                              : "bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100"
+                          }`}
                         >
                           {prog.IsOpenRegistration ? "Close Reg" : "Open Reg"}
                         </button>
@@ -516,6 +659,37 @@ export default function AdminProgrammesList() {
             showToast("Programme details updated successfully!", "success");
             fetchData();
           }}
+        />
+
+        {/* Fullscreen Poster Modal */}
+        {fullscreenPoster && (
+          <div
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={() => setFullscreenPoster(null)}
+          >
+            <button
+              type="button"
+              onClick={() => setFullscreenPoster(null)}
+              className="absolute top-5 right-5 p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition cursor-pointer"
+            >
+              <X size={20} />
+            </button>
+            <div className="max-w-2xl max-h-[85vh] p-2 bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <img
+                src={fullscreenPoster.url}
+                alt={fullscreenPoster.title}
+                className="w-full h-auto max-h-[75vh] object-contain rounded-2xl"
+              />
+              <div className="p-3 text-center">
+                <p className="font-bold text-slate-800 text-sm truncate">{fullscreenPoster.title}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Excel UUID Reference Helper Modal */}
+        <ExcelUuidReferenceModal
+          isOpen={isUuidModalOpen}
+          onClose={() => setIsUuidModalOpen(false)}
         />
       </div>
     </div>

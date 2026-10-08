@@ -23,6 +23,8 @@ import {
   Building2,
   Heart,
   Loader2,
+  Maximize2,
+  Download,
 } from "lucide-react";
 
 // --- Type Definitions ---
@@ -102,6 +104,28 @@ export default function StudentAnalytics() {
     error: null,
     success: null,
   });
+
+  // Fullscreen Image Preview & Download State
+  const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
+
+  const handleDownloadImage = async (url: string, title?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      const sanitizedName = (title || "programme-poster").replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.setAttribute("download", `${sanitizedName}.jpg`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.error("Download failed:", err);
+      window.open(url, "_blank");
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -503,21 +527,39 @@ export default function StudentAnalytics() {
                   key={prog.Program_Code}
                   className="border border-slate-200/90 rounded-3xl overflow-hidden hover:shadow-lg hover:border-indigo-200 transition-all duration-300 bg-white flex flex-col justify-between group"
                 >
-                  {/* Poster / Image Display */}
-                  <div className="relative h-44 w-full bg-slate-900 overflow-hidden">
+                  {/* Poster / Image Display with Click-to-Preview and Download */}
+                  <div 
+                    className="relative h-44 w-full bg-slate-900 overflow-hidden cursor-pointer group/img"
+                    onClick={() => {
+                      if (prog.Program_Poster) {
+                        setFullscreenImage({
+                          url: prog.Program_Poster,
+                          title: prog.Program_Title || prog.Program_Code,
+                        });
+                      }
+                    }}
+                    title="Click to view poster and download"
+                  >
                     <SafeImage
                       src={prog.Program_Poster}
                       alt={prog.Program_Title || prog.Program_Code}
                       fallbackCategory="programme"
                       fallbackText={prog.Program_Title || prog.Program_Code}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105"
                     />
-                    <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1">
+                    {/* Hover Hint Overlay */}
+                    <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <div className="bg-black/75 text-white text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
+                        <Maximize2 size={13} />
+                        <span>View & Download</span>
+                      </div>
+                    </div>
+                    <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
                       <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full shadow-xs">
                         {prog.Group || "General"}
                       </span>
                     </div>
-                    <div className="absolute top-3 right-3 z-10">
+                    <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
                       <span className="text-[10px] font-mono font-bold text-white bg-slate-900/80 backdrop-blur-xs px-2 py-0.5 rounded-md">
                         #{prog.Program_Code}
                       </span>
@@ -651,13 +693,24 @@ export default function StudentAnalytics() {
                       {/* Title & Code with Poster Thumbnail */}
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-11 h-11 rounded-xl bg-slate-900 overflow-hidden shrink-0 shadow-2xs border border-slate-200">
+                          <div 
+                            className="w-11 h-11 rounded-xl bg-slate-900 overflow-hidden shrink-0 shadow-2xs border border-slate-200 cursor-pointer group/th hover:ring-2 hover:ring-indigo-400 transition"
+                            onClick={() => {
+                              if (prog.Program_Poster) {
+                                setFullscreenImage({
+                                  url: prog.Program_Poster,
+                                  title: prog.Program_Title || prog.Program_Code,
+                                });
+                              }
+                            }}
+                            title="Click to view poster"
+                          >
                             <SafeImage
                               src={prog.Program_Poster}
                               alt={prog.Program_Title}
                               fallbackCategory="programme"
                               fallbackText={prog.Program_Title || prog.Program_Code}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover group-hover/th:scale-110 transition duration-300"
                             />
                           </div>
                           <div className="min-w-0">
@@ -859,6 +912,52 @@ export default function StudentAnalytics() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Preview & Download Modal */}
+      {fullscreenImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setFullscreenImage(null)}
+        >
+          {/* Close Button */}
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }} 
+            className="absolute top-6 right-6 text-white/80 hover:text-white p-3 rounded-full bg-white/10 hover:bg-white/20 transition cursor-pointer z-10"
+            title="Close Preview"
+          >
+            <X size={24} />
+          </button>
+
+          {/* Download Button */}
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleDownloadImage(fullscreenImage.url, fullscreenImage.title); }} 
+            className="absolute top-6 right-20 text-white flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-lg transition cursor-pointer z-10"
+            title="Download Poster"
+          >
+            <Download size={18} /> 
+            <span>Download Poster</span>
+          </button>
+
+          {/* Image Container */}
+          <div 
+            className="max-w-4xl max-h-[85vh] w-full flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              src={fullscreenImage.url} 
+              alt={fullscreenImage.title} 
+              className="max-h-[80vh] w-auto max-w-full rounded-2xl shadow-2xl object-contain border border-white/10" 
+            />
+            {fullscreenImage.title && (
+              <p className="text-white text-xs sm:text-sm font-semibold mt-3 text-center truncate max-w-xl">
+                {fullscreenImage.title}
+              </p>
+            )}
           </div>
         </div>
       )}

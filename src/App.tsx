@@ -27,6 +27,7 @@ import StudentsOutReach from './StudentPanel/StudentOutReach/StudentOutReach';
 import StudentAnalytics from './StudentPanel/Anylatics/StudentAnylatics';
 import StudentProgrammes from './StudentPanel/StudentProgram/StudentProgrammes';
 import StudentGroupManage from './StudentPanel/StudentGroup/StudentGroupManage';
+import StudentResult from './StudentPanel/StudentResult/StudentResult';
 
 // Wing Components
 import WingPanel from './WingPanel/DashBoard/WingPanel';
@@ -42,6 +43,8 @@ import OutReachPanel from './OutReachPanel/DashBoard/OutReachPanel';
 import OutReachDashboard from './OutReachPanel/DashBoard/OutReachDashboard';
 import CreateAchievements from './OutReachPanel/OutReach/CreateAchievements';
 import CreateOutReach from './OutReachPanel/OutReach/CreateOutReach';
+import EditeOutReach from './OutReachPanel/Edite/EditeOutReach';
+import EditeAchievement from './OutReachPanel/Edite/EditeAchievement';
 import OutReachAndAchievements from './PublicHome/OutReachAndAchievements/OutReachAndAchievements';
 import PublicHomePanel from './PublicHome/PublicHomePanel';
 import PublicPageDashboard from './PublicHome/PublicDashboard';
@@ -67,6 +70,7 @@ import StudentsAnaylaticsGeneral from './AdminPanel/Anaylatics/StudentsAnaylatic
 import GeneralWingsAnaylatics from './AdminPanel/Anaylatics/WingsAnaylatics';
 import MasterConfigHub from './AdminPanel/MasterConfig/MasterConfigHub';
 import MasterConfigWrapper from './AdminPanel/MasterConfig/MasterConfigWrapper';
+import AISupportModal from './components/AISupportModal';
 
 
 import UpdatePassword from './UpdatePass/UpdatePass';
@@ -147,6 +151,8 @@ export default function App() {
           <Route path='stn-outreach-list' element={<StudentsOutReach />} />
           <Route path='stn-anylatics' element={<StudentAnalytics />} />
           <Route path='stn-program' element={<StudentProgrammes />} />
+          <Route path='stn-results' element={<StudentResult />} />
+          <Route path='my-results' element={<StudentResult />} />
           <Route path='create-group' element={<StudentGroupManage />} />
           <Route path='my-squads' element={<StudentGroupManage />} />
           <Route path='profile' element={<UpdateProfile />} />
@@ -186,8 +192,8 @@ export default function App() {
           <Route path='profile' element={<UpdateProfile />} />
           <Route path='outreach-profile' element={<UpdateProfile />} />
           <Route path='outreach-password' element={<UpdatePassword />} />
-          <Route path='edite-outreach' element={<OutReachAnaylatics />} />
-          <Route path='edite-achievement/:Achieve_Id' element={<OutReachAnaylatics />} />
+          <Route path='edite-outreach/:OutReach_Id' element={<EditeOutReach />} />
+          <Route path='edite-achievement/:Achieve_Id' element={<EditeAchievement />} />
         </Route>
 
         {/* Treasurer PANEL (Protected) */}
@@ -208,6 +214,9 @@ export default function App() {
         {/* 404 ERROR PAGE (Catches all unknown URLs) */}
         <Route path='*' element={<NotFoundPage />} />
       </Routes>
+
+      {/* DeepSeek AI Support Interactive Assistant */}
+      <AISupportModal />
     </>
   );
 }

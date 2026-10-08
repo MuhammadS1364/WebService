@@ -4,7 +4,7 @@ import { exportToExcel } from "../../lib/excelService";
 import type { ProgrammeRecord } from "../../lib/types";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
   LineChart, Line
 } from "recharts";
@@ -587,15 +587,16 @@ export default function ProgrammesAnalytics() {
                     <RechartsTooltip
                       contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
                     />
-                    <Legend
-                      layout="horizontal"
-                      verticalAlign="bottom"
-                      align="center"
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                    />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-600 pt-2 max-h-16 overflow-y-auto">
+                {categoryData.map((item, idx) => (
+                  <span key={item.name} className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                    {item.name}
+                  </span>
+                ))}
               </div>
             </div>
 

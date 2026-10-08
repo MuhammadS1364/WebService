@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
+import { useProgrammeMeta } from "../lib/programmeMeta";
 
 // Define the shape of your program data
 interface ProgramDetails {
@@ -17,6 +18,7 @@ interface StatusState {
 }
 
 export default function CandidateRegistration() {
+  const meta = useProgrammeMeta();
   // Extract P_Code from the URL and tell TypeScript it's a string
   // IMPORTANT: Your router MUST look like: <Route path="/register/:P_Code" element={...} />
   const { P_Code } = useParams<{ P_Code: string }>();
@@ -31,6 +33,7 @@ export default function CandidateRegistration() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDuplicate, setIsDuplicate] = useState<boolean>(false);
+  const [categoryMismatch, setCategoryMismatch] = useState<boolean>(false);
   const [status, setStatus] = useState<StatusState>({ type: "", text: "" });
 
   // ----------------------------------------
@@ -82,11 +85,12 @@ export default function CandidateRegistration() {
       try {
         setStudentName("Checking system registry...");
         setIsDuplicate(false);
+        setCategoryMismatch(false);
 
         // Step A: Check if the student exists in StudentsBox
         const { data: studentData, error: studentError } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("StudentName")
+          .select("StudentName, Stn_Class, Class")
           .eq("AddNo", candidateCode.trim())
           .maybeSingle();
 
@@ -95,7 +99,66 @@ export default function CandidateRegistration() {
           return;
         }
 
-        // Step B: Check for an existing registration to prevent duplicates
+        // Step B: Category Bonding Check
+        if (programDetails?.Category) {
+          const progCatId = programDetails.Category;
+          const progCatTitle = meta.categoryMap[progCatId] || progCatId;
+
+          if (
+            progCatTitle &&
+            progCatTitle.toLowerCase() !== "general" &&
+            progCatTitle.toLowerCase() !== "all"
+          ) {
+            // Find student's category
+            const classId = studentData.Stn_Class;
+            const className = studentData.Class;
+            const matchedClass = meta.classes.find(
+              (c) =>
+                (classId && c.class_id === classId) ||
+                (className && (c.standard_name === className || c.class_nick_name === className))
+            );
+            const resolvedClassId = matchedClass?.class_id || classId;
+
+            let studentCatTitle = "";
+            let studentCatId = "";
+            if (resolvedClassId) {
+              const cat = meta.categories.find(
+                (c) =>
+                  c.class_1 === resolvedClassId ||
+                  c.class_2 === resolvedClassId ||
+                  c.class_3 === resolvedClassId
+              );
+              if (cat) {
+                studentCatTitle = cat.category_title;
+                studentCatId = cat.category_id;
+              }
+            }
+
+            if (!studentCatTitle && className) {
+              const cat = meta.categories.find(
+                (c) => c.category_title.toLowerCase().trim() === className.toLowerCase().trim()
+              );
+              if (cat) {
+                studentCatTitle = cat.category_title;
+                studentCatId = cat.category_id;
+              }
+            }
+
+            const isMatch =
+              studentCatId === progCatId ||
+              (studentCatTitle && studentCatTitle.toLowerCase().trim() === progCatTitle.toLowerCase().trim());
+
+            if (!isMatch && studentCatTitle) {
+              setStudentName(
+                `❌ Category Mismatch: This programme is strictly for "${progCatTitle}". ${studentData.StudentName} belongs to "${studentCatTitle}".`
+              );
+              setCategoryMismatch(true);
+              return;
+            }
+          }
+        }
+
+        // Step C: Check for an existing registration to prevent duplicates
         const { data: duplicateCheck, error: duplicateError } = await SupaBaseFunction
           .from("CandidateRegistrationTable")
           .select("CandidateUUiD")
@@ -111,6 +174,7 @@ export default function CandidateRegistration() {
         } else {
           setStudentName(`✅ ${studentData.StudentName}`);
           setIsDuplicate(false);
+          setCategoryMismatch(false);
         }
       } catch (err) {
         console.error(err);
@@ -119,7 +183,7 @@ export default function CandidateRegistration() {
     }, 450); // Debounce delay for smooth typing UX
 
     return () => clearTimeout(delayDebounce);
-  }, [candidateCode, P_Code]);
+  }, [candidateCode, P_Code, programDetails, meta]);
 
 
   // ----------------------------------------
@@ -128,8 +192,8 @@ export default function CandidateRegistration() {
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!studentName.startsWith("✅") || isDuplicate) {
-      alert("Registration blocked due to invalid input data or duplicate validation.");
+    if (!studentName.startsWith("✅") || isDuplicate || categoryMismatch) {
+      alert("Registration blocked due to invalid candidate code, duplicate registration, or category restriction.");
       return;
     }
 

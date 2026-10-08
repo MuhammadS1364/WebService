@@ -3,6 +3,7 @@ import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { exportToExcel } from "../lib/excelService";
 import formatResultDate from "./DateFormatConvertor";
+import SafeImage from "../lib/SafeImage";
 import { Trophy, Search, Download, Calendar, MapPin, CheckCircle2 } from "lucide-react";
 import type { ResultBoxRecord } from "../lib/types";
 
@@ -336,8 +337,17 @@ export default function AllResultsList() {
                   {/* 1st Place */}
                   {res.First_Holder ? (
                     <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-amber-50/80 border border-amber-200/80">
-                      <div className="w-10 h-10 rounded-full bg-amber-400 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-sm ring-2 ring-white">
-                        🥇
+                      <div className="relative w-11 h-11 rounded-2xl overflow-hidden shrink-0 border-2 border-amber-400 bg-amber-100 shadow-sm">
+                        <SafeImage
+                          src={res.firstStudent?.Student_Photo_Urls}
+                          alt={res.firstStudent?.StudentName || res.First_Holder}
+                          fallbackCategory="student"
+                          fallbackText={res.firstStudent?.StudentName || res.First_Holder}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute -bottom-1 -right-1 text-xs bg-white/95 rounded-full px-1 shadow-xs leading-none border border-amber-200">
+                          🥇
+                        </span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">1st Position</div>
@@ -354,8 +364,17 @@ export default function AllResultsList() {
                   {/* 2nd Place */}
                   {res.Second_Holder ? (
                     <div className="flex items-center gap-3 p-2 rounded-2xl bg-slate-50 border border-slate-200">
-                      <div className="w-9 h-9 rounded-full bg-slate-300 text-slate-800 font-black text-sm flex items-center justify-center shrink-0 shadow-sm ring-2 ring-white">
-                        🥈
+                      <div className="relative w-10 h-10 rounded-2xl overflow-hidden shrink-0 border-2 border-slate-300 bg-slate-100 shadow-sm">
+                        <SafeImage
+                          src={res.secondStudent?.Student_Photo_Urls}
+                          alt={res.secondStudent?.StudentName || res.Second_Holder}
+                          fallbackCategory="student"
+                          fallbackText={res.secondStudent?.StudentName || res.Second_Holder}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute -bottom-1 -right-1 text-xs bg-white/95 rounded-full px-1 shadow-xs leading-none border border-slate-200">
+                          🥈
+                        </span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">2nd Position</div>
@@ -372,8 +391,17 @@ export default function AllResultsList() {
                   {/* 3rd Place */}
                   {res.Third_Holder ? (
                     <div className="flex items-center gap-3 p-2 rounded-2xl bg-orange-50/60 border border-orange-200/60">
-                      <div className="w-9 h-9 rounded-full bg-amber-700 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-sm ring-2 ring-white">
-                        🥉
+                      <div className="relative w-10 h-10 rounded-2xl overflow-hidden shrink-0 border-2 border-amber-600 bg-amber-100 shadow-sm">
+                        <SafeImage
+                          src={res.thirdStudent?.Student_Photo_Urls}
+                          alt={res.thirdStudent?.StudentName || res.Third_Holder}
+                          fallbackCategory="student"
+                          fallbackText={res.thirdStudent?.StudentName || res.Third_Holder}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute -bottom-1 -right-1 text-xs bg-white/95 rounded-full px-1 shadow-xs leading-none border border-orange-200">
+                          🥉
+                        </span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-extrabold uppercase tracking-wider text-orange-800">3rd Position</div>
@@ -391,15 +419,37 @@ export default function AllResultsList() {
                   {(res.aGradeStudent || (res.AGrade && res.AGrade !== "No Grade") || res.BGrade) && (
                     <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-100 mt-2">
                       {res.AGrade && res.AGrade !== "No Grade" && (
-                        <div className="flex-1 min-w-[130px] p-2 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs">
-                          <span className="font-extrabold text-[10px] uppercase text-emerald-700 block">Grade A Award</span>
-                          <span className="font-bold truncate block">{res.aGradeStudent?.StudentName || res.AGrade}</span>
+                        <div className="flex-1 min-w-[130px] p-2 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-emerald-300 bg-white shadow-2xs">
+                            <SafeImage
+                              src={res.aGradeStudent?.Student_Photo_Urls}
+                              alt={res.aGradeStudent?.StudentName || res.AGrade}
+                              fallbackCategory="student"
+                              fallbackText={res.aGradeStudent?.StudentName || res.AGrade}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-[10px] uppercase text-emerald-700 block">Grade A</span>
+                            <span className="font-bold truncate block">{res.aGradeStudent?.StudentName || res.AGrade}</span>
+                          </div>
                         </div>
                       )}
                       {res.BGrade && (
-                        <div className="flex-1 min-w-[130px] p-2 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs">
-                          <span className="font-extrabold text-[10px] uppercase text-blue-700 block">Grade B Award</span>
-                          <span className="font-bold truncate block">{res.bGradeStudent?.StudentName || res.BGrade}</span>
+                        <div className="flex-1 min-w-[130px] p-2 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-blue-300 bg-white shadow-2xs">
+                            <SafeImage
+                              src={res.bGradeStudent?.Student_Photo_Urls}
+                              alt={res.bGradeStudent?.StudentName || res.BGrade}
+                              fallbackCategory="student"
+                              fallbackText={res.bGradeStudent?.StudentName || res.BGrade}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-extrabold text-[10px] uppercase text-blue-700 block">Grade B</span>
+                            <span className="font-bold truncate block">{res.bGradeStudent?.StudentName || res.BGrade}</span>
+                          </div>
                         </div>
                       )}
                     </div>

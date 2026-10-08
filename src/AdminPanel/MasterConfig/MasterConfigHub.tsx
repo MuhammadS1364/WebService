@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
+import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
 import type {
   OurClassesRecord,
   OurBatchesRecord,
@@ -24,6 +25,8 @@ import {
   RefreshCw,
   Sparkles,
   Users,
+  Upload,
+  Link as LinkIcon,
 } from "lucide-react";
 
 export type MasterTab = "classes" | "batches" | "categories" | "venues" | "templates";
@@ -177,8 +180,11 @@ export default function MasterConfigHub() {
      class_serial_number smallint null default '1'::smallint,
      total_student smallint null default '0'::smallint,
      is_active boolean null default true,
-     class_title character varying null default 'class_title'::character varying,
-     constraint Our_Classes_pkey primary key (class_id)
+     batch_uuid uuid null,
+     class_nick_name character varying null default 'i.e U1 - M1'::character varying,
+     standard_name character varying null default 'Secondary First Year'::character varying,
+     constraint "Our_Classes_pkey" primary key (class_id),
+     constraint "Our_Classes_batch_uuid_fkey" foreign KEY (batch_uuid) references "Our_Batches" (batch_id) on update CASCADE on delete RESTRICT
    )
    ========================================================================= */
 function ClassesManager({
@@ -248,7 +254,7 @@ function ClassesManager({
   const openEditModal = (item: OurClassesRecord) => {
     setEditingItem(item);
     setFormData({
-      standard_name: item.standard_name || item.class_title || "",
+      standard_name: item.standard_name || "",
       class_nick_name: item.class_nick_name || "",
       batch_uuid: item.batch_uuid || "",
       class_serial_number: item.class_serial_number || 1,
@@ -272,7 +278,6 @@ function ClassesManager({
 
       const payload = {
         standard_name: formData.standard_name.trim(),
-        class_title: formData.standard_name.trim(),
         class_nick_name: formData.class_nick_name ? formData.class_nick_name.trim() : null,
         batch_uuid: formData.batch_uuid || null,
         class_serial_number: Number(formData.class_serial_number) || 1,
@@ -319,7 +324,7 @@ function ClassesManager({
   };
 
   const handleDelete = async (item: OurClassesRecord) => {
-    const title = item.standard_name || item.class_title || "this class";
+    const title = item.standard_name || item.class_nick_name || "this class";
     if (!window.confirm(`Are you sure you want to delete class "${title}"? Note: Deletion will fail if categories are referencing this class.`)) {
       return;
     }
@@ -338,7 +343,7 @@ function ClassesManager({
 
   const filtered = useMemo(() => {
     return classes.filter(c => {
-      const name = (c.standard_name || c.class_title || "").toLowerCase();
+      const name = (c.standard_name || c.class_nick_name || "").toLowerCase();
       const nick = (c.class_nick_name || "").toLowerCase();
       const q = searchTerm.toLowerCase().trim();
       const matchesSearch = !q || name.includes(q) || nick.includes(q);
@@ -459,7 +464,7 @@ function ClassesManager({
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-bold text-slate-900 text-sm">
-                        {item.standard_name || item.class_title}
+                        {item.standard_name}
                       </div>
                       {item.class_nick_name && (
                         <div className="text-xs text-indigo-600 font-medium mt-0.5">
@@ -693,6 +698,11 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
 
+  const [logoMode, setLogoMode] = useState<"upload" | "url">("upload");
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [formData, setFormData] = useState({
     batch_name: "",
     batch_president: "",
@@ -735,6 +745,8 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
       batch_logo: "",
       is_active: true,
     });
+    setLogoPreview("");
+    setLogoMode("upload");
     setFormError("");
     setIsModalOpen(true);
   };
@@ -750,8 +762,46 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
       batch_logo: item.batch_logo || "",
       is_active: item.is_active !== false,
     });
+    setLogoPreview(item.batch_logo || "");
+    setLogoMode(item.batch_logo?.startsWith("http") ? "url" : "upload");
     setFormError("");
     setIsModalOpen(true);
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    setFormError("");
+    try {
+      const squareDataUrl = await processImageToSquareDataUrl(file, 256, 0.88);
+      setLogoPreview(squareDataUrl);
+
+      try {
+        const imgbbRes = await uploadImageToImgBB(file, `batch_${formData.batch_name || "logo"}`);
+        if (imgbbRes.displayUrl || imgbbRes.url) {
+          const finalUrl = imgbbRes.displayUrl || imgbbRes.url;
+          setFormData((prev) => ({ ...prev, batch_logo: finalUrl }));
+          setLogoPreview(finalUrl);
+        } else {
+          setFormData((prev) => ({ ...prev, batch_logo: squareDataUrl }));
+        }
+      } catch {
+        setFormData((prev) => ({ ...prev, batch_logo: squareDataUrl }));
+      }
+    } catch {
+      setFormError("Could not process logo image. Please try a different image.");
+    } finally {
+      setUploadingLogo(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setFormData((prev) => ({ ...prev, batch_logo: "" }));
+    setLogoPreview("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -936,11 +986,31 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
                 {filtered.map((item) => (
                   <tr key={item.batch_id} className="hover:bg-slate-50/60 transition">
                     <td className="py-3.5 px-4">
-                      <div className="font-bold text-slate-900 text-sm">
-                        {item.batch_name}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        UUID: {item.batch_id}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden shrink-0 flex items-center justify-center">
+                          {item.batch_logo ? (
+                            <img
+                              src={item.batch_logo}
+                              alt={item.batch_name || "Batch logo"}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <span className="font-black text-xs text-indigo-600">
+                              {(item.batch_name || "B")[0].toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 text-sm truncate">
+                            {item.batch_name}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono truncate">
+                            UUID: {item.batch_id}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="py-3.5 px-4 font-semibold text-slate-700">
@@ -1097,17 +1167,139 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
-                  Batch Logo / Monogram URL
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://example.com/batch-logo.png"
-                  value={formData.batch_logo}
-                  onChange={(e) => setFormData({ ...formData, batch_logo: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                />
+              {/* Batch Logo Dual Mode: Upload Image or Direct URL */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    Batch Logo / Monogram
+                  </label>
+                  {/* Two Options Selector */}
+                  <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setLogoMode("upload")}
+                      className={`px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1 ${
+                        logoMode === "upload"
+                          ? "bg-white text-indigo-700 shadow-xs"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <Upload size={12} /> Upload Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogoMode("url")}
+                      className={`px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1 ${
+                        logoMode === "url"
+                          ? "bg-white text-indigo-700 shadow-xs"
+                          : "text-slate-500 hover:text-slate-800"
+                      }`}
+                    >
+                      <LinkIcon size={12} /> Image URL
+                    </button>
+                  </div>
+                </div>
+
+                {logoMode === "upload" ? (
+                  <div className="space-y-2">
+                    {formData.batch_logo || logoPreview ? (
+                      <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                        <div className="w-14 h-14 rounded-xl border border-slate-300 bg-white p-1 overflow-hidden shrink-0 flex items-center justify-center">
+                          <img
+                            src={formData.batch_logo || logoPreview}
+                            alt="Batch logo preview"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-800 truncate">Logo attached</p>
+                          <p className="text-[11px] text-emerald-600 font-semibold mt-0.5 flex items-center gap-1">
+                            <CheckCircle2 size={12} /> Ready to save
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploadingLogo}
+                            className="px-2.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition cursor-pointer"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleRemoveLogo}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                            title="Remove Logo"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-slate-300 hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/20 rounded-2xl p-4 text-center cursor-pointer transition-all group"
+                      >
+                        <div className="mx-auto w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform">
+                          <Upload size={18} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-800">
+                          {uploadingLogo ? "Processing logo..." : "Click to upload batch logo / monogram"}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">PNG, JPG, WebP, SVG • Auto-optimized</p>
+                      </div>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoFileChange}
+                      className="hidden"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="url"
+                      placeholder="https://example.com/batch-logo.png"
+                      value={formData.batch_logo}
+                      onChange={(e) => {
+                        setFormData({ ...formData, batch_logo: e.target.value });
+                        setLogoPreview(e.target.value);
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                    />
+                    {formData.batch_logo && (
+                      <div className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <img
+                            src={formData.batch_logo}
+                            alt="URL preview"
+                            className="w-8 h-8 object-contain rounded-lg border border-slate-200 bg-white shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = "none";
+                            }}
+                          />
+                          <span className="text-[11px] text-slate-600 font-mono font-medium truncate">
+                            {formData.batch_logo}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, batch_logo: "" });
+                            setLogoPreview("");
+                          }}
+                          className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer shrink-0"
+                          title="Remove URL"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-3 pt-1">
@@ -1349,7 +1541,7 @@ function CategoriesManager({
             <option value="all">All Classes</option>
             {classes.map((cls) => (
               <option key={cls.class_id} value={cls.class_id}>
-                Class: {cls.class_title}
+                Class: {cls.standard_name || cls.class_nick_name}
               </option>
             ))}
           </select>
@@ -1533,7 +1725,7 @@ function CategoriesManager({
                     <option value="">None / Not Assigned</option>
                     {classes.map((c) => (
                       <option key={c.class_id} value={c.class_id}>
-                        {c.class_title} (Order: #{c.class_serial_number ?? 1})
+                        {c.standard_name || c.class_nick_name} (Order: #{c.class_serial_number ?? 1})
                       </option>
                     ))}
                   </select>
@@ -1552,7 +1744,7 @@ function CategoriesManager({
                     <option value="">None / Not Assigned</option>
                     {classes.map((c) => (
                       <option key={c.class_id} value={c.class_id}>
-                        {c.class_title} (Order: #{c.class_serial_number ?? 1})
+                        {c.standard_name || c.class_nick_name} (Order: #{c.class_serial_number ?? 1})
                       </option>
                     ))}
                   </select>
@@ -1571,7 +1763,7 @@ function CategoriesManager({
                     <option value="">None / Not Assigned</option>
                     {classes.map((c) => (
                       <option key={c.class_id} value={c.class_id}>
-                        {c.class_title} (Order: #{c.class_serial_number ?? 1})
+                        {c.standard_name || c.class_nick_name} (Order: #{c.class_serial_number ?? 1})
                       </option>
                     ))}
                   </select>

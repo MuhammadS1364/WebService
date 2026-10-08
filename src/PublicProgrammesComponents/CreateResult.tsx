@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../src/lib/SupaBase";
 import { useProgrammeMeta } from "../../src/lib/programmeMeta";
+import SafeImage from "../lib/SafeImage";
 import type { PointsTemplateRecord } from "../../src/lib/types";
 import {
   Trophy,
@@ -16,6 +17,7 @@ import {
 interface RegisteredCandidate {
   addNo: string;
   name: string;
+  photoUrl?: string | null;
 }
 
 type GradeSelection = "none" | "A" | "B";
@@ -214,7 +216,7 @@ export default function CreateResult() {
         // Query StudentsBox
         const { data: studentRows, error: stnError } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("AddNo, StudentName")
+          .select("AddNo, StudentName, Student_Photo_Urls")
           .in("AddNo", candidateCodes);
 
         if (stnError) throw stnError;
@@ -222,6 +224,7 @@ export default function CreateResult() {
         const mapped: RegisteredCandidate[] = (studentRows || []).map((s) => ({
           addNo: s.AddNo,
           name: s.StudentName || "Unnamed Student",
+          photoUrl: s.Student_Photo_Urls || null,
         }));
 
         const foundAddNos = new Set(mapped.map((m) => m.addNo));
@@ -840,11 +843,22 @@ export default function CreateResult() {
                           : "bg-slate-50 border-slate-200 hover:bg-slate-100"
                       }`}
                     >
-                      <div className="truncate pr-2">
-                        <span className="font-mono font-bold text-indigo-700 block text-[11px]">
-                          {c.addNo}
-                        </span>
-                        <span className="text-slate-900 font-bold truncate block">{c.name}</span>
+                      <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                        <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-white shadow-2xs">
+                          <SafeImage
+                            src={c.photoUrl}
+                            alt={c.name}
+                            fallbackCategory="student"
+                            fallbackText={c.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 truncate">
+                          <span className="font-mono font-bold text-indigo-700 block text-[11px]">
+                            {c.addNo}
+                          </span>
+                          <span className="text-slate-900 font-bold truncate block">{c.name}</span>
+                        </div>
                       </div>
                       {isAssigned ? (
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-600 text-white shrink-0 shadow-2xs">
@@ -1061,6 +1075,23 @@ function PositionRow({
 
       {/* Candidate Select */}
       <div className="flex-1 flex flex-col sm:flex-row items-center gap-2">
+        {currentSelection && (
+          (() => {
+            const selectedCand = registeredCandidates.find((c) => c.addNo === currentSelection);
+            return (
+              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-indigo-200 bg-white shadow-2xs">
+                <SafeImage
+                  src={selectedCand?.photoUrl}
+                  alt={selectedCand?.name || currentSelection}
+                  fallbackCategory="student"
+                  fallbackText={selectedCand?.name || currentSelection}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            );
+          })()
+        )}
+
         <select
           value={currentSelection}
           onChange={(e) => onCandidateSelect(posKey, e.target.value)}

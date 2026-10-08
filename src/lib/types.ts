@@ -19,6 +19,7 @@ export interface StudentRecord {
   CollegeName?: string;
   StnUserId?: string;
   Class?: string;
+  Stn_Class?: string;
   Registration_Count?: number;
   Resluted_Count?: number;
   Total_Point_Anjuman?: number;
@@ -274,7 +275,6 @@ export interface OurClassesRecord {
   batch_uuid?: string | null;
   class_nick_name?: string | null;
   standard_name: string;
-  class_title?: string; // fallback / alias
 }
 
 /**
@@ -287,6 +287,8 @@ export interface ContentTableRecord {
   programe_code?: string | null;
   student_addNo?: string | null;
   like_count?: number | null;
+  content_text?: string | null;
+  content_file?: string | null;
 }
 
 /**

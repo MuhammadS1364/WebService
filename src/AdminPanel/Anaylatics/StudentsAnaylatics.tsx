@@ -78,12 +78,13 @@
 // // and that y feel need to filte in colun , data export featu , as in the abouve comont 
 
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 // @ts-ignore
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import SafeImage from "../../lib/SafeImage";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
   ComposedChart, Line, Area
 } from "recharts";
@@ -106,7 +107,8 @@ export interface Student {
   FatherName: string | null;
   CollegeName: string | null;
   StnUserId: string | null;
-  Class: string | null;
+  Class?: string | null;
+  Stn_Class?: string | null;
   Registration_Count: number | null;
   Resluted_Count: number | null;
   Total_Point_Anjuman: number | null;
@@ -119,6 +121,8 @@ export interface Student {
   Student_Photo_Urls: string | null;
   StnState: string | null;
   StnDistrict: string | null;
+  resolvedClassName?: string;
+  resolvedCategoryName?: string;
 }
 
 interface StudentProgramItem {
@@ -136,6 +140,7 @@ interface StudentProgramItem {
 
 interface FilterState {
   Class: string;
+  Category: string;
   StnState: string;
   StnDistrict: string;
   CollegeName: string;
@@ -144,6 +149,7 @@ interface FilterState {
 
 interface FilterOptions {
   classes: string[];
+  categories: string[];
   states: string[];
   districts: string[];
   colleges: string[];
@@ -152,8 +158,8 @@ interface FilterOptions {
 const COLORS: string[] = ['#0ea5e9', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#06b6d4'];
 
 export default function StudentsAnalyticsGeneral() {
+  const meta = useProgrammeMeta();
   const [students, setStudents] = useState<Student[]>([]);
-  const [filteredData, setFilteredData] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -164,12 +170,58 @@ export default function StudentsAnalyticsGeneral() {
   const [programViewMode, setProgramViewMode] = useState<"card" | "table">("card");
 
   const [filters, setFilters] = useState<FilterState>({
-    Class: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "true"
+    Class: "", Category: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "true"
   });
 
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    classes: [], states: [], districts: [], colleges: []
+    classes: [], categories: [], states: [], districts: [], colleges: []
   });
+
+  // Helper to resolve student class name from Our_Classes
+  const getResolvedClassName = (s: Student): string => {
+    if (s.Stn_Class && meta.classMap[s.Stn_Class]) {
+      return meta.classMap[s.Stn_Class];
+    }
+    if (s.Class) {
+      const matched = meta.classes.find(
+        (c) => c.standard_name === s.Class || c.class_nick_name === s.Class
+      );
+      if (matched) return matched.standard_name;
+      return s.Class;
+    }
+    return "Unassigned";
+  };
+
+  // Helper to resolve student category name from Our_Category bonding
+  const getResolvedCategoryName = (s: Student): string => {
+    const classId = s.Stn_Class;
+    const className = s.Class;
+    const matchedClass = meta.classes.find(
+      (c) =>
+        (classId && c.class_id === classId) ||
+        (className && (c.standard_name === className || c.class_nick_name === className))
+    );
+    const resolvedClassId = matchedClass?.class_id || classId;
+
+    if (resolvedClassId) {
+      const cat = meta.categories.find(
+        (c) =>
+          c.class_1 === resolvedClassId ||
+          c.class_2 === resolvedClassId ||
+          c.class_3 === resolvedClassId
+      );
+      if (cat) return cat.category_title;
+    }
+
+    if (className) {
+      const cat = meta.categories.find(
+        (c) => c.category_title.toLowerCase().trim() === className.toLowerCase().trim()
+      );
+      if (cat) return cat.category_title;
+    }
+
+    return "General";
+  };
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -178,20 +230,8 @@ export default function StudentsAnalyticsGeneral() {
         const { data, error } = await SupaBaseFunction.from("StudentsBox").select("*");
         if (error) throw error;
 
-        const studentData = (data as Student[]) || [];
-        setStudents(studentData);
-        
-        const extractUnique = (key: keyof Student): string[] => {
-          const values = studentData.map((s) => s[key]).filter((v): v is string => typeof v === 'string' && v !== 'No Provided');
-          return Array.from(new Set(values)).sort();
-        };
-        
-        setFilterOptions({
-          classes: extractUnique("Class"),
-          states: extractUnique("StnState"),
-          districts: extractUnique("StnDistrict"),
-          colleges: extractUnique("CollegeName")
-        });
+        const rawData = (data as Student[]) || [];
+        setStudents(rawData);
       } catch (error) {
         console.error("Error fetching students:", error);
       } finally {
@@ -200,6 +240,51 @@ export default function StudentsAnalyticsGeneral() {
     };
     fetchStudents();
   }, []);
+
+  // Hydrate students with resolved class and category names
+  const hydratedStudents = useMemo(() => {
+    return students.map((s) => ({
+      ...s,
+      resolvedClassName: getResolvedClassName(s),
+      resolvedCategoryName: getResolvedCategoryName(s),
+    }));
+  }, [students, meta.classMap, meta.classes, meta.categories]);
+
+  // Extract filter options
+  useEffect(() => {
+    if (hydratedStudents.length > 0) {
+      const classNames = Array.from(
+        new Set(
+          hydratedStudents
+            .map((s) => s.resolvedClassName)
+            .filter((v): v is string => Boolean(v && v !== "Unassigned"))
+        )
+      ).sort();
+
+      const catNames = Array.from(
+        new Set(
+          hydratedStudents
+            .map((s) => s.resolvedCategoryName)
+            .filter((v): v is string => Boolean(v && v !== "General"))
+        )
+      ).sort();
+
+      const extractUnique = (key: keyof Student): string[] => {
+        const values = hydratedStudents
+          .map((s) => s[key])
+          .filter((v): v is string => typeof v === "string" && v !== "No Provided");
+        return Array.from(new Set(values)).sort();
+      };
+
+      setFilterOptions({
+        classes: classNames.length > 0 ? classNames : meta.classes.map((c) => c.standard_name),
+        categories: catNames.length > 0 ? catNames : meta.categories.map((c) => c.category_title),
+        states: extractUnique("StnState"),
+        districts: extractUnique("StnDistrict"),
+        colleges: extractUnique("CollegeName"),
+      });
+    }
+  }, [hydratedStudents, meta.classes, meta.categories]);
 
   // When a student is selected, fetch their enrolled programmes & result positions
   const handleSelectStudent = async (student: Student) => {
@@ -277,9 +362,11 @@ export default function StudentsAnalyticsGeneral() {
     }
   };
 
-  useEffect(() => {
-    let result = [...students];
-    if (filters.Class) result = result.filter(s => s.Class === filters.Class);
+  // Memoize filteredData to prevent cascading render loops
+  const filteredData = useMemo(() => {
+    let result = [...hydratedStudents];
+    if (filters.Class) result = result.filter(s => s.resolvedClassName === filters.Class || s.Class === filters.Class);
+    if (filters.Category) result = result.filter(s => s.resolvedCategoryName === filters.Category);
     if (filters.StnState) result = result.filter(s => s.StnState === filters.StnState);
     if (filters.StnDistrict) result = result.filter(s => s.StnDistrict === filters.StnDistrict);
     if (filters.CollegeName) result = result.filter(s => s.CollegeName === filters.CollegeName);
@@ -287,8 +374,8 @@ export default function StudentsAnalyticsGeneral() {
       const isActiveBool = filters.IsActive === "true";
       result = result.filter(s => s.IsActive === isActiveBool);
     }
-    setFilteredData(result);
-  }, [filters, students]);
+    return result;
+  }, [filters, hydratedStudents]);
 
   const handleExport = () => {
     const isFiltered = Object.values(filters).some(val => val !== "" && val !== "all");
@@ -298,7 +385,7 @@ export default function StudentsAnalyticsGeneral() {
 
     if (window.confirm(message)) {
       const headers = [
-        "AddNo", "StudentName", "StudentEmail", "CollegeName", "Class", 
+        "AddNo", "StudentName", "StudentEmail", "CollegeName", "Class", "Category", 
         "State", "District", "Registrations", "Total_Anjuman_Points", 
         "OutReach_Points", "Achievement_Points", "Grand_Total_Points", "IsActive"
       ];
@@ -306,7 +393,8 @@ export default function StudentsAnalyticsGeneral() {
         headers.join(","),
         ...filteredData.map(row => [
           `"${row.AddNo || ''}"`, `"${row.StudentName || ''}"`, `"${row.StudentEmail || ''}"`,
-          `"${row.CollegeName || ''}"`, `"${row.Class || ''}"`, `"${row.StnState || ''}"`,
+          `"${row.CollegeName || ''}"`, `"${row.resolvedClassName || row.Class || ''}"`,
+          `"${row.resolvedCategoryName || 'General'}"`, `"${row.StnState || ''}"`,
           `"${row.StnDistrict || ''}"`, row.Registration_Count || 0, row.Total_Point_Anjuman || 0,
           row.OutReach_Points || 0, row.Achievements_Points || 0, row.Grand_Total_Points || 0,
           row.IsActive ? "Yes" : "No"
@@ -329,12 +417,20 @@ export default function StudentsAnalyticsGeneral() {
   };
 
   const pointsByClass = Object.values(filteredData.reduce<Record<string, {name: string; totalPoints: number; studentCount: number}>>((acc, curr) => {
-    const className = curr.Class || "Unassigned";
+    const className = curr.resolvedClassName || "Unassigned";
     acc[className] = acc[className] || { name: className, totalPoints: 0, studentCount: 0 };
     acc[className].totalPoints += (curr.Grand_Total_Points || 0);
     acc[className].studentCount += 1;
     return acc;
   }, {})).sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 10);
+
+  const studentsByCategory = Object.values(filteredData.reduce<Record<string, {name: string; value: number; totalPoints: number}>>((acc, curr) => {
+    const catName = curr.resolvedCategoryName || "General";
+    acc[catName] = acc[catName] || { name: catName, value: 0, totalPoints: 0 };
+    acc[catName].value += 1;
+    acc[catName].totalPoints += (curr.Grand_Total_Points || 0);
+    return acc;
+  }, {})).sort((a, b) => b.value - a.value);
 
   const studentsByDistrict = Object.values(filteredData.reduce<Record<string, {name: string; value: number}>>((acc, curr) => {
     const district = curr.StnDistrict && curr.StnDistrict !== 'No Provided' ? curr.StnDistrict : "Unknown";
@@ -388,24 +484,28 @@ export default function StudentsAnalyticsGeneral() {
       </div>
 
       {/* Filters Area */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 bg-white p-4 sm:p-5 rounded-2xl shadow-sm">
-        <select name="Class" value={filters.Class} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-6 bg-white p-4 sm:p-5 rounded-2xl shadow-sm">
+        <select name="Class" value={filters.Class} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
           <option value="">All Classes</option>
           {filterOptions.classes.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select name="CollegeName" value={filters.CollegeName} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+        <select name="Category" value={filters.Category} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+          <option value="">All Categories</option>
+          {filterOptions.categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+        </select>
+        <select name="CollegeName" value={filters.CollegeName} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
           <option value="">All Colleges</option>
           {filterOptions.colleges.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select name="StnState" value={filters.StnState} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+        <select name="StnState" value={filters.StnState} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
           <option value="">All States</option>
           {filterOptions.states.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select name="StnDistrict" value={filters.StnDistrict} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+        <select name="StnDistrict" value={filters.StnDistrict} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
           <option value="">All Districts</option>
           {filterOptions.districts.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
-        <select name="IsActive" value={filters.IsActive} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-lg p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+        <select name="IsActive" value={filters.IsActive} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
           <option value="all">Status: All</option>
           <option value="true">Active Only</option>
           <option value="false">Inactive Only</option>
@@ -431,35 +531,68 @@ export default function StudentsAnalyticsGeneral() {
           </div>
 
           <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="text-base font-bold text-slate-700 mb-5">Student Distribution by District</h3>
-            <div className="h-[300px] w-full">
+            <h3 className="text-base font-bold text-slate-700 mb-5">Students by Academic Category</h3>
+            <div className="h-[270px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={studentsByDistrict} cx="50%" cy="50%" innerRadius="55%" outerRadius="80%" paddingAngle={2} dataKey="value">
-                    {studentsByDistrict.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                  <Pie data={studentsByCategory} cx="50%" cy="50%" innerRadius="55%" outerRadius="80%" paddingAngle={2} dataKey="value" nameKey="name">
+                    {studentsByCategory.map((_, index) => <Cell key={`cell-cat-${index}`} fill={COLORS[index % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                  <Legend iconType="circle" wrapperStyle={{fontSize: '12px'}} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600 pt-2 max-h-16 overflow-y-auto">
+              {studentsByCategory.map((c, idx) => (
+                <span key={c.name} className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                  {c.name}
+                </span>
+              ))}
+            </div>
           </div>
 
-          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 lg:col-span-2">
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+            <h3 className="text-base font-bold text-slate-700 mb-5">Student Distribution by District</h3>
+            <div className="h-[270px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={studentsByDistrict} cx="50%" cy="50%" innerRadius="55%" outerRadius="80%" paddingAngle={2} dataKey="value">
+                    {studentsByDistrict.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[(index + 2) % COLORS.length]} />)}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600 pt-2 max-h-16 overflow-y-auto">
+              {studentsByDistrict.map((d, idx) => (
+                <span key={d.name} className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[(idx + 2) % COLORS.length] }} />
+                  {d.name}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
             <h3 className="text-base font-bold text-slate-700 mb-5">Top 5 Outstanding Students</h3>
-            <div className="h-[320px] w-full">
+            <div className="h-[270px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={topStudents} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
                   <YAxis tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
                   <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
-                  <Legend wrapperStyle={{fontSize: '12px'}} />
                   <Area type="monotone" dataKey="total" name="Grand Total" fill="#cffafe" stroke="#0ea5e9" />
                   <Bar dataKey="achievements" name="Achievement Pts" barSize={30} fill="#f43f5e" radius={[4, 4, 0, 0]} />
                   <Line type="monotone" dataKey="outreach" name="Outreach Pts" stroke="#8b5cf6" strokeWidth={3} />
                 </ComposedChart>
               </ResponsiveContainer>
+            </div>
+            <div className="flex items-center justify-center gap-4 text-xs font-medium text-slate-600 pt-2">
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#0ea5e9]" /> Grand Total</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f43f5e]" /> Achievement Pts</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" /> Outreach Pts</span>
             </div>
           </div>
 
@@ -471,7 +604,7 @@ export default function StudentsAnalyticsGeneral() {
               <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-semibold">
                 <tr>
                   <th className="p-4 border-b border-slate-200">Student Info</th>
-                  <th className="p-4 border-b border-slate-200">Class / College</th>
+                  <th className="p-4 border-b border-slate-200">Class / Category</th>
                   <th className="p-4 border-b border-slate-200">Location</th>
                   <th className="p-4 border-b border-slate-200">Engagement</th>
                   <th className="p-4 border-b border-slate-200">Total Points</th>
@@ -505,7 +638,12 @@ export default function StudentsAnalyticsGeneral() {
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="font-semibold text-slate-700">{student.Class || 'N/A'}</div>
+                      <div className="font-semibold text-slate-700 flex items-center gap-1.5 flex-wrap">
+                        <span>{student.resolvedClassName || 'Unassigned'}</span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {student.resolvedCategoryName || 'General'}
+                        </span>
+                      </div>
                       <div className="text-xs text-slate-500">{student.CollegeName || 'N/A'}</div>
                     </td>
                     <td className="p-4">
@@ -562,11 +700,14 @@ export default function StudentsAnalyticsGeneral() {
                   />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-200">
                       #{selectedStudent.AddNo}
                     </span>
-                    <span className="text-xs text-slate-500 font-medium">{selectedStudent.Class || "Class"}</span>
+                    <span className="text-xs text-slate-700 font-semibold">{selectedStudent.resolvedClassName || selectedStudent.Class || "Class"}</span>
+                    <span className="text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md">
+                      {selectedStudent.resolvedCategoryName || "General"} Category
+                    </span>
                   </div>
                   <h3 className="text-lg sm:text-xl font-black text-slate-900 truncate mt-0.5">
                     {selectedStudent.StudentName}

@@ -7,7 +7,7 @@ import SafeImage from "../lib/SafeImage";
 import ProgrammeFeedbackModal from "./ProgrammeFeedbackModal";
 import SquadRegistrationModal from "./SquadRegistrationModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
-import { Download, MessageSquare, Shield, Users, Search } from "lucide-react";
+import { Download, MessageSquare, Shield, Users, Search, X, Maximize2 } from "lucide-react";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -73,6 +73,28 @@ export default function PublicProgrammesList() {
     code: "",
     title: "",
   });
+
+  // Fullscreen Image Preview & Download State
+  const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
+
+  const handleDownloadImage = async (url: string, title?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      const sanitizedName = (title || "programme-poster").replace(/[^a-zA-Z0-9_-]/g, "_");
+      link.setAttribute("download", `${sanitizedName}.jpg`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      console.error("Download failed:", err);
+      window.open(url, "_blank");
+    }
+  };
 
   // Fetch and Filter Data Layer - Ensures ALL programmes appear in public view
   useEffect(() => {
@@ -260,22 +282,46 @@ export default function PublicProgrammesList() {
                 className="w-full max-w-90 mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden font-sans hover:shadow-md transition-shadow"
               >
 
-                {/* --- Image Section --- */}
-                <div className="relative h-48 w-full bg-slate-900 overflow-hidden">
+                {/* --- Image Section with Click-to-Preview and Download --- */}
+                <div 
+                  className="relative h-48 w-full bg-slate-900 overflow-hidden cursor-pointer group"
+                  onClick={() => {
+                    if (program.Program_Poster) {
+                      setFullscreenImage({
+                        url: program.Program_Poster,
+                        title: program.Program_Title || program.Program_Code,
+                      });
+                    }
+                  }}
+                  title="Click to view full poster & download"
+                >
                   <SafeImage
                     src={program.Program_Poster}
                     alt={program.Program_Title || "Program Presentation Art"}
                     fallbackCategory="programme"
                     fallbackText={program.Program_Title || program.Program_Code}
-                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                  {/* Hover Hint Overlay */}
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <div className="bg-black/70 text-white text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
+                      <Maximize2 size={13} />
+                      <span>View & Download</span>
+                    </div>
+                  </div>
                   {program.Group && (
-                    <div className="absolute top-3 left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm">
+                    <div 
+                      className="absolute top-3 left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {program.Group}
                     </div>
                   )}
                   {program.is_group_program && (
-                    <div className="absolute top-3 right-3 bg-purple-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
+                    <div 
+                      className="absolute top-3 right-3 bg-purple-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm flex items-center gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Users size={12} /> Squad Event
                     </div>
                   )}
@@ -380,6 +426,49 @@ export default function PublicProgrammesList() {
           programTitle={squadModal.title}
           onClose={() => setSquadModal({ isOpen: false, code: "", title: "" })}
         />
+
+        {/* Fullscreen Image Preview & Download Modal */}
+        {fullscreenImage && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setFullscreenImage(null); }} 
+              className="absolute top-6 right-6 text-white/80 hover:text-white p-3 rounded-full bg-white/10 hover:bg-white/20 transition cursor-pointer z-10"
+              title="Close Preview"
+            >
+              <X size={24} />
+            </button>
+
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handleDownloadImage(fullscreenImage.url, fullscreenImage.title); }} 
+              className="absolute top-6 right-20 text-white flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-lg transition cursor-pointer z-10"
+              title="Download Poster"
+            >
+              <Download size={18} /> 
+              <span>Download Poster</span>
+            </button>
+
+            <div 
+              className="max-w-4xl max-h-[85vh] w-full flex flex-col items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img 
+                src={fullscreenImage.url} 
+                alt={fullscreenImage.title} 
+                className="max-h-[80vh] w-auto max-w-full rounded-2xl shadow-2xl object-contain border border-white/10" 
+              />
+              {fullscreenImage.title && (
+                <p className="text-white text-xs sm:text-sm font-semibold mt-3 text-center truncate max-w-xl">
+                  {fullscreenImage.title}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

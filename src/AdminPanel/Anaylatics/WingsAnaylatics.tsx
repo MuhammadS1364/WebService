@@ -59,13 +59,13 @@
 // ) TABLESPACE pg_default;
 
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
 import { SupaBaseFunction } from "../../lib/SupaBase"; 
 import EditWingModal, { type EditableWing } from "../Wing/EditWingModal";
 import { Edit2, Building2, CheckCircle2, Search, Download } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
   ComposedChart, Line, Area
 } from "recharts";
@@ -100,7 +100,6 @@ const COLORS = ['#8b5cf6', '#f59e0b', '#ec4899', '#3b82f6', '#10b981', '#f43f5e'
 export default function GeneralWingsAnaylatics() {
   // State Management
   const [wings, setWings] = useState<Wing[]>([]);
-  const [filteredData, setFilteredData] = useState<Wing[]>([]);
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -161,8 +160,8 @@ export default function GeneralWingsAnaylatics() {
     setTimeout(() => setFeedback(null), 3500);
   };
 
-  // 2. Apply Filters
-  useEffect(() => {
+  // 2. Apply Filters (useMemo avoids cascading state updates)
+  const filteredData = useMemo(() => {
     let result = wings;
 
     if (filters.SearchTerm) {
@@ -179,7 +178,7 @@ export default function GeneralWingsAnaylatics() {
       result = result.filter(w => w.IsActive === isActiveBool);
     }
 
-    setFilteredData(result);
+    return result;
   }, [filters, wings]);
 
   // 3. CSV Export Logic
@@ -406,11 +405,14 @@ export default function GeneralWingsAnaylatics() {
                     />
                     <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
                     <RechartsTooltip cursor={{ fill: '#faf5ff' }} contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }} />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} />
                     <Bar dataKey="standard" name="Standard" stackId="a" fill="#8b5cf6" />
                     <Bar dataKey="bonus" name="Bonus" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex items-center justify-center gap-4 text-xs font-medium text-slate-600 pt-2">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" /> Standard</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f43f5e]" /> Bonus</span>
               </div>
             </div>
 
@@ -437,12 +439,16 @@ export default function GeneralWingsAnaylatics() {
                       ))}
                     </Pie>
                     <RechartsTooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }} />
-                    <Legend 
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '11px', color: '#475569', paddingTop: '6px' }}
-                    />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-600 pt-2 max-h-16 overflow-y-auto">
+                {registrationsByWing.map((item, idx) => (
+                  <span key={item.name} className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                    {item.name}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -467,12 +473,16 @@ export default function GeneralWingsAnaylatics() {
                     <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
                     <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
                     <RechartsTooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }} />
-                    <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '6px' }} />
                     <Area yAxisId="left" type="monotone" dataKey="registrations" name="Registrations" fill="#fef3c7" stroke="#f59e0b" />
                     <Bar yAxisId="left" dataKey="results" name="Results" barSize={26} fill="#10b981" radius={[4, 4, 0, 0]} />
                     <Line yAxisId="right" type="monotone" dataKey="points" name="Total Points" stroke="#6d28d9" strokeWidth={2.5} />
                   </ComposedChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex items-center justify-center gap-4 text-xs font-medium text-slate-600 pt-2">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]" /> Registrations</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" /> Results</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#6d28d9]" /> Total Points</span>
               </div>
             </div>
 

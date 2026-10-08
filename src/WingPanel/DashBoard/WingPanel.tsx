@@ -75,9 +75,9 @@ export default function WingPanel() {
     }`;
 
   const bottomBarLinkClasses = ({ isActive }: { isActive: boolean }) =>
-    `flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-2xl transition-all duration-200 text-[10px] font-bold ${
+    `flex flex-col items-center justify-center min-w-[58px] py-1 px-1 rounded-xl transition-all duration-200 text-[9px] font-bold shrink-0 ${
       isActive
-        ? "text-blue-600 font-black scale-105"
+        ? "text-blue-600 font-black bg-blue-50/90 shadow-2xs"
         : "text-slate-500 hover:text-slate-800"
     }`;
 
@@ -260,21 +260,21 @@ export default function WingPanel() {
           </div>
         </main>
 
-        {/* MOBILE BOTTOM NAVIGATION BAR: CLEAN WHITE BACKGROUND, DIRECT 5 TABS (NO (...) BUTTON) */}
-        <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center justify-around py-1.5 px-1 shadow-lg backdrop-blur-md">
+        {/* MOBILE BOTTOM NAVIGATION BAR: SHOWS ALL BUTTONS WITH SMOOTH HORIZONTAL SCROLL */}
+        <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center overflow-x-auto scrollbar-none py-1.5 px-1 shadow-lg backdrop-blur-md gap-1">
           <NavLink
             to={`/wing-panel/${actWing}/wing-dashboard`}
             className={bottomBarLinkClasses}
           >
-            <LayoutDashboard size={19} className="mb-0.5" />
-            <span>Dashboard</span>
+            <LayoutDashboard size={17} className="mb-0.5" />
+            <span>Home</span>
           </NavLink>
 
           <NavLink
             to={`/wing-panel/${actWing}/create-program`}
             className={bottomBarLinkClasses}
           >
-            <PlusCircle size={19} className="mb-0.5 text-indigo-600" />
+            <PlusCircle size={17} className="mb-0.5 text-indigo-600" />
             <span>New Prog</span>
           </NavLink>
 
@@ -282,16 +282,32 @@ export default function WingPanel() {
             to={`/wing-panel/${actWing}/create-result`}
             className={bottomBarLinkClasses}
           >
-            <Trophy size={19} className="mb-0.5 text-amber-500" />
-            <span>Result</span>
+            <Trophy size={17} className="mb-0.5 text-amber-500" />
+            <span>Declare</span>
+          </NavLink>
+
+          <NavLink
+            to={`/wing-panel/${actWing}/wing-results`}
+            className={bottomBarLinkClasses}
+          >
+            <Award size={17} className="mb-0.5 text-purple-600" />
+            <span>Results</span>
           </NavLink>
 
           <NavLink
             to={`/wing-panel/${actWing}/wing-programmes`}
             className={bottomBarLinkClasses}
           >
-            <Calendar size={19} className="mb-0.5 text-emerald-600" />
-            <span>My Events</span>
+            <Calendar size={17} className="mb-0.5 text-emerald-600" />
+            <span>Events</span>
+          </NavLink>
+
+          <NavLink
+            to={`/wing-panel/${actWing}/wing-anylatics`}
+            className={bottomBarLinkClasses}
+          >
+            <BarChart2 size={17} className="mb-0.5 text-blue-600" />
+            <span>Analytics</span>
           </NavLink>
 
           <NavLink

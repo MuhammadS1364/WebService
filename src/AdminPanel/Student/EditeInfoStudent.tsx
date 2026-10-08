@@ -1,27 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
 import { useNavigate, useParams } from "react-router-dom";
-import * as XLSX from "xlsx";
 import { Camera, Upload, Trash2, CheckCircle2, AlertCircle } from "lucide-react";
-
-// Explicit definition for Excel Row Structure
-interface ExcelStudentRow {
-  AddNo: string | number;
-  StudentName: string;
-  StudentEmail: string;
-  FatherName?: string;
-  CollegeName?: string;
-  Class?: string;
-  [key: string]: string | number | undefined; // Index signature to allow dynamic mapping safely
-}
-
-interface UserAccountToCreate {
-  UserEmail: string;
-  UserPassword: string | number;
-  UserRole: string;
-}
+import { useProgrammeMeta } from "../../lib/programmeMeta";
 
 interface FormDataState {
   AddNo: string;
@@ -31,6 +14,7 @@ interface FormDataState {
   FatherName: string;
   CollegeName: string;
   Class: string;
+  Stn_Class?: string;
   StnState: string;
   StnDistrict: string;
 }
@@ -40,6 +24,7 @@ export default function EditStudentRecord() {
   const { actUser } = useParams<{ actUser: string }>();
 
   const navigate = useNavigate();
+  const meta = useProgrammeMeta();
 
   const [formData, setFormData] = useState<FormDataState>({
     AddNo: "",
@@ -49,6 +34,7 @@ export default function EditStudentRecord() {
     FatherName: "",
     CollegeName: "",
     Class: "",
+    Stn_Class: "",
     StnState: "",
     StnDistrict: ""
   });
@@ -86,6 +72,17 @@ export default function EditStudentRecord() {
         if (error) throw error;
 
         if (data) {
+          const matchedClass = meta.classes.find(
+            (c) =>
+              (data.Stn_Class && c.class_id === data.Stn_Class) ||
+              (data.Class && (c.standard_name === data.Class || c.class_nick_name === data.Class))
+          );
+          const resolvedClass =
+            matchedClass?.standard_name ||
+            data.Class ||
+            (data.Stn_Class ? meta.classMap[data.Stn_Class] || "" : "") ||
+            "";
+
           setFormData({
             AddNo: data.AddNo || "",
             StudentName: data.StudentName || "",
@@ -93,9 +90,10 @@ export default function EditStudentRecord() {
             Student_Photo_Urls: data.Student_Photo_Urls || "",
             FatherName: data.FatherName || "",
             CollegeName: data.CollegeName || "",
-            Class: data.Class || "",
-            StnState: data.StnState,
-            StnDistrict: data.StnDistrict
+            Class: resolvedClass,
+            Stn_Class: data.Stn_Class || matchedClass?.class_id || "",
+            StnState: data.StnState || "No Provided",
+            StnDistrict: data.StnDistrict || "No Provided",
           });
         }
       } catch (error: any) {
@@ -112,10 +110,87 @@ export default function EditStudentRecord() {
     fetchStudentRecord();
   }, [StnAddNo]);
 
+  // Synchronize class selection once metadata is retrieved
+  useEffect(() => {
+    if (meta.classes.length > 0) {
+      const match = meta.classes.find(
+        (c) =>
+          (formData.Stn_Class && c.class_id === formData.Stn_Class) ||
+          (formData.Class && (c.standard_name === formData.Class || c.class_nick_name === formData.Class || c.class_id === formData.Class))
+      );
+      if (match?.standard_name && formData.Class !== match.standard_name) {
+        setFormData((prev) => ({
+          ...prev,
+          Class: match.standard_name,
+          Stn_Class: match.class_id,
+        }));
+      }
+    }
+  }, [meta.classes, formData.Stn_Class, formData.Class]);
+
+  // Canonical and DB-backed list of all standard class names
+  const standardClassesOptions = useMemo(() => {
+    const list: { id?: string; standard_name: string; class_nick_name?: string; class_serial_number?: number }[] = [];
+    const seenNames = new Set<string>();
+
+    if (meta.classes && meta.classes.length > 0) {
+      meta.classes.forEach((c) => {
+        const name = c.standard_name || c.class_nick_name;
+        if (name && !seenNames.has(name.toLowerCase())) {
+          seenNames.add(name.toLowerCase());
+          list.push({
+            id: c.class_id,
+            standard_name: name,
+            class_nick_name: c.class_nick_name || undefined,
+            class_serial_number: c.class_serial_number ?? undefined,
+          });
+        }
+      });
+    }
+
+    const defaultStandardNames = [
+      "Secondary First Year",
+      "Secondary Second Year",
+      "Secondary Third Year",
+      "Secondary Fourth Year",
+      "Secondary Final Year",
+      "Senior Secondary First Year",
+      "Senior Secondary Second Year",
+      "Degree First Year",
+      "Degree Second Year",
+      "Degree Final Year",
+      "PG First Year",
+      "PG Final Year",
+    ];
+
+    defaultStandardNames.forEach((defName, idx) => {
+      if (!seenNames.has(defName.toLowerCase())) {
+        seenNames.add(defName.toLowerCase());
+        list.push({
+          standard_name: defName,
+          class_serial_number: idx + 1,
+        });
+      }
+    });
+
+    return list.sort((a, b) => (a.class_serial_number ?? 99) - (b.class_serial_number ?? 99));
+  }, [meta.classes]);
+
   // Fixes TS7006 & TS2339 by strictly typing the event target name mapping keys
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "Class") {
+      const match = meta.classes.find(
+        (c) => c.standard_name === value || c.class_nick_name === value || c.class_id === value
+      );
+      setFormData((prev) => ({
+        ...prev,
+        Class: value,
+        Stn_Class: match?.class_id || prev.Stn_Class,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -140,13 +215,6 @@ export default function EditStudentRecord() {
     setPhotoFile(null);
     setImageError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const triggerImportClick = () => {
-    const element = document.getElementById("fileUpload");
-    if (element) {
-      element.click();
-    }
   };
 
   // ----------------------------------------
@@ -185,19 +253,35 @@ export default function EditStudentRecord() {
       }
 
       // 3. Update Student Record
-      const { error: updateError } = await SupaBaseFunction.from("StudentsBox")
-        .update({
-          StudentName: formData.StudentName,
-          StudentEmail: formData.StudentEmail,
-          Student_Photo_Urls: finalPhotoUrl,
-          FatherName: formData.FatherName,
-          CollegeName: formData.CollegeName,
-          Class: formData.Class,
-          StnUserId: formData.StudentEmail,
-          StnState: formData.StnState,
-          StnDistrict: formData.StnDistrict,
-        })
+      const matchedClass = meta.classes.find(
+        (c) => (c.standard_name || c.class_nick_name) === formData.Class || c.class_id === formData.Class
+      );
+      const stnClassId = matchedClass ? matchedClass.class_id : null;
+
+      const updatePayload: any = {
+        StudentName: formData.StudentName,
+        StudentEmail: formData.StudentEmail,
+        Student_Photo_Urls: finalPhotoUrl,
+        FatherName: formData.FatherName,
+        CollegeName: formData.CollegeName,
+        Class: formData.Class || (matchedClass?.standard_name ?? null),
+        Stn_Class: stnClassId,
+        StnUserId: formData.StudentEmail,
+        StnState: formData.StnState || "No Provided",
+        StnDistrict: formData.StnDistrict || "No Provided",
+      };
+
+      let { error: updateError } = await SupaBaseFunction.from("StudentsBox")
+        .update(updatePayload)
         .eq("AddNo", StnAddNo);
+
+      if (updateError && updateError.message?.toLowerCase().includes("class")) {
+        delete updatePayload.Class;
+        const retry = await SupaBaseFunction.from("StudentsBox")
+          .update(updatePayload)
+          .eq("AddNo", StnAddNo);
+        updateError = retry.error;
+      }
 
       if (updateError) throw new Error(`Profile Update Failed: ${updateError.message}`);
 
@@ -208,111 +292,6 @@ export default function EditStudentRecord() {
     } finally {
       setLoading(false);
     }
-  };
-  // ----------------------------------------
-  // EXPORT DATA
-  // ----------------------------------------
-  const handleExport = async () => {
-    try {
-      setMessage({ type: "", text: "Exporting data..." });
-
-      const { data, error } = await SupaBaseFunction.from("StudentsBox").select("*");
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error("No students to export!");
-
-      const worksheet = XLSX.utils.json_to_sheet(data);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
-
-      XLSX.writeFile(workbook, "Students_Export.xlsx");
-
-      setMessage({ type: "success", text: "Data exported successfully!" });
-    } catch (error: any) {
-      console.error("Export Error:", error);
-      setMessage({ type: "error", text: `Export failed: ${error.message || error}` });
-    }
-  };
-
-  // ----------------------------------------
-  // IMPORT DATA
-  // ----------------------------------------
-  const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setMessage({ type: "", text: "Reading file..." });
-    const reader = new FileReader();
-
-    reader.onload = async (event) => {
-      try {
-        // Fixes TS18047 & TS2769: Explicit assertion check for valid ArrayBuffer runtime target
-        if (!event.target || !event.target.result || typeof event.target.result === "string") {
-          throw new Error("Could not process file layout data framework.");
-        }
-
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-
-        const importedData = XLSX.utils.sheet_to_json<ExcelStudentRow>(worksheet);
-        if (importedData.length === 0) throw new Error("The file is empty.");
-
-        setMessage({ type: "", text: "Syncing User Accounts..." });
-
-        const uniqueEmails = new Set<string>();
-        const usersToCreate: UserAccountToCreate[] = [];
-
-        // Fixes TS18046: explicitly cast elements on loop assignment block iteration
-        importedData.forEach((row: ExcelStudentRow) => {
-          if (row.StudentEmail && !uniqueEmails.has(row.StudentEmail)) {
-            uniqueEmails.add(row.StudentEmail);
-            usersToCreate.push({
-              UserEmail: row.StudentEmail,
-              UserPassword: row.AddNo,
-              UserRole: "Student",
-            });
-          }
-        });
-
-        const { error: userError } = await SupaBaseFunction.from("UserTable").upsert(usersToCreate, {
-          onConflict: "UserEmail",
-          ignoreDuplicates: true,
-        });
-
-        if (userError) throw new Error(`User Sync Failed: ${userError.message}`);
-
-        setMessage({ type: "", text: "Inserting Students..." });
-
-        const studentsToInsert = importedData.map((row: ExcelStudentRow) => ({
-          AddNo: row.AddNo,
-          StudentName: row.StudentName,
-          StudentEmail: row.StudentEmail,
-          FatherName: row.FatherName || "",
-          CollegeName: row.CollegeName || "",
-          Class: row.Class || "",
-          StnUserId: row.StudentEmail,
-          StnState: row.StnState,
-          StnDistrict: row.StnDistrict,
-        }));
-
-        const { error: studentError } = await SupaBaseFunction.from("StudentsBox").upsert(studentsToInsert, {
-          onConflict: "AddNo",
-          ignoreDuplicates: true,
-        });
-
-        if (studentError) throw new Error(`Student Insert Failed: ${studentError.message}`);
-
-        setMessage({ type: "success", text: `Successfully imported ${studentsToInsert.length} students!` });
-      } catch (error: any) {
-        console.error("Import Error:", error);
-        setMessage({ type: "error", text: `Import failed: ${error.message || error}` });
-      }
-
-      e.target.value = "";
-    };
-
-    reader.readAsArrayBuffer(file);
   };
 
   if (fetching) {
@@ -333,32 +312,6 @@ export default function EditStudentRecord() {
         <div>
           <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Edit Student Record</h2>
           <p className="text-slate-500 text-sm mt-1">Manage and update student profile information</p>
-        </div>
-
-        <div className="flex space-x-3 mt-4 md:mt-0">
-          <input
-            type="file"
-            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-            id="fileUpload"
-            style={{ display: "none" }}
-            onChange={handleImport}
-          />
-          <button
-            type="button"
-            onClick={triggerImportClick}
-            className="flex items-center px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors text-sm font-semibold shadow-sm"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-            Import Data
-          </button>
-          <button
-            type="button"
-            onClick={handleExport}
-            className="flex items-center px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors text-sm font-semibold shadow-sm border border-slate-200"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            Export to Excel
-          </button>
         </div>
       </div>
 
@@ -387,7 +340,7 @@ export default function EditStudentRecord() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-          {/* Read Only field */}
+          {/* Admission Number (Read Only) */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-slate-500 mb-1">
               Admission Number (AddNo)
@@ -401,22 +354,128 @@ export default function EditStudentRecord() {
             />
           </div>
 
-          {(["StudentName", "StudentEmail", "Class", "FatherName", "CollegeName", "StnDistrict", "StnState"] as const).map((field) => (
-            <div key={field}>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">
-                {field === "StudentName" ? "Student Name *" : field === "StudentEmail" ? "Student Email *" : field === "Class" ? "Class *" : field === "FatherName" ? "Father's Name" : "College/School Name"}
+          {/* Student Name */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Student Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="StudentName"
+              required
+              value={formData.StudentName}
+              onChange={handleChange}
+              placeholder="e.g. Aatif Pathan"
+              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+            />
+          </div>
+
+          {/* Student Email */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Student Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              name="StudentEmail"
+              required
+              value={formData.StudentEmail}
+              onChange={handleChange}
+              placeholder="student@example.com"
+              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+            />
+          </div>
+
+          {/* Class - Standard Names List from Our_Classes */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-semibold text-slate-700">
+                Class Standard Name <span className="text-red-500">*</span>
               </label>
-              <input
-                type={field === "StudentEmail" ? "email" : "text"}
-                name={field}
-                required={["StudentName", "StudentEmail", "Class"].includes(field)}
-                value={formData[field]}
-                onChange={handleChange}
-                className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                placeholder={field === "StudentEmail" ? "john@example.com" : field === "StudentName" ? "e.g. John Doe" : ""}
-              />
+              {formData.Stn_Class && (
+                <span className="text-[10px] text-emerald-700 font-mono font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  Linked to Our_Classes
+                </span>
+              )}
             </div>
-          ))}
+            <select
+              name="Class"
+              required
+              value={formData.Class}
+              onChange={handleChange}
+              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all bg-white font-medium text-slate-900"
+            >
+              <option value="">-- Select Standard Class (Our_Classes) --</option>
+              {standardClassesOptions.map((cls: { id?: string; standard_name: string; class_nick_name?: string; class_serial_number?: number }) => (
+                <option key={cls.id || cls.standard_name} value={cls.standard_name}>
+                  {cls.standard_name} {cls.class_nick_name ? `(${cls.class_nick_name})` : ""} {cls.class_serial_number ? `— Order #${cls.class_serial_number}` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Official standard grade name stored in <span className="font-semibold text-slate-600">Our_Classes</span> (Stn_Class).
+            </p>
+          </div>
+
+          {/* Father's Name */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              Father's Name
+            </label>
+            <input
+              type="text"
+              name="FatherName"
+              value={formData.FatherName}
+              onChange={handleChange}
+              placeholder="Student's Father Name"
+              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+            />
+          </div>
+
+          {/* College / School Name */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              College/School Name
+            </label>
+            <input
+              type="text"
+              name="CollegeName"
+              value={formData.CollegeName}
+              onChange={handleChange}
+              placeholder="e.g. Darul Huda Islamic University"
+              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+            />
+          </div>
+
+          {/* District */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              District
+            </label>
+            <input
+              type="text"
+              name="StnDistrict"
+              value={formData.StnDistrict}
+              onChange={handleChange}
+              placeholder="e.g. Banswara, Malappuram..."
+              className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+            />
+          </div>
+
+          {/* State */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-semibold text-slate-700 mb-1">
+              State
+            </label>
+            <input
+              type="text"
+              name="StnState"
+              value={formData.StnState}
+              onChange={handleChange}
+              placeholder="e.g. Rajasthan, Kerala, Bihar..."
+              className="w-full md:w-1/2 border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+            />
+          </div>
         </div>
 
         {/* PHOTO UPLOAD & PREVIEW SECTION */}

@@ -56,6 +56,8 @@ export default function WingResults() {
   const [expandedProgrammes, setExpandedProgrammes] = useState<Set<string>>(new Set());
   const [loadingCands, setLoadingCands] = useState<Record<string, boolean>>({});
   const [resultFilter, setResultFilter] = useState<"all" | "published" | "pending">("all");
+  const [resultsMap, setResultsMap] = useState<Record<string, any>>({});
+  const [studentsMap, setStudentsMap] = useState<Record<string, any>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -79,6 +81,47 @@ export default function WingResults() {
         if (progError) throw progError;
         if (isMounted) {
           setProgrammes((progData as Programme[]) || []);
+        }
+
+        // Fetch published results for this wing's programmes
+        const progCodes = (progData || []).map((p: any) => p.Program_Code);
+        if (progCodes.length > 0) {
+          const { data: rData } = await SupaBaseFunction
+            .from("ResultBox")
+            .select("*")
+            .in("Program_Id", progCodes);
+
+          if (rData && isMounted) {
+            const rMap: Record<string, any> = {};
+            const winnerAddNos = new Set<string>();
+
+            rData.forEach((r: any) => {
+              if (r.Program_Id) {
+                rMap[r.Program_Id] = r;
+                if (r.First_Holder) winnerAddNos.add(r.First_Holder);
+                if (r.Second_Holder) winnerAddNos.add(r.Second_Holder);
+                if (r.Third_Holder) winnerAddNos.add(r.Third_Holder);
+                if (r.AGrade && r.AGrade !== "No Grade") winnerAddNos.add(r.AGrade);
+                if (r.BGrade) winnerAddNos.add(r.BGrade);
+              }
+            });
+            setResultsMap(rMap);
+
+            if (winnerAddNos.size > 0) {
+              const { data: sData } = await SupaBaseFunction
+                .from("StudentsBox")
+                .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+                .in("AddNo", Array.from(winnerAddNos));
+
+              if (sData && isMounted) {
+                const sMap: Record<string, any> = {};
+                sData.forEach((s: any) => {
+                  sMap[s.AddNo] = s;
+                });
+                setStudentsMap(sMap);
+              }
+            }
+          }
         }
       } catch (err: unknown) {
         console.error("Error fetching wing result records:", err);
@@ -345,7 +388,141 @@ export default function WingResults() {
 
                         {isExp && (
                           <tr>
-                            <td colSpan={5} className="bg-slate-50/70 p-5 border-y border-slate-100">
+                            <td colSpan={5} className="bg-slate-50/70 p-5 border-y border-slate-100 space-y-4">
+                              {/* Official Results Showcase with Position Holder Photos */}
+                              {resultsMap[p.Program_Code] && (
+                                <div className="p-4 bg-white rounded-2xl border border-amber-200/80 shadow-xs space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Trophy size={14} className="text-amber-500" />
+                                      Official Position Holders & Awards
+                                    </h4>
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      ✓ Result Concluded
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                                    {/* 1st Position */}
+                                    {resultsMap[p.Program_Code].First_Holder && (
+                                      <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 flex items-center gap-3">
+                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border-2 border-amber-400 bg-amber-100 shadow-2xs">
+                                          <SafeImage
+                                            src={studentsMap[resultsMap[p.Program_Code].First_Holder]?.Student_Photo_Urls}
+                                            alt="1st Position"
+                                            fallbackCategory="student"
+                                            fallbackText={studentsMap[resultsMap[p.Program_Code].First_Holder]?.StudentName || resultsMap[p.Program_Code].First_Holder}
+                                            className="w-full h-full object-cover"
+                                          />
+                                          <span className="absolute -bottom-1 -right-1 text-[11px] leading-none bg-white rounded-full px-0.5 shadow-2xs">
+                                            🥇
+                                          </span>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <span className="text-[10px] font-extrabold uppercase text-amber-700 block">1st Position</span>
+                                          <p className="font-bold text-slate-900 text-xs truncate">
+                                            {studentsMap[resultsMap[p.Program_Code].First_Holder]?.StudentName || resultsMap[p.Program_Code].First_Holder}
+                                          </p>
+                                          <span className="text-[10px] text-slate-500 font-mono">
+                                            {resultsMap[p.Program_Code].First_Holder}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* 2nd Position */}
+                                    {resultsMap[p.Program_Code].Second_Holder && (
+                                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border-2 border-slate-300 bg-slate-100 shadow-2xs">
+                                          <SafeImage
+                                            src={studentsMap[resultsMap[p.Program_Code].Second_Holder]?.Student_Photo_Urls}
+                                            alt="2nd Position"
+                                            fallbackCategory="student"
+                                            fallbackText={studentsMap[resultsMap[p.Program_Code].Second_Holder]?.StudentName || resultsMap[p.Program_Code].Second_Holder}
+                                            className="w-full h-full object-cover"
+                                          />
+                                          <span className="absolute -bottom-1 -right-1 text-[11px] leading-none bg-white rounded-full px-0.5 shadow-2xs">
+                                            🥈
+                                          </span>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <span className="text-[10px] font-extrabold uppercase text-slate-600 block">2nd Position</span>
+                                          <p className="font-bold text-slate-900 text-xs truncate">
+                                            {studentsMap[resultsMap[p.Program_Code].Second_Holder]?.StudentName || resultsMap[p.Program_Code].Second_Holder}
+                                          </p>
+                                          <span className="text-[10px] text-slate-500 font-mono">
+                                            {resultsMap[p.Program_Code].Second_Holder}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* 3rd Position */}
+                                    {resultsMap[p.Program_Code].Third_Holder && (
+                                      <div className="p-3 rounded-xl bg-orange-50/60 border border-orange-200 flex items-center gap-3">
+                                        <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 border-2 border-amber-600 bg-amber-100 shadow-2xs">
+                                          <SafeImage
+                                            src={studentsMap[resultsMap[p.Program_Code].Third_Holder]?.Student_Photo_Urls}
+                                            alt="3rd Position"
+                                            fallbackCategory="student"
+                                            fallbackText={studentsMap[resultsMap[p.Program_Code].Third_Holder]?.StudentName || resultsMap[p.Program_Code].Third_Holder}
+                                            className="w-full h-full object-cover"
+                                          />
+                                          <span className="absolute -bottom-1 -right-1 text-[11px] leading-none bg-white rounded-full px-0.5 shadow-2xs">
+                                            🥉
+                                          </span>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <span className="text-[10px] font-extrabold uppercase text-orange-800 block">3rd Position</span>
+                                          <p className="font-bold text-slate-900 text-xs truncate">
+                                            {studentsMap[resultsMap[p.Program_Code].Third_Holder]?.StudentName || resultsMap[p.Program_Code].Third_Holder}
+                                          </p>
+                                          <span className="text-[10px] text-slate-500 font-mono">
+                                            {resultsMap[p.Program_Code].Third_Holder}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Special Grades */}
+                                  {(resultsMap[p.Program_Code].AGrade && resultsMap[p.Program_Code].AGrade !== "No Grade") || resultsMap[p.Program_Code].BGrade ? (
+                                    <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                                      {resultsMap[p.Program_Code].AGrade && resultsMap[p.Program_Code].AGrade !== "No Grade" && (
+                                        <div className="flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+                                          <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 border border-emerald-300">
+                                            <SafeImage
+                                              src={studentsMap[resultsMap[p.Program_Code].AGrade]?.Student_Photo_Urls}
+                                              alt="Grade A"
+                                              fallbackCategory="student"
+                                              fallbackText={resultsMap[p.Program_Code].AGrade}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          </div>
+                                          <span className="font-bold">Grade A:</span>
+                                          <span className="font-medium truncate">{studentsMap[resultsMap[p.Program_Code].AGrade]?.StudentName || resultsMap[p.Program_Code].AGrade}</span>
+                                        </div>
+                                      )}
+                                      {resultsMap[p.Program_Code].BGrade && (
+                                        <div className="flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900">
+                                          <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 border border-blue-300">
+                                            <SafeImage
+                                              src={studentsMap[resultsMap[p.Program_Code].BGrade]?.Student_Photo_Urls}
+                                              alt="Grade B"
+                                              fallbackCategory="student"
+                                              fallbackText={resultsMap[p.Program_Code].BGrade}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          </div>
+                                          <span className="font-bold">Grade B:</span>
+                                          <span className="font-medium truncate">{studentsMap[resultsMap[p.Program_Code].BGrade]?.StudentName || resultsMap[p.Program_Code].BGrade}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )}
+
                               <div className="space-y-3">
                                 <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                                   <Users size={14} className="text-blue-600" />

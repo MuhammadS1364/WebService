@@ -1,16 +1,18 @@
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
 import { exportToExcel, parseSpreadsheet, downloadSampleTemplate } from "../../lib/excelService";
 import { importStudentsBatch } from "./ImportStudent";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
-import { Camera, Upload, Trash2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Camera, Upload, Trash2, CheckCircle2, AlertCircle, Key } from "lucide-react";
+import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
 
 export default function StudentRegistration() {
     const meta = useProgrammeMeta();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMessage, setStatusMessage] = useState("");
+    const [isUuidModalOpen, setIsUuidModalOpen] = useState(false);
 
     // --- Photo Upload States ---
     const [imagePreview, setImagePreview] = useState<string>("");
@@ -24,6 +26,53 @@ export default function StudentRegistration() {
         AddNo: "", StudentName: "", StudentEmail: "", FatherName: "",
         CollegeName: "", Class: "", StnState: "", StnDistrict: ""
     });
+
+    const standardClassesOptions = useMemo(() => {
+        const list: { id?: string; standard_name: string; class_nick_name?: string; class_serial_number?: number }[] = [];
+        const seenNames = new Set<string>();
+
+        if (meta.classes && meta.classes.length > 0) {
+            meta.classes.forEach((c) => {
+                const name = c.standard_name || c.class_nick_name;
+                if (name && !seenNames.has(name.toLowerCase())) {
+                    seenNames.add(name.toLowerCase());
+                    list.push({
+                        id: c.class_id,
+                        standard_name: name,
+                        class_nick_name: c.class_nick_name || undefined,
+                        class_serial_number: c.class_serial_number ?? undefined,
+                    });
+                }
+            });
+        }
+
+        const defaultStandardNames = [
+            "Secondary First Year",
+            "Secondary Second Year",
+            "Secondary Third Year",
+            "Secondary Fourth Year",
+            "Secondary Final Year",
+            "Senior Secondary First Year",
+            "Senior Secondary Second Year",
+            "Degree First Year",
+            "Degree Second Year",
+            "Degree Final Year",
+            "PG First Year",
+            "PG Final Year",
+        ];
+
+        defaultStandardNames.forEach((defName, idx) => {
+            if (!seenNames.has(defName.toLowerCase())) {
+                seenNames.add(defName.toLowerCase());
+                list.push({
+                    standard_name: defName,
+                    class_serial_number: idx + 1,
+                });
+            }
+        });
+
+        return list.sort((a, b) => (a.class_serial_number ?? 99) - (b.class_serial_number ?? 99));
+    }, [meta.classes]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -102,11 +151,36 @@ export default function StudentRegistration() {
                 UserRole: "Student"
             }]);
 
-            await SupaBaseFunction.from("StudentsBox").insert([{
-                ...formData,
-                StnUserId: formData.StudentEmail,
-                Student_Photo_Urls: finalPhotoUrl
-            }]);
+            // Find class UUID from selected class
+            const matchedClass = meta.classes.find(
+                (c) => (c.standard_name || c.class_nick_name) === formData.Class || c.class_id === formData.Class
+            );
+            const stnClassId = matchedClass ? matchedClass.class_id : null;
+
+            const studentPayload: any = {
+                AddNo: formData.AddNo.trim(),
+                StudentName: formData.StudentName.trim(),
+                StudentEmail: formData.StudentEmail.trim(),
+                FatherName: formData.FatherName?.trim() || null,
+                CollegeName: formData.CollegeName?.trim() || null,
+                StnUserId: formData.StudentEmail.trim(),
+                StnState: formData.StnState?.trim() || "No Provided",
+                StnDistrict: formData.StnDistrict?.trim() || "No Provided",
+                Student_Photo_Urls: finalPhotoUrl,
+                Stn_Class: stnClassId,
+                Class: formData.Class || (matchedClass?.standard_name ?? null),
+            };
+
+            const { error: insertError } = await SupaBaseFunction.from("StudentsBox").insert([studentPayload]);
+            if (insertError) {
+                if (insertError.message?.toLowerCase().includes("class")) {
+                    delete studentPayload.Class;
+                    const { error: retryError } = await SupaBaseFunction.from("StudentsBox").insert([studentPayload]);
+                    if (retryError) throw retryError;
+                } else {
+                    throw insertError;
+                }
+            }
 
             setStatusMessage("✅ Success! Student registered successfully.");
             setFormData({ AddNo: "", StudentName: "", StudentEmail: "", FatherName: "", CollegeName: "", Class: "", StnState: "", StnDistrict: "" });
@@ -171,16 +245,20 @@ export default function StudentRegistration() {
             )}
 
             {/* Bulk Actions UI */}
-            <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl p-4 border border-gray-200">
-                <h2 className="text-4xl">Quick Action</h2>
-                <button disabled={isSubmitting} className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition cursor-pointer" onClick={() => document.getElementById('fileInput')?.click()}>
+            <div className="flex flex-wrap items-center justify-end gap-3 rounded-2xl p-4 border border-gray-200 bg-white">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mr-auto">Bulk Student Actions</h2>
+                <button disabled={isSubmitting} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-emerald-700 transition cursor-pointer shadow-xs" onClick={() => document.getElementById('fileInput')?.click()}>
                     {isSubmitting ? "Processing..." : "Import Excel"}
                 </button>
                 <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportExcel} />
-                <button disabled={isSubmitting} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition cursor-pointer" onClick={handleExportData}>
+                <button type="button" onClick={() => setIsUuidModalOpen(true)} className="flex items-center gap-1.5 px-3.5 py-2 bg-purple-50 border border-purple-200 text-purple-700 rounded-xl text-xs sm:text-sm font-bold hover:bg-purple-100 transition shadow-xs cursor-pointer" title="View copyable UUIDs for Classes & Categories for Excel import">
+                    <Key size={14} className="text-purple-600" />
+                    <span>Reference UUIDs</span>
+                </button>
+                <button disabled={isSubmitting} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-indigo-700 transition cursor-pointer shadow-xs" onClick={handleExportData}>
                     {isSubmitting ? "Processing..." : "Export Data"}
                 </button>
-                <button disabled={isSubmitting} type="button" className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 transition cursor-pointer" onClick={() => downloadSampleTemplate("students")}>
+                <button disabled={isSubmitting} type="button" className="bg-amber-600 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold hover:bg-amber-700 transition cursor-pointer shadow-xs" onClick={() => downloadSampleTemplate("students")}>
                     Sample Template (.xlsx)
                 </button>
             </div>
@@ -218,36 +296,19 @@ export default function StudentRegistration() {
                             <input type="text" placeholder="ex Darul Huda Islamic University" name="CollegeName" value={formData.CollegeName} onChange={handleChange} className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none" />
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Class</label>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Class Standard Name (Our_Classes)</label>
                             <select
                                 name="Class"
                                 value={formData.Class}
                                 onChange={handleChange}
-                                className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none"
+                                className="w-full rounded-lg border border-gray-300 p-2.5 focus:border-blue-500 focus:outline-none bg-white font-medium text-slate-800"
                             >
-                                <option value="">Select class</option>
-                                {meta.classes.length > 0 ? (
-                                    meta.classes.map((cls) => (
-                                        <option key={cls.class_id} value={cls.class_title}>
-                                            {cls.class_title} (Batch #{cls.class_serial_number ?? 1})
-                                        </option>
-                                    ))
-                                ) : (
-                                    <>
-                                        <option value="Secondary First Year">Secondary First Year</option>
-                                        <option value="Secondary Second Year">Secondary Second Year</option>
-                                        <option value="Secondary Third Year">Secondary Third Year</option>
-                                        <option value="Secondary Fourth Year">Secondary Fourth Year</option>
-                                        <option value="Secondary Final Year">Secondary Final Year</option>
-                                        <option value="Senior Secondary First Year">Senior Secondary First Year</option>
-                                        <option value="Senior Secondary Last Year">Senior Secondary Last Year</option>
-                                        <option value="Degree First Year">Degree First Year</option>
-                                        <option value="Degree Second Year">Degree Second Year</option>
-                                        <option value="Degree Last Year">Degree Last Year</option>
-                                        <option value="Pg First Year">Pg First Year</option>
-                                        <option value="Pg Final Year">Pg Final Year</option>
-                                    </>
-                                )}
+                                <option value="">-- Select Standard Class (Our_Classes) --</option>
+                                {standardClassesOptions.map((cls: { id?: string; standard_name: string; class_nick_name?: string; class_serial_number?: number }) => (
+                                    <option key={cls.id || cls.standard_name} value={cls.standard_name}>
+                                        {cls.standard_name} {cls.class_nick_name ? `(${cls.class_nick_name})` : ""} {cls.class_serial_number ? `— Order #${cls.class_serial_number}` : ""}
+                                    </option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -385,6 +446,12 @@ export default function StudentRegistration() {
                     </button>
                 </form>
             </div>
+
+            {/* Excel Import UUID Reference Helper */}
+            <ExcelUuidReferenceModal
+                isOpen={isUuidModalOpen}
+                onClose={() => setIsUuidModalOpen(false)}
+            />
         </div>
     );
 }

@@ -74,7 +74,7 @@ import React, { useState, useEffect } from "react";
 // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
 
@@ -455,15 +455,22 @@ export default function OutReachAnaylatics() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: "24px" }}>
             <div style={cardStyle}>
               <h3 style={chartTitleStyle}>Achievement Distribution by Type</h3>
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
-                  <Pie data={achieveTypeData} cx="40%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={3} dataKey="value">
+                  <Pie data={achieveTypeData} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="value">
                     {achieveTypeData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                   </Pie>
                   <RechartsTooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                  <Legend layout="vertical" verticalAlign="middle" align="right" iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
+              <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-600 pt-2">
+                {achieveTypeData.map((item, idx) => (
+                  <span key={item.name} className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                    {item.name}
+                  </span>
+                ))}
+              </div>
             </div>
 
             <div style={cardStyle}>

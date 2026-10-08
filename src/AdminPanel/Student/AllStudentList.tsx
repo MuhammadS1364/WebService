@@ -4,8 +4,10 @@ import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useNavigate, useParams } from "react-router-dom";
 import { exportToExcel, parseSpreadsheet, downloadSampleTemplate } from "../../lib/excelService";
 import { importStudentsBatch } from "./ImportStudent";
-import { Download, Upload, FileSpreadsheet, PlusCircle } from "lucide-react";
+import { Download, Upload, FileSpreadsheet, PlusCircle, Key } from "lucide-react";
 import SafeImage from "../../lib/SafeImage";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
+import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
 
 interface StudentRecord {
   AddNo: string;
@@ -15,6 +17,7 @@ interface StudentRecord {
   FatherName: string;
   CollegeName: string;
   Class: string;
+  Stn_Class?: string;
   Total_Point_Anjuman: number;
   Achievements_Counts: number;
   Grand_Total_Points: number;
@@ -26,6 +29,7 @@ interface StudentRecord {
 export default function OurStudentsList() {
   const { actUser } = useParams();
   const navigate = useNavigate();
+  const meta = useProgrammeMeta();
 
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -36,6 +40,7 @@ export default function OurStudentsList() {
   const [filterState, setFilterState] = useState("All");
   const [filterDistrict, setFilterDistrict] = useState("All");
   const [filterClass, setFilterClass] = useState("All");
+  const [isUuidModalOpen, setIsUuidModalOpen] = useState(false);
 
   const fetchStudents = async () => {
     try {
@@ -44,7 +49,11 @@ export default function OurStudentsList() {
         .select("*")
         .order("StudentName", { ascending: true });
       if (error) throw error;
-      setStudents(data || []);
+      const mapped = (data || []).map((s: any) => ({
+        ...s,
+        Class: s.Class || (s.Stn_Class ? meta.classMap[s.Stn_Class] : "") || "Class Not Assigned",
+      }));
+      setStudents(mapped);
     } catch (err: any) {
       alert(`Sync Error: ${err.message}`);
     } finally {
@@ -52,7 +61,9 @@ export default function OurStudentsList() {
     }
   };
 
-  useEffect(() => { fetchStudents(); }, []);
+  useEffect(() => { 
+    fetchStudents(); 
+  }, [meta.classes]);
 
   const filteredStudents = useMemo(() => students.filter((stn) => {
     const matchesSearch = stn.StudentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,6 +155,15 @@ export default function OurStudentsList() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#CBD5E1] text-[#334155] hover:bg-slate-50 transition cursor-pointer"
           >
             <Upload size={14} /> Import Excel
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsUuidModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition cursor-pointer"
+            title="View copyable UUIDs for Classes & Categories for Excel import"
+          >
+            <Key size={14} className="text-purple-600" /> Reference UUIDs
           </button>
 
           <button
@@ -240,6 +260,12 @@ export default function OurStudentsList() {
           );
         })}
       </div>
+
+      {/* Excel Import UUID Reference Helper */}
+      <ExcelUuidReferenceModal
+        isOpen={isUuidModalOpen}
+        onClose={() => setIsUuidModalOpen(false)}
+      />
     </div>
   );
 }
