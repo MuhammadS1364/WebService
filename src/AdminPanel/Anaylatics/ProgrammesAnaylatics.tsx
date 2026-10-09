@@ -20,17 +20,11 @@ export interface WingSummary {
 
 interface FilterState {
   AccademicYear: string;
+  Category: string;
   Group: string;
   Venue: string;
   WingCode: string;
   Collaborator: string;
-}
-
-interface FilterOptions {
-  years: string[];
-  groups: string[];
-  venues: string[];
-  collaborators: string[];
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6', '#10b981'];
@@ -93,17 +87,11 @@ export default function ProgrammesAnalytics() {
   // Filters State
   const [filters, setFilters] = useState<FilterState>({
     AccademicYear: "",
+    Category: "",
     Group: "",
     Venue: "",
     WingCode: "",
     Collaborator: ""
-  });
-
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    years: [],
-    groups: [],
-    venues: [],
-    collaborators: []
   });
 
   // 1. Fetch Data Directly (ProgrammesBox, Chs-WingS, Our_Venues, Accademic_Info)
@@ -130,21 +118,6 @@ export default function ProgrammesAnalytics() {
         setWings(typedWings);
         setVenuesList(typedVenues);
         setAcademicYearsList(typedAcad);
-
-        // Extract groups from programmes
-        const progGroups = Array.from(new Set(typedProgs.map(p => p.Group).filter(Boolean))) as string[];
-        
-        // Extract collaborators from both Our_Batches and programmes
-        const progCollabs = typedProgs.map(p => p.Collaborator).filter(Boolean) as string[];
-        const batchCollabs = (meta.batches || []).map(b => b.batch_name).filter(Boolean);
-        const mergedCollabs = Array.from(new Set([...batchCollabs, ...progCollabs])).filter(c => c !== "No Collaboration");
-
-        setFilterOptions({
-          years: [],
-          groups: progGroups,
-          venues: [],
-          collaborators: mergedCollabs
-        });
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -217,6 +190,50 @@ export default function ProgrammesAnalytics() {
     return list;
   }, [venuesList, meta.venues, venueMap, programmes]);
 
+  // Combined Category Options (from Our_Category + programmes)
+  const availableCategories = useMemo(() => {
+    const list: { id: string; label: string }[] = [];
+    const seen = new Set<string>();
+
+    meta.categories.forEach(c => {
+      if (c.category_id && !seen.has(c.category_id)) {
+        seen.add(c.category_id);
+        list.push({ id: c.category_id, label: c.category_title });
+      }
+    });
+
+    programmes.forEach(p => {
+      if (p.Category && !seen.has(p.Category)) {
+        seen.add(p.Category);
+        list.push({ id: p.Category, label: meta.categoryMap[p.Category] || p.Category });
+      }
+    });
+
+    return list;
+  }, [meta.categories, meta.categoryMap, programmes]);
+
+  // Combined Group Options (from Our_Groups + programmes)
+  const availableGroups = useMemo(() => {
+    const list: { id: string; label: string }[] = [];
+    const seen = new Set<string>();
+
+    meta.groups.forEach(g => {
+      if (g.group_id && !seen.has(g.group_id)) {
+        seen.add(g.group_id);
+        list.push({ id: g.group_id, label: g.group_title || g.group_id });
+      }
+    });
+
+    programmes.forEach(p => {
+      if (p.Group && !seen.has(p.Group)) {
+        seen.add(p.Group);
+        list.push({ id: p.Group, label: meta.groupMap[p.Group] || p.Group });
+      }
+    });
+
+    return list;
+  }, [meta.groups, meta.groupMap, programmes]);
+
   // Combined Collaborator Options (from Our_Batches + programmes)
   const availableCollaborators = useMemo(() => {
     const batchNames = (meta.batches || []).map(b => b.batch_name).filter(Boolean);
@@ -243,8 +260,26 @@ export default function ProgrammesAnalytics() {
       }
     }
 
+    if (filters.Category) {
+      result = result.filter(p => {
+        if (!p.Category) return false;
+        if (p.Category === filters.Category) return true;
+        if (meta.categoryMap[p.Category] === filters.Category) return true;
+        const catObj = meta.categories.find(c => c.category_id === filters.Category);
+        if (catObj && (p.Category === catObj.category_title || meta.categoryMap[p.Category] === catObj.category_title)) return true;
+        return false;
+      });
+    }
+
     if (filters.Group) {
-      result = result.filter(p => p.Group === filters.Group);
+      result = result.filter(p => {
+        if (!p.Group) return false;
+        if (p.Group === filters.Group) return true;
+        if (meta.groupMap[p.Group] === filters.Group) return true;
+        const grpObj = meta.groups.find(g => g.group_id === filters.Group);
+        if (grpObj && (p.Group === grpObj.group_title || meta.groupMap[p.Group] === grpObj.group_title)) return true;
+        return false;
+      });
     }
 
     if (filters.Venue) {
@@ -303,6 +338,7 @@ export default function ProgrammesAnalytics() {
   const resetFilters = () => {
     setFilters({
       AccademicYear: "",
+      Category: "",
       Group: "",
       Venue: "",
       WingCode: "",
@@ -422,13 +458,13 @@ export default function ProgrammesAnalytics() {
         </div>
       </div>
 
-      {/* FILTER SECTION (Grid collapses from 5 columns on desktop down to 1 column on mobile) */}
+      {/* FILTER SECTION (Grid collapses from 6 columns on desktop down to 1 column on mobile) */}
       <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
             <Filter size={13} /> Filter Events
           </span>
-          {(filters.AccademicYear || filters.Group || filters.Venue || filters.WingCode || filters.Collaborator) && (
+          {(filters.AccademicYear || filters.Category || filters.Group || filters.Venue || filters.WingCode || filters.Collaborator) && (
             <button
               onClick={resetFilters}
               className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer underline"
@@ -438,7 +474,7 @@ export default function ProgrammesAnalytics() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           <select
             name="AccademicYear"
             value={filters.AccademicYear}
@@ -450,13 +486,23 @@ export default function ProgrammesAnalytics() {
           </select>
 
           <select
+            name="Category"
+            value={filters.Category}
+            onChange={handleFilterChange}
+            className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
+          >
+            <option value="">All Categories</option>
+            {availableCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+
+          <select
             name="Group"
             value={filters.Group}
             onChange={handleFilterChange}
             className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
           >
             <option value="">All Groups</option>
-            {filterOptions.groups.map(g => <option key={g} value={g}>{g}</option>)}
+            {availableGroups.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
           </select>
 
           <select

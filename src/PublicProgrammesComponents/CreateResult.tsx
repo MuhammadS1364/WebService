@@ -4,6 +4,7 @@ import { SupaBaseFunction } from "../../src/lib/SupaBase";
 import { useProgrammeMeta } from "../../src/lib/programmeMeta";
 import SafeImage from "../lib/SafeImage";
 import type { PointsTemplateRecord } from "../../src/lib/types";
+import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
 import {
   Trophy,
   Award,
@@ -12,6 +13,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   Zap,
+  Printer,
 } from "lucide-react";
 
 interface RegisteredCandidate {
@@ -89,6 +91,7 @@ export default function CreateResult() {
   // Registered candidates
   const [registeredCandidates, setRegisteredCandidates] = useState<RegisteredCandidate[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState<boolean>(false);
+  const [isPrintSheetOpen, setIsPrintSheetOpen] = useState<boolean>(false);
 
   // Holders
   const [holders, setHolders] = useState<HoldersState>(INITIAL_HOLDERS);
@@ -801,16 +804,26 @@ export default function CreateResult() {
         {/* STEP 3: REGISTERED CANDIDATES */}
         {selectedProgram && (
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-indigo-600" />
                 <h2 className="text-sm font-black text-slate-900">
                   3. Registered Candidates ({registeredCandidates.length})
                 </h2>
               </div>
-              <span className="text-xs text-slate-500 font-medium">
-                Only verified candidates can be awarded positions
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                  Only verified candidates can be awarded positions
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsPrintSheetOpen(true)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                  title="Print Official Registered Candidate Sheet (A4)"
+                >
+                  <Printer size={13} /> Print Sheet (A4)
+                </button>
+              </div>
             </div>
 
             {loadingCandidates ? (
@@ -1027,6 +1040,18 @@ export default function CreateResult() {
           </div>
         )}
       </form>
+
+      {/* Print Candidate Sheet Modal (A4) */}
+      {selectedProgram && (
+        <PrintCandidateSheetModal
+          isOpen={isPrintSheetOpen}
+          programCode={selectedProgram}
+          initialProgramTitle={
+            programmes.find((p) => p.Program_Code === selectedProgram)?.Program_Title || selectedProgram
+          }
+          onClose={() => setIsPrintSheetOpen(false)}
+        />
+      )}
     </div>
   );
 }

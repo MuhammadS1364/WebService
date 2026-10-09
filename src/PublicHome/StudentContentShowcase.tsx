@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
-import { uploadImageToImgBB } from "../lib/imgbbService";
 import SafeImage from "../lib/SafeImage";
 import {
   Heart,
@@ -11,17 +10,10 @@ import {
   Sparkles,
   Share2,
   Check,
-  ThumbsUp,
   FileText,
-  Plus,
   X,
-  Upload,
-  Link as LinkIcon,
   Download,
   Eye,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
   FileType,
 } from "lucide-react";
 
@@ -56,7 +48,6 @@ export default function StudentContentShowcase() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Modal States
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedItemForRead, setSelectedItemForRead] = useState<EnrichedContentItem | null>(null);
 
   // Track liked IDs in local storage to prevent double-liking
@@ -264,16 +255,12 @@ export default function StudentContentShowcase() {
           </p>
         </div>
 
-        {/* Action Button: Create New Content Form Modal */}
-        <div className="shrink-0 relative z-10">
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs sm:text-sm font-bold rounded-2xl shadow-lg shadow-emerald-700/20 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
-          >
-            <Plus size={16} />
-            <span>Submit New Content</span>
-          </button>
+        {/* Showcase Stats & Info Pill */}
+        <div className="shrink-0 relative z-10 flex items-center gap-3">
+          <div className="px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200/90 text-xs font-bold text-slate-700 flex items-center gap-2 shadow-2xs">
+            <BookOpen size={16} className="text-emerald-600" />
+            <span>{filteredItems.length} Published Articles & Creative Works</span>
+          </div>
         </div>
       </div>
 
@@ -327,7 +314,7 @@ export default function StudentContentShowcase() {
               sortBy === "popular" ? "bg-white text-rose-700 shadow-2xs" : "text-slate-600 hover:text-slate-900"
             }`}
           >
-            <ThumbsUp size={12} /> Most Liked
+            <Heart size={12} className="fill-rose-500 text-rose-500" /> Most Liked
           </button>
         </div>
       </div>
@@ -357,17 +344,22 @@ export default function StudentContentShowcase() {
           </div>
           <h3 className="text-base font-bold text-slate-800">No Student Content Found</h3>
           <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-            {searchQuery
-              ? "No student submission matches your current search keywords."
-              : "Be the first to share! Click 'Submit New Content' to add a student submission."}
+            {searchQuery || selectedWing !== "all"
+              ? "No student submission matches your current search keywords or filters."
+              : "No student literature or creative articles published yet."}
           </p>
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-emerald-700 transition"
-          >
-            <Plus size={14} /> Submit First Submission
-          </button>
+          {(searchQuery || selectedWing !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setSelectedWing("all");
+              }}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-xs hover:bg-slate-800 transition cursor-pointer"
+            >
+              Clear Search & Filters
+            </button>
+          )}
         </div>
       ) : (
         /* Content Cards Grid: Upgraded Context Cards */
@@ -569,21 +561,7 @@ export default function StudentContentShowcase() {
       )}
 
       {/* =========================================================================
-          MODAL 1: CREATE NEW CONTENT INFO FORM (Content_Table)
-          ========================================================================= */}
-      {isCreateModalOpen && (
-        <CreateContentModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onSuccess={() => {
-            setIsCreateModalOpen(false);
-            fetchContents();
-          }}
-        />
-      )}
-
-      {/* =========================================================================
-          MODAL 2: FULL CONTENT READER MODAL
+          FULL CONTENT READER MODAL
           ========================================================================= */}
       {selectedItemForRead && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
@@ -705,361 +683,6 @@ export default function StudentContentShowcase() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// =========================================================================
-// CREATE NEW CONTENT MODAL COMPONENT (Content_Table)
-// =========================================================================
-interface CreateContentModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function CreateContentModal({ isOpen, onClose, onSuccess }: CreateContentModalProps) {
-  const [contentTitle, setContentTitle] = useState("");
-  const [programeCode, setProgrameCode] = useState("");
-  const [studentAddNo, setStudentAddNo] = useState("");
-  const [contentText, setContentText] = useState("");
-  const [fileMode, setFileMode] = useState<"upload" | "url">("upload");
-  const [contentFileUrl, setContentFileUrl] = useState("");
-  const [filePreview, setFilePreview] = useState<string>("");
-
-  const [availableProgrammes, setAvailableProgrammes] = useState<any[]>([]);
-  const [verifiedStudent, setVerifiedStudent] = useState<any | null>(null);
-  const [verifyingStudent, setVerifyingStudent] = useState(false);
-
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Fetch available programmes for dropdown
-  useEffect(() => {
-    const fetchProgrammes = async () => {
-      try {
-        const { data } = await SupaBaseFunction
-          .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, WingCode")
-          .order("Program_Title");
-        setAvailableProgrammes(data || []);
-      } catch (e) {
-        console.warn("Could not load programmes list", e);
-      }
-    };
-    fetchProgrammes();
-  }, []);
-
-  // Verify Student AddNo live against StudentsBox
-  useEffect(() => {
-    const verifyStudent = async () => {
-      const trimmed = studentAddNo.trim();
-      if (!trimmed) {
-        setVerifiedStudent(null);
-        return;
-      }
-      try {
-        setVerifyingStudent(true);
-        const { data } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
-          .eq("AddNo", trimmed)
-          .maybeSingle();
-
-        setVerifiedStudent(data || null);
-      } catch {
-        setVerifiedStudent(null);
-      } finally {
-        setVerifyingStudent(false);
-      }
-    };
-
-    const timer = setTimeout(verifyStudent, 350);
-    return () => clearTimeout(timer);
-  }, [studentAddNo]);
-
-  if (!isOpen) return null;
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingFile(true);
-    setErrorMsg("");
-
-    try {
-      if (file.type.startsWith("image/")) {
-        const res = await uploadImageToImgBB(file, `content_${Date.now()}`);
-        const url = res.displayUrl || res.url;
-        setContentFileUrl(url);
-        setFilePreview(url);
-      } else {
-        // Read as base64 Data URL so docs or text files are preserved directly
-        const reader = new FileReader();
-        const readPromise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(new Error("File reading failed"));
-        });
-        reader.readAsDataURL(file);
-        const dataUrl = await readPromise;
-        setContentFileUrl(dataUrl);
-        setFilePreview(file.name);
-      }
-    } catch (err: any) {
-      setErrorMsg("Failed to upload/read file: " + err.message);
-    } finally {
-      setUploadingFile(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contentTitle.trim()) {
-      setErrorMsg("Please enter a Content Title.");
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setErrorMsg("");
-
-      const payload = {
-        content_title: contentTitle.trim(),
-        programe_code: programeCode.trim() || null,
-        student_addNo: studentAddNo.trim() || null,
-        like_count: 0,
-        content_text: contentText.trim() || null,
-        content_file: contentFileUrl.trim() || null,
-      };
-
-      const { error } = await SupaBaseFunction
-        .from("Content_Table")
-        .insert([payload]);
-
-      if (error) throw error;
-
-      onSuccess();
-    } catch (err: any) {
-      setErrorMsg(err.message || "Failed to submit content to Content_Table.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150 border border-slate-200 max-h-[92vh] overflow-y-auto">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
-              <BookOpen className="text-emerald-600" size={20} />
-              Submit New Student Content
-            </h3>
-            <p className="text-xs text-slate-500">Record submission into Content_Table</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {errorMsg && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
-            <AlertCircle size={15} className="shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Content Title */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
-              Content Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Modern Perspectives in Islamic Jurisprudence..."
-              value={contentTitle}
-              onChange={(e) => setContentTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition"
-            />
-          </div>
-
-          {/* Programme Code Dropdown */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
-              Associated Programme (ProgrammesBox)
-            </label>
-            <select
-              value={programeCode}
-              onChange={(e) => setProgrameCode(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition"
-            >
-              <option value="">-- General Submission / Select Programme --</option>
-              {availableProgrammes.map((p) => (
-                <option key={p.Program_Code} value={p.Program_Code}>
-                  {p.Program_Title || p.Program_Code} ({p.Program_Code})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Student Admission Number */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
-                Student Admission No (StudentsBox)
-              </label>
-              {verifyingStudent && (
-                <span className="text-[10px] text-slate-400 font-semibold animate-pulse">
-                  Checking AddNo...
-                </span>
-              )}
-            </div>
-            <input
-              type="text"
-              placeholder="e.g. U1364 or Admission Number"
-              value={studentAddNo}
-              onChange={(e) => setStudentAddNo(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition font-mono"
-            />
-
-            {/* Verified Student Feedback Card */}
-            {verifiedStudent && (
-              <div className="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-900">
-                <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-bold truncate">{verifiedStudent.StudentName}</p>
-                  <p className="text-[10px] text-emerald-700 truncate">
-                    {verifiedStudent.Class || "Class Assigned"} • {verifiedStudent.CollegeName || "DHIU"}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Content Text (Essay, Speech, Article) */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
-              Content Text (Article / Essay / Thoughts)
-            </label>
-            <textarea
-              rows={4}
-              placeholder="Write or paste your article, literary reflections, poem, or speech here..."
-              value={contentText}
-              onChange={(e) => setContentText(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition resize-y font-sans leading-relaxed"
-            />
-          </div>
-
-          {/* Attachment Mode: Upload or URL */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
-                Attached File / Visual (content_file)
-              </label>
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setFileMode("upload")}
-                  className={`px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1 ${
-                    fileMode === "upload" ? "bg-white text-emerald-700 shadow-2xs" : "text-slate-500"
-                  }`}
-                >
-                  <Upload size={11} /> Upload File
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFileMode("url")}
-                  className={`px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1 ${
-                    fileMode === "url" ? "bg-white text-emerald-700 shadow-2xs" : "text-slate-500"
-                  }`}
-                >
-                  <LinkIcon size={11} /> File URL
-                </button>
-              </div>
-            </div>
-
-            {fileMode === "upload" ? (
-              <div>
-                {contentFileUrl ? (
-                  <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                    <span className="text-xs font-semibold text-slate-800 truncate">
-                      📎 Attached: {filePreview || "Document"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setContentFileUrl("");
-                        setFilePreview("");
-                      }}
-                      className="text-xs text-red-600 font-bold hover:underline"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 hover:border-emerald-400 bg-slate-50 hover:bg-emerald-50/20 rounded-2xl p-4 text-center cursor-pointer transition"
-                  >
-                    <Upload size={20} className="mx-auto text-emerald-600 mb-1" />
-                    <p className="text-xs font-bold text-slate-800">
-                      {uploadingFile ? "Uploading..." : "Click to attach document or photo"}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">Images, PDF, Docx, TSX, Markdown</p>
-                  </div>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </div>
-            ) : (
-              <input
-                type="url"
-                placeholder="https://example.com/document.pdf or Google Drive link"
-                value={contentFileUrl}
-                onChange={(e) => setContentFileUrl(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-emerald-500 outline-none transition"
-              />
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || uploadingFile}
-              className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 size={13} className="animate-spin" /> Saving...
-                </>
-              ) : (
-                <>
-                  <Check size={14} /> Submit Content
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }

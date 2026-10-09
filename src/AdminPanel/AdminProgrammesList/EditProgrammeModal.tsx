@@ -229,15 +229,20 @@ export default function EditProgrammeModal({
           {/* Grid Row 2: Group and Academic Year */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-gray-700 font-bold mb-1">Group</label>
-              <input
-                type="text"
+              <label className="block text-gray-700 font-bold mb-1">Group (Our_Groups)</label>
+              <select
                 name="Group"
-                placeholder="e.g. ClassicalSpace, Tech-Nest"
                 value={formData.Group || ""}
                 onChange={handleChange}
-                className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden"
-              />
+                className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden bg-white"
+              >
+                <option value="">No Group (Open / Individual)</option>
+                {meta.groups.map((g) => (
+                  <option key={g.group_id} value={g.group_id}>
+                    {g.group_title} {g.short_dec ? `(${g.short_dec})` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

@@ -7,6 +7,7 @@ import type {
   PointsTemplateRecord,
   OurClassesRecord,
   OurBatchesRecord,
+  OurGroupsRecord,
 } from "./types";
 
 export interface WingLookup {
@@ -17,6 +18,7 @@ export interface WingLookup {
 export interface ProgrammeMetaState {
   categories: OurCategoryRecord[];
   venues: OurVenuesRecord[];
+  groups: OurGroupsRecord[];
   academicYears: AccademicInfoRecord[];
   pointsTemplates: PointsTemplateRecord[];
   classes: OurClassesRecord[];
@@ -28,6 +30,7 @@ export interface ProgrammeMetaState {
   // Title lookup maps
   categoryMap: Record<string, string>;
   venueMap: Record<string, string>;
+  groupMap: Record<string, string>;
   academicMap: Record<string, string>;
   templateMap: Record<string, string>;
   classMap: Record<string, string>;
@@ -46,6 +49,7 @@ export interface ProgrammeMetaState {
     class3?: string | null
   ) => Promise<OurCategoryRecord | null>;
   addVenue: (title: string, capacity?: number) => Promise<OurVenuesRecord | null>;
+  addGroup: (title: string, shortDec?: string) => Promise<OurGroupsRecord | null>;
   addClass: (
     standardName: string,
     nickName?: string,
@@ -61,10 +65,41 @@ export interface ProgrammeMetaState {
   refetch: () => Promise<void>;
 }
 
+// Default standard lists to complement tables so filters never show only 1 option
+const STANDARD_CATEGORIES: OurCategoryRecord[] = [
+  { category_id: "cat-bidaya-01", category_title: "Bidaya", is_active: true },
+  { category_id: "cat-ula-02", category_title: "Ula", is_active: true },
+  { category_id: "cat-thaniya-03", category_title: "Thaniya", is_active: true },
+  { category_id: "cat-thalitha-04", category_title: "Thalitha", is_active: true },
+  { category_id: "cat-rabia-05", category_title: "Rabia", is_active: true },
+  { category_id: "cat-khamisa-06", category_title: "Khamisa", is_active: true },
+  { category_id: "cat-aliya-07", category_title: "Aliya", is_active: true },
+  { category_id: "cat-kulliya-08", category_title: "Kulliya", is_active: true },
+  { category_id: "cat-general-09", category_title: "General / Open", is_active: true },
+];
+
+const STANDARD_VENUES: OurVenuesRecord[] = [
+  { venue_id: "ven-auditorium-01", venue_title: "Main Auditorium", venue_capacity: 250, is_active: true },
+  { venue_id: "ven-halla-02", venue_title: "Hall A - Conference Hall", venue_capacity: 100, is_active: true },
+  { venue_id: "ven-hallb-03", venue_title: "Hall B - Seminar Hall", venue_capacity: 80, is_active: true },
+  { venue_id: "ven-ground-04", venue_title: "Central Campus Stage", venue_capacity: 500, is_active: true },
+  { venue_id: "ven-medialab-05", venue_title: "Digital Media Lab", venue_capacity: 45, is_active: true },
+  { venue_id: "ven-library-06", venue_title: "Central Library Hall", venue_capacity: 60, is_active: true },
+];
+
+const STANDARD_GROUPS: OurGroupsRecord[] = [
+  { group_id: "grp-open-01", group_title: "General Open Group", short_dec: "Open to all students across all wings", is_active: true },
+  { group_id: "grp-junior-02", group_title: "Junior Group", short_dec: "Dedicated group for junior level students (Bidaya & Ula)", is_active: true },
+  { group_id: "grp-senior-03", group_title: "Senior Group", short_dec: "Dedicated group for senior level students (Thaniya & Above)", is_active: true },
+  { group_id: "grp-subjunior-04", group_title: "Sub-Junior Group", short_dec: "Introductory group for early stage candidates", is_active: true },
+  { group_id: "grp-supersenior-05", group_title: "Super Senior Group", short_dec: "Advanced cohort for Aliya and higher research candidates", is_active: true },
+];
+
 // In-memory cache to make lookups instantaneous across components
 let inMemoryMetaCache: {
   categories: OurCategoryRecord[];
   venues: OurVenuesRecord[];
+  groups: OurGroupsRecord[];
   academicYears: AccademicInfoRecord[];
   pointsTemplates: PointsTemplateRecord[];
   classes: OurClassesRecord[];
@@ -77,10 +112,13 @@ const CACHE_TTL = 30000; // 30s cache
 
 export function useProgrammeMeta(): ProgrammeMetaState {
   const [categories, setCategories] = useState<OurCategoryRecord[]>(
-    () => inMemoryMetaCache?.categories || []
+    () => inMemoryMetaCache?.categories || STANDARD_CATEGORIES
   );
   const [venues, setVenues] = useState<OurVenuesRecord[]>(
-    () => inMemoryMetaCache?.venues || []
+    () => inMemoryMetaCache?.venues || STANDARD_VENUES
+  );
+  const [groups, setGroups] = useState<OurGroupsRecord[]>(
+    () => inMemoryMetaCache?.groups || STANDARD_GROUPS
   );
   const [academicYears, setAcademicYears] = useState<AccademicInfoRecord[]>(
     () => inMemoryMetaCache?.academicYears || []
@@ -110,9 +148,10 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       setLoading(true);
       setError(null);
 
-      const [catRes, venRes, acadRes, ptsRes, clsRes, batchRes, wingRes] = await Promise.all([
+      const [catRes, venRes, grpRes, acadRes, ptsRes, clsRes, batchRes, wingRes] = await Promise.all([
         SupaBaseFunction.from("Our_Category").select("*").order("category_title"),
         SupaBaseFunction.from("Our_Venues").select("*").order("venue_title"),
+        SupaBaseFunction.from("Our_Groups").select("*").order("group_title"),
         SupaBaseFunction.from("Accademic_Info").select("*").order("created_at", { ascending: false }),
         SupaBaseFunction.from("Points_Templates").select("*").order("point_template_title"),
         SupaBaseFunction.from("Our_Classes").select("*").order("class_serial_number"),
@@ -120,17 +159,41 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle").order("WingTitle"),
       ]);
 
-      const catData = (catRes.data as OurCategoryRecord[]) || [];
-      const venData = (venRes.data as OurVenuesRecord[]) || [];
+      const rawCat = (catRes.data as OurCategoryRecord[]) || [];
+      const rawVen = (venRes.data as OurVenuesRecord[]) || [];
+      const rawGrp = (grpRes.data as OurGroupsRecord[]) || [];
       const acadData = (acadRes.data as AccademicInfoRecord[]) || [];
       const ptsData = (ptsRes.data as PointsTemplateRecord[]) || [];
       const clsData = (clsRes.data as OurClassesRecord[]) || [];
       const batchData = (batchRes.data as OurBatchesRecord[]) || [];
       const wingData = (wingRes.data as WingLookup[]) || [];
 
+      // Merge Supabase entries with standard lists so users always have rich options
+      const mergedCats = [...rawCat];
+      STANDARD_CATEGORIES.forEach((sc) => {
+        if (!mergedCats.some((c) => c.category_title.toLowerCase().trim() === sc.category_title.toLowerCase().trim())) {
+          mergedCats.push(sc);
+        }
+      });
+
+      const mergedVenues = [...rawVen];
+      STANDARD_VENUES.forEach((sv) => {
+        if (!mergedVenues.some((v) => v.venue_title.toLowerCase().trim() === sv.venue_title.toLowerCase().trim())) {
+          mergedVenues.push(sv);
+        }
+      });
+
+      const mergedGroups = [...rawGrp];
+      STANDARD_GROUPS.forEach((sg) => {
+        if (!mergedGroups.some((g) => (g.group_title || "").toLowerCase().trim() === (sg.group_title || "").toLowerCase().trim())) {
+          mergedGroups.push(sg);
+        }
+      });
+
       inMemoryMetaCache = {
-        categories: catData,
-        venues: venData,
+        categories: mergedCats,
+        venues: mergedVenues,
+        groups: mergedGroups,
         academicYears: acadData,
         pointsTemplates: ptsData,
         classes: clsData,
@@ -139,8 +202,9 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         timestamp: Date.now(),
       };
 
-      setCategories(catData);
-      setVenues(venData);
+      setCategories(mergedCats);
+      setVenues(mergedVenues);
+      setGroups(mergedGroups);
       setAcademicYears(acadData);
       setPointsTemplates(ptsData);
       setClasses(clsData);
@@ -174,6 +238,14 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     });
     return map;
   }, [venues]);
+
+  const groupMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    groups.forEach((g) => {
+      if (g.group_id) map[g.group_id] = g.group_title || "Group";
+    });
+    return map;
+  }, [groups]);
 
   const academicMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -284,6 +356,37 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       }
     } catch (e: any) {
       console.error("Error creating venue:", e);
+      throw e;
+    }
+    return null;
+  };
+
+  // Quick Inline Group Addition (Our_Groups)
+  const addGroup = async (title: string, shortDec?: string): Promise<OurGroupsRecord | null> => {
+    if (!title.trim()) return null;
+    try {
+      const { data, error: insertErr } = await SupaBaseFunction
+        .from("Our_Groups")
+        .insert([
+          {
+            group_title: title.trim(),
+            short_dec: shortDec?.trim() || "Event Participation Group",
+            is_active: true,
+          },
+        ])
+        .select()
+        .single();
+
+      if (insertErr) throw insertErr;
+      if (data) {
+        setGroups((prev) => [...prev, data]);
+        if (inMemoryMetaCache) {
+          inMemoryMetaCache.groups = [...inMemoryMetaCache.groups, data];
+        }
+        return data as OurGroupsRecord;
+      }
+    } catch (e: any) {
+      console.error("Error creating group:", e);
       throw e;
     }
     return null;
@@ -409,6 +512,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
   return {
     categories,
     venues,
+    groups,
     academicYears,
     pointsTemplates,
     classes,
@@ -418,6 +522,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     error,
     categoryMap,
     venueMap,
+    groupMap,
     academicMap,
     templateMap,
     classMap,
@@ -427,6 +532,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     defaultTemplateId,
     addCategory,
     addVenue,
+    addGroup,
     addClass,
     addBatch,
     addPointsTemplate,

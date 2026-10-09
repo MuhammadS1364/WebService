@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
+import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
+import { Printer } from "lucide-react";
 
 // Define the shape of your program data
 interface ProgramDetails {
@@ -35,6 +37,7 @@ export default function CandidateRegistration() {
   const [isDuplicate, setIsDuplicate] = useState<boolean>(false);
   const [categoryMismatch, setCategoryMismatch] = useState<boolean>(false);
   const [status, setStatus] = useState<StatusState>({ type: "", text: "" });
+  const [isPrintSheetOpen, setIsPrintSheetOpen] = useState<boolean>(false);
 
   // ----------------------------------------
   // 1. Fetch current program info 
@@ -265,9 +268,21 @@ export default function CandidateRegistration() {
       <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-6 sm:p-10 transition-all">
         
         {/* Header Section */}
-        <div className="mb-8 border-b border-slate-100 pb-5">
-          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Candidate Entry</h2>
-          <p className="text-sm text-slate-500 mt-1.5 font-medium">Assign records to active programs seamlessly.</p>
+        <div className="mb-8 border-b border-slate-100 pb-5 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">Candidate Entry</h2>
+            <p className="text-sm text-slate-500 mt-1 font-medium">Assign records to active programs seamlessly.</p>
+          </div>
+          {programDetails && (
+            <button
+              type="button"
+              onClick={() => setIsPrintSheetOpen(true)}
+              className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center gap-1.5 cursor-pointer shadow-2xs shrink-0"
+              title="Print Official Registered Candidate Sheet (A4)"
+            >
+              <Printer size={15} /> Print Sheet (A4)
+            </button>
+          )}
         </div>
 
         {/* Action Validation Alerts */}
@@ -294,19 +309,20 @@ export default function CandidateRegistration() {
           // Success / Next Action Workflow
           <div className="space-y-6 py-4 animate-in fade-in zoom-in duration-300">
             <p className="text-slate-600 text-center font-medium">What would you like to do next?</p>
-            <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setStatus({ type: "", text: "" })}
-                className="w-full py-3.5 bg-violet-600 text-white font-bold rounded-xl shadow-md shadow-violet-200 hover:bg-violet-700 hover:-translate-y-0.5 transition-all active:scale-95"
+                className="w-full py-3.5 bg-violet-600 text-white font-bold rounded-xl shadow-md shadow-violet-200 hover:bg-violet-700 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer text-center"
               >
                 + Register Another
               </button>
-              {/* <button
-                onClick={() => navigate(`/student-panel//`)}
-                className="w-full py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 hover:-translate-y-0.5 transition-all active:scale-95"
+              <button
+                type="button"
+                onClick={() => setIsPrintSheetOpen(true)}
+                className="w-full py-3.5 bg-violet-50 text-violet-700 border border-violet-200 font-bold rounded-xl hover:bg-violet-100 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
               >
-                Return to List
-              </button> */}
+                <Printer size={16} /> Print Sheet (A4)
+              </button>
             </div>
           </div>
         ) : (
@@ -389,6 +405,16 @@ export default function CandidateRegistration() {
             </div>
             
           </form>
+        )}
+
+        {/* Print Candidate Sheet Modal (A4) */}
+        {programDetails && (
+          <PrintCandidateSheetModal
+            isOpen={isPrintSheetOpen}
+            programCode={programDetails.Program_Code}
+            initialProgramTitle={programDetails.Program_Title}
+            onClose={() => setIsPrintSheetOpen(false)}
+          />
         )}
       </div>
     </div>

@@ -59,13 +59,12 @@ create table public."ProgrammesBox" (
   "Description" text null,
   "OutComes" text null,
   "Date" date null,
-  "Group" character varying null,
   "IsApproved" boolean null default false,
   "IsResulted" boolean null default false,
   "IsResultPublished" boolean null default false,
   "Total_Registration" integer null default 0,
   "IsOpenRegistration" boolean null default true,
-  "Program_Poster" character varying null default 'https://media.licdn.com/dms/image/v2/C5112AQH1xW5oeiHzvg/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520148394987?e=2147483647&v=beta&t=vThHQ4hcg90pr_O3kI_FOE_Z4jULLSBg4L280dD6-DE'::character varying,
+  "Program_Poster" text null,
   "IsConducted" boolean null default false,
   created_at time without time zone null default now(),
   "Expected_Time" character varying null default 'Not Provided'::character varying,
@@ -75,12 +74,26 @@ create table public."ProgrammesBox" (
   "Category" uuid null,
   "AccademicYear" uuid null,
   points_template uuid null,
-  constraint ProgrammesBox_pkey primary key ("Program_Code"),
-  constraint ProgrammesBox_AccademicYear_fkey foreign KEY ("AccademicYear") references "Accademic_Info" (accademic_id) on update CASCADE on delete RESTRICT,
-  constraint ProgrammesBox_Category_fkey foreign KEY ("Category") references "Our_Category" (category_id) on update CASCADE on delete CASCADE,
-  constraint ProgrammesBox_Venue_fkey foreign KEY ("Venue") references "Our_Venues" (venue_id) on update CASCADE on delete CASCADE,
-  constraint ProgrammesBox_WingCode_fkey foreign KEY ("WingCode") references "Chs-WingS" ("WingCode") on update CASCADE on delete RESTRICT,
-  constraint ProgrammesBox_points_template_fkey foreign KEY (points_template) references "Points_Templates" (p_template_id) on update CASCADE on delete RESTRICT
+  "isContentRequired" boolean null default false,
+  "ContentSubmition_deadLine" date null,
+  "Group" uuid null,
+  constraint "ProgrammesBox_pkey" primary key ("Program_Code"),
+  constraint "ProgrammesBox_Category_fkey" foreign KEY ("Category") references "Our_Category" (category_id) on update CASCADE on delete CASCADE,
+  constraint "ProgrammesBox_Group_fkey" foreign KEY ("Group") references "Our_Groups" (group_id) on update CASCADE on delete CASCADE,
+  constraint "ProgrammesBox_AccademicYear_fkey" foreign KEY ("AccademicYear") references "Accademic_Info" (accademic_id) on update CASCADE on delete RESTRICT,
+  constraint "ProgrammesBox_WingCode_fkey" foreign KEY ("WingCode") references "Chs-WingS" ("WingCode") on update CASCADE on delete RESTRICT,
+  constraint "ProgrammesBox_points_template_fkey" foreign KEY (points_template) references "Points_Templates" (p_template_id) on update CASCADE on delete RESTRICT,
+  constraint "ProgrammesBox_Venue_fkey" foreign KEY ("Venue") references "Our_Venues" (venue_id) on update CASCADE on delete CASCADE
+) TABLESPACE pg_default;
+
+=== Groups Table ===
+create table public."Our_Groups" (
+  group_id uuid not null default gen_random_uuid (),
+  created_at timestamp with time zone not null default now(),
+  group_title character varying null default 'group_title'::character varying,
+  short_dec text null default 'Short Dec About it > 20 words'::text,
+  is_active boolean null default true,
+  constraint "Our_Groups_pkey" primary key (group_id)
 ) TABLESPACE pg_default;
 
 === Category Table ===

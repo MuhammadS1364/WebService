@@ -5,6 +5,7 @@ import EditProgrammeModal from "./EditProgrammeModal";
 import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
+import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
 import { 
   Edit3, 
   Calendar, 
@@ -15,7 +16,8 @@ import {
   FileText, 
   X,
   Award,
-  Key
+  Key,
+  Printer
 } from "lucide-react"; 
 
 export interface Programme {
@@ -72,6 +74,7 @@ export default function AdminProgrammesList() {
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [editingProgram, setEditingProgram] = useState<Programme | null>(null);
+  const [printSheetProgram, setPrintSheetProgram] = useState<Programme | null>(null);
   const [fullscreenPoster, setFullscreenPoster] = useState<{ url: string; title: string } | null>(null);
   const [isUuidModalOpen, setIsUuidModalOpen] = useState(false);
   
@@ -131,15 +134,35 @@ export default function AdminProgrammesList() {
     return meta.categoryMap[catId] || catId;
   };
 
+  const getGroupName = (grpId: string | null): string => {
+    if (!grpId) return "General Group";
+    return meta.groupMap[grpId] || grpId;
+  };
+
   const uniqueValues = useMemo(() => {
+    const progYears = programmes.map((p) => p.AccademicYear).filter(Boolean) as string[];
+    const metaYears = meta.academicYears.map((a) => a.accademic_id).filter(Boolean);
+
+    const progCats = programmes.map((p) => p.Category).filter(Boolean) as string[];
+    const metaCats = meta.categories.map((c) => c.category_id).filter(Boolean);
+
+    const progGroups = programmes.map((p) => p.Group).filter(Boolean) as string[];
+    const metaGroups = meta.groups.map((g) => g.group_id).filter(Boolean);
+
+    const progVenues = programmes.map((p) => p.Venue).filter(Boolean) as string[];
+    const metaVenues = meta.venues.map((v) => v.venue_id).filter(Boolean);
+
+    const progWings = programmes.map((p) => p.WingCode).filter(Boolean) as string[];
+    const metaWings = meta.wings.map((w) => w.WingCode).filter(Boolean);
+
     return {
-      AccademicYear: Array.from(new Set(programmes.map((p) => p.AccademicYear).filter(Boolean))) as string[],
-      Category: Array.from(new Set(programmes.map((p) => p.Category).filter(Boolean))) as string[],
-      Group: Array.from(new Set(programmes.map((p) => p.Group).filter(Boolean))) as string[],
-      Venue: Array.from(new Set(programmes.map((p) => p.Venue).filter(Boolean))) as string[],
-      WingCode: Array.from(new Set(programmes.map((p) => p.WingCode).filter(Boolean))) as string[],
+      AccademicYear: Array.from(new Set([...metaYears, ...progYears])),
+      Category: Array.from(new Set([...metaCats, ...progCats])),
+      Group: Array.from(new Set([...metaGroups, ...progGroups])),
+      Venue: Array.from(new Set([...metaVenues, ...progVenues])),
+      WingCode: Array.from(new Set([...metaWings, ...progWings])),
     };
-  }, [programmes]);
+  }, [programmes, meta.academicYears, meta.categories, meta.groups, meta.venues, meta.wings]);
 
   const filteredProgrammes = useMemo(() => {
     return programmes.filter((p) => {
@@ -359,7 +382,9 @@ export default function AdminProgrammesList() {
                           ? getAcademicYearName(val) 
                           : filterKey === 'Category'
                             ? getCategoryName(val)
-                            : val}
+                            : filterKey === 'Group'
+                              ? getGroupName(val)
+                              : val}
                   </option>
                 ))}
               </select>
@@ -466,6 +491,13 @@ export default function AdminProgrammesList() {
                           <Layers size={11} className="text-emerald-400" />
                           {catTitle || "General"}
                         </span>
+                        {/* Group Badge */}
+                        {prog.Group && (
+                          <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-900/80 text-indigo-200 backdrop-blur-md border border-indigo-400/30 shadow-xs flex items-center gap-1">
+                            <Users size={10} className="text-indigo-300" />
+                            {getGroupName(prog.Group)}
+                          </span>
+                        )}
                         {/* Group/Individual format */}
                         <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/20 shadow-xs">
                           {isGroup ? "Squad" : "Individual"}
@@ -550,13 +582,23 @@ export default function AdminProgrammesList() {
 
                     {/* EDIT & STATUS ACTION BUTTONS */}
                     <div className="flex flex-col gap-2 pt-3 border-t border-slate-100 mt-auto">
-                      <button
-                        type="button"
-                        onClick={() => setEditingProgram(prog)}
-                        className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                      >
-                        <Edit3 size={13} /> Edit Programme Details
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProgram(prog)}
+                          className="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                        >
+                          <Edit3 size={13} /> Edit Details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPrintSheetProgram(prog)}
+                          className="py-2.5 px-3 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                          title="Print Official A4 Candidate Attendance & Evaluation Sheet"
+                        >
+                          <Printer size={13} /> Candidate Sheet (A4)
+                        </button>
+                      </div>
 
                       <div className="flex gap-2">
                         <button
@@ -632,13 +674,23 @@ export default function AdminProgrammesList() {
                         <div className="flex items-center gap-3"><span className="w-12 font-bold text-emerald-400 text-[10px] uppercase tracking-widest">Wing</span><span className="font-semibold text-gray-800 text-xs">{getWingName(prog.WingCode)}</span></div>
                         <div className="flex items-center gap-3"><span className="w-12 font-bold text-emerald-400 text-[10px] uppercase tracking-widest">Venue</span><span className="font-semibold text-gray-800 text-xs">{prog.Venue || 'TBA'}</span></div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setEditingProgram(prog)}
-                        className="mt-2 py-1.5 px-3 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer self-start"
-                      >
-                        <Edit3 size={12} /> Edit Info
-                      </button>
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingProgram(prog)}
+                          className="py-1.5 px-3 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Edit3 size={12} /> Edit Info
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPrintSheetProgram(prog)}
+                          className="py-1.5 px-3 rounded-lg text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          title="Print Candidate Sheet"
+                        >
+                          <Printer size={12} /> Sheet (A4)
+                        </button>
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -648,6 +700,14 @@ export default function AdminProgrammesList() {
             </div>
           </div>
         )}
+
+        {/* Print Candidate Sheet Modal (A4) */}
+        <PrintCandidateSheetModal
+          isOpen={Boolean(printSheetProgram)}
+          programCode={printSheetProgram?.Program_Code || ""}
+          initialProgramTitle={printSheetProgram?.Program_Title || ""}
+          onClose={() => setPrintSheetProgram(null)}
+        />
 
         {/* Edit Programme Modal */}
         <EditProgrammeModal

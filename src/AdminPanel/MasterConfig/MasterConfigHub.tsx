@@ -8,6 +8,7 @@ import type {
   OurBatchesRecord,
   OurCategoryRecord,
   OurVenuesRecord,
+  OurGroupsRecord,
   PointsTemplateRecord,
 } from "../../lib/types";
 import {
@@ -29,7 +30,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 
-export type MasterTab = "classes" | "batches" | "categories" | "venues" | "templates";
+export type MasterTab = "classes" | "batches" | "categories" | "groups" | "venues" | "templates";
 
 export default function MasterConfigHub() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,7 +42,7 @@ export default function MasterConfigHub() {
   // Sync state with URL params
   useEffect(() => {
     const tabParam = searchParams.get("tab") as MasterTab;
-    if (tabParam && ["classes", "batches", "categories", "venues", "templates"].includes(tabParam)) {
+    if (tabParam && ["classes", "batches", "categories", "groups", "venues", "templates"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -124,6 +125,19 @@ export default function MasterConfigHub() {
 
           <button
             type="button"
+            onClick={() => handleTabChange("groups")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "groups"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Sparkles size={16} />
+            Our Groups ({meta.groups.length})
+          </button>
+
+          <button
+            type="button"
             onClick={() => handleTabChange("venues")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === "venues"
@@ -166,6 +180,7 @@ export default function MasterConfigHub() {
           onDataChanged={meta.refetch}
         />
       )}
+      {activeTab === "groups" && <GroupsManager onDataChanged={meta.refetch} />}
       {activeTab === "venues" && <VenuesManager onDataChanged={meta.refetch} />}
       {activeTab === "templates" && <PointsTemplatesManager onDataChanged={meta.refetch} />}
     </div>
@@ -1797,6 +1812,366 @@ function CategoriesManager({
                   className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
                 >
                   {saving ? "Saving..." : editingItem ? "Update Category" : "Create Category"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================================
+   3.5. OUR GROUPS MANAGER
+   create table public."Our_Groups" (
+     group_id uuid not null default gen_random_uuid (),
+     created_at timestamp with time zone not null default now(),
+     group_title character varying null default 'group_title'::character varying,
+     short_dec text null default 'Short Dec About it > 20 words'::text,
+     is_active boolean null default true,
+     constraint "Our_Groups_pkey" primary key (group_id)
+   )
+   ========================================================================= */
+function GroupsManager({ onDataChanged }: { onDataChanged: () => void }) {
+  const [groups, setGroups] = useState<OurGroupsRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<OurGroupsRecord | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const [formData, setFormData] = useState({
+    group_title: "",
+    short_dec: "",
+    is_active: true,
+  });
+
+  const fetchGroups = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await SupaBaseFunction
+        .from("Our_Groups")
+        .select("*")
+        .order("group_title", { ascending: true });
+
+      if (error) throw error;
+      setGroups((data as OurGroupsRecord[]) || []);
+    } catch (err: any) {
+      console.error("Error fetching groups:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  const openCreateModal = () => {
+    setEditingItem(null);
+    setFormData({
+      group_title: "",
+      short_dec: "",
+      is_active: true,
+    });
+    setFormError("");
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (item: OurGroupsRecord) => {
+    setEditingItem(item);
+    setFormData({
+      group_title: item.group_title || "",
+      short_dec: item.short_dec || "",
+      is_active: item.is_active !== false,
+    });
+    setFormError("");
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.group_title.trim()) {
+      setFormError("Group title is required.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setFormError("");
+
+      const payload = {
+        group_title: formData.group_title.trim(),
+        short_dec: formData.short_dec.trim() || null,
+        is_active: Boolean(formData.is_active),
+      };
+
+      if (editingItem) {
+        const { error } = await SupaBaseFunction
+          .from("Our_Groups")
+          .update(payload)
+          .eq("group_id", editingItem.group_id);
+        if (error) throw error;
+      } else {
+        const { error } = await SupaBaseFunction
+          .from("Our_Groups")
+          .insert([payload]);
+        if (error) throw error;
+      }
+
+      setIsModalOpen(false);
+      await fetchGroups();
+      onDataChanged();
+    } catch (err: any) {
+      console.error("Failed to save group:", err);
+      setFormError(err.message || "Failed to save group.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (item: OurGroupsRecord) => {
+    try {
+      const nextStatus = !item.is_active;
+      const { error } = await SupaBaseFunction
+        .from("Our_Groups")
+        .update({ is_active: nextStatus })
+        .eq("group_id", item.group_id);
+
+      if (error) throw error;
+      setGroups(prev =>
+        prev.map(g => (g.group_id === item.group_id ? { ...g, is_active: nextStatus } : g))
+      );
+      onDataChanged();
+    } catch (err: any) {
+      console.error("Failed to toggle status:", err);
+    }
+  };
+
+  const handleDelete = async (item: OurGroupsRecord) => {
+    if (!window.confirm(`Delete group "${item.group_title}"? Programmes referencing this group may be affected.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await SupaBaseFunction
+        .from("Our_Groups")
+        .delete()
+        .eq("group_id", item.group_id);
+
+      if (error) throw error;
+      setGroups(prev => prev.filter(g => g.group_id !== item.group_id));
+      onDataChanged();
+    } catch (err: any) {
+      console.error("Failed to delete group:", err);
+      alert(`Could not delete group: ${err.message}`);
+    }
+  };
+
+  const filteredGroups = useMemo(() => {
+    if (!searchTerm.trim()) return groups;
+    const term = searchTerm.toLowerCase();
+    return groups.filter(g =>
+      (g.group_title && g.group_title.toLowerCase().includes(term)) ||
+      (g.short_dec && g.short_dec.toLowerCase().includes(term))
+    );
+  }, [groups, searchTerm]);
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+      {/* Top Header & Search Controls */}
+      <div className="p-5 md:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Sparkles size={18} className="text-indigo-600" />
+            Our Groups Management ({groups.length})
+          </h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Define activity groups referenced by programmes in ProgrammesBox table.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search groups..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:border-indigo-500 focus:bg-white w-48 md:w-64"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition"
+          >
+            <Plus size={15} />
+            <span>Add Group</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              <th className="p-4 pl-6">Group Title</th>
+              <th className="p-4">Short Description</th>
+              <th className="p-4">Group UUID</th>
+              <th className="p-4 text-center">Status</th>
+              <th className="p-4 pr-6 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-xs">
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <Loader2 size={24} className="animate-spin mx-auto mb-2 text-indigo-600" />
+                  Loading groups...
+                </td>
+              </tr>
+            ) : filteredGroups.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-12 text-center text-slate-400">
+                  No groups found. Click "Add Group" to create the first one.
+                </td>
+              </tr>
+            ) : (
+              filteredGroups.map(item => (
+                <tr key={item.group_id} className="hover:bg-slate-50/60 transition">
+                  <td className="p-4 pl-6 font-bold text-slate-900">
+                    {item.group_title}
+                  </td>
+                  <td className="p-4 text-slate-600 max-w-xs truncate" title={item.short_dec || ""}>
+                    {item.short_dec || "—"}
+                  </td>
+                  <td className="p-4 font-mono text-[11px] text-slate-400">
+                    {item.group_id}
+                  </td>
+                  <td className="p-4 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(item)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition ${
+                        item.is_active
+                          ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200"
+                      }`}
+                    >
+                      {item.is_active ? (
+                        <>
+                          <CheckCircle2 size={12} className="text-emerald-600" /> Active
+                        </>
+                      ) : (
+                        <>
+                          <XCircle size={12} className="text-slate-400" /> Inactive
+                        </>
+                      )}
+                    </button>
+                  </td>
+                  <td className="p-4 pr-6 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(item)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
+                        title="Edit group"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        title="Delete group"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-2xs p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              {editingItem ? "Edit Group" : "Create New Group"}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Fields will be saved into <code className="font-mono text-indigo-600">Our_Groups</code> table.
+            </p>
+
+            {formError && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Group Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. ClassicalSpace, Tech-Nest, Assembly"
+                  value={formData.group_title}
+                  onChange={e => setFormData({ ...formData, group_title: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Short Description
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Short description about group scope (> 20 words)..."
+                  value={formData.short_dec}
+                  onChange={e => setFormData({ ...formData, short_dec: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 focus:outline-hidden focus:border-indigo-500 font-medium"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={formData.is_active}
+                  onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="rounded text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="font-semibold text-slate-700">Group is Active</span>
+              </label>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition disabled:opacity-50 cursor-pointer"
+                >
+                  {saving ? "Saving..." : editingItem ? "Update Group" : "Create Group"}
                 </button>
               </div>
             </form>

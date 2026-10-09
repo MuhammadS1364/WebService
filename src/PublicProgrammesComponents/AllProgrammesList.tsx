@@ -141,7 +141,10 @@ export default function PublicProgrammesList() {
         (prog.Group && prog.Group.toLowerCase().includes(query));
 
       // Category filter
-      const matchesCategory = categoryFilter === "All" || prog.Category === categoryFilter;
+      const matchesCategory =
+        categoryFilter === "All" ||
+        prog.Category === categoryFilter ||
+        (prog.Category && categoryFilter && meta.categoryMap[prog.Category] === (meta.categoryMap[categoryFilter] || categoryFilter));
 
       // Status filter
       let matchesStatus = true;
@@ -155,9 +158,14 @@ export default function PublicProgrammesList() {
 
   const uniqueCategories = useMemo(() => {
     const set = new Set<string>();
-    programmes.forEach(p => { if (p.Category) set.add(p.Category); });
+    meta.categories.forEach((c) => {
+      if (c.category_id) set.add(c.category_id);
+    });
+    programmes.forEach((p) => {
+      if (p.Category) set.add(p.Category);
+    });
     return Array.from(set);
-  }, [programmes]);
+  }, [meta.categories, programmes]);
 
   // Export exact data currently displayed
   const handleExportDisplayed = () => {

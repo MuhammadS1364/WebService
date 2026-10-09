@@ -46,7 +46,7 @@ export default function ProgrammeRegistration() {
     Program_Title: "",
     Category: "", // uuid references Our_Category(category_id)
     WingCode: "", // references Chs-WingS(WingCode)
-    Group: "Assembly",
+    Group: "", // uuid references Our_Groups(group_id)
     Description: "",
     OutComes: "",
     Date: new Date().toISOString().split("T")[0],
@@ -63,24 +63,6 @@ export default function ProgrammeRegistration() {
   };
 
   const [formData, setFormData] = useState(initialFormState);
-
-  const groupOptions = [
-    "Assembly",
-    "Pen Fight",
-    "My-Opinion",
-    "Shaping Future",
-    "Tech-Nest",
-    "ClassicalSpace",
-    "Tell Me More",
-    "Designing",
-    "الاجتماع",
-    "صاحب القرآن",
-    "جليس الفقه",
-    "صاحب الترجمان",
-    "Cultural Fest",
-    "Academic Forum",
-    "Other",
-  ];
 
   const expectedTimeOptions = [
     "After Fazar-7:00Am",
@@ -261,7 +243,7 @@ export default function ProgrammeRegistration() {
         Description: formData.Description.trim() || null,
         OutComes: formData.OutComes.trim() || null,
         Date: formData.Date || null,
-        Group: formData.Group || "Assembly",
+        Group: formData.Group || null,
         IsApproved: isAdmin ? Boolean(formData.IsApproved) : false,
         IsResulted: false,
         IsResultPublished: false,
@@ -614,7 +596,7 @@ export default function ProgrammeRegistration() {
               {/* Group */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
-                  Activity Group
+                  Activity Group (Our_Groups)
                 </label>
                 <select
                   name="Group"
@@ -622,8 +604,11 @@ export default function ProgrammeRegistration() {
                   onChange={handleChange}
                   className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm font-medium bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition"
                 >
-                  {groupOptions.map((g) => (
-                    <option key={g} value={g}>{g}</option>
+                  <option value="">No Group / Open Participation</option>
+                  {meta.groups.map((g) => (
+                    <option key={g.group_id} value={g.group_id}>
+                      {g.group_title} {g.short_dec ? `(${g.short_dec})` : ""}
+                    </option>
                   ))}
                 </select>
               </div>

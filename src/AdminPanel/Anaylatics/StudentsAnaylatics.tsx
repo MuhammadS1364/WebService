@@ -250,40 +250,42 @@ export default function StudentsAnalyticsGeneral() {
     }));
   }, [students, meta.classMap, meta.classes, meta.categories]);
 
-  // Extract filter options
+  // Extract filter options - combining database master entries with student records
   useEffect(() => {
-    if (hydratedStudents.length > 0) {
-      const classNames = Array.from(
-        new Set(
-          hydratedStudents
-            .map((s) => s.resolvedClassName)
-            .filter((v): v is string => Boolean(v && v !== "Unassigned"))
-        )
-      ).sort();
+    const classNamesFromStudents = hydratedStudents
+      .map((s) => s.resolvedClassName)
+      .filter((v): v is string => Boolean(v && v !== "Unassigned"));
 
-      const catNames = Array.from(
-        new Set(
-          hydratedStudents
-            .map((s) => s.resolvedCategoryName)
-            .filter((v): v is string => Boolean(v && v !== "General"))
-        )
-      ).sort();
+    const classNamesFromMeta = meta.classes
+      .map((c) => c.standard_name)
+      .filter(Boolean);
 
-      const extractUnique = (key: keyof Student): string[] => {
-        const values = hydratedStudents
-          .map((s) => s[key])
-          .filter((v): v is string => typeof v === "string" && v !== "No Provided");
-        return Array.from(new Set(values)).sort();
-      };
+    const mergedClasses = Array.from(new Set([...classNamesFromMeta, ...classNamesFromStudents])).sort();
 
-      setFilterOptions({
-        classes: classNames.length > 0 ? classNames : meta.classes.map((c) => c.standard_name),
-        categories: catNames.length > 0 ? catNames : meta.categories.map((c) => c.category_title),
-        states: extractUnique("StnState"),
-        districts: extractUnique("StnDistrict"),
-        colleges: extractUnique("CollegeName"),
-      });
-    }
+    const catNamesFromStudents = hydratedStudents
+      .map((s) => s.resolvedCategoryName)
+      .filter((v): v is string => Boolean(v && v !== "General"));
+
+    const catNamesFromMeta = meta.categories
+      .map((c) => c.category_title)
+      .filter(Boolean);
+
+    const mergedCategories = Array.from(new Set([...catNamesFromMeta, ...catNamesFromStudents])).sort();
+
+    const extractUnique = (key: keyof Student): string[] => {
+      const values = hydratedStudents
+        .map((s) => s[key])
+        .filter((v): v is string => typeof v === "string" && v !== "No Provided");
+      return Array.from(new Set(values)).sort();
+    };
+
+    setFilterOptions({
+      classes: mergedClasses,
+      categories: mergedCategories,
+      states: extractUnique("StnState"),
+      districts: extractUnique("StnDistrict"),
+      colleges: extractUnique("CollegeName"),
+    });
   }, [hydratedStudents, meta.classes, meta.categories]);
 
   // When a student is selected, fetch their enrolled programmes & result positions

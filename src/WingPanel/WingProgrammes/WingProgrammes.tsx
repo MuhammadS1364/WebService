@@ -4,6 +4,7 @@ import { SupaBaseFunction } from "../../lib/SupaBase";
 import SafeImage from "../../lib/SafeImage";
 import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
+import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
 import {
   Calendar,
   Users,
@@ -16,6 +17,7 @@ import {
   FileText,
   Clock,
   CheckCircle2,
+  Printer,
 } from "lucide-react";
 
 // --- INTERFACES MATCHING UPDATED PROGRAMMESBOX TABLE ---
@@ -69,6 +71,7 @@ export default function WingProgrammes() {
   const [contentCounts, setContentCounts] = useState<Record<string, number>>({});
   const [contentMap, setContentMap] = useState<Record<string, Record<string, string>>>({});
   const [candidates, setCandidates] = useState<Record<string, Student[]>>({});
+  const [printCandidateCode, setPrintCandidateCode] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loadingCands, setLoadingCands] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
@@ -518,6 +521,14 @@ export default function WingProgrammes() {
                                         Content Req: {contentsSubmitted}/{candidates[p.Program_Code]?.length || 0} Submitted
                                       </span>
                                     )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setPrintCandidateCode(p.Program_Code)}
+                                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                                      title="Print Official A4 Candidate Attendance & Evaluation Sheet"
+                                    >
+                                      <Printer size={12} /> Print Sheet (A4)
+                                    </button>
                                   </div>
                                 </div>
 
@@ -592,6 +603,15 @@ export default function WingProgrammes() {
             </div>
           )}
         </div>
+
+        {/* Print Candidate Sheet Modal (A4) */}
+        {printCandidateCode && (
+          <PrintCandidateSheetModal
+            isOpen={Boolean(printCandidateCode)}
+            programCode={printCandidateCode}
+            onClose={() => setPrintCandidateCode(null)}
+          />
+        )}
 
       </div>
     </div>

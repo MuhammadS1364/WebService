@@ -5,6 +5,7 @@ import formatResultDate from "./DateFormatConvertor";
 import SafeImage from "../lib/SafeImage";
 import SquadRegistrationModal from "./SquadRegistrationModal";
 import SubmitContentModal from "./SubmitContentModal";
+import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { resolveStudentProfile } from "../lib/accountResolver";
 import {
@@ -22,6 +23,7 @@ import {
   Download,
   GraduationCap,
   Layers,
+  Printer,
 } from "lucide-react";
 
 interface ProgramData {
@@ -69,6 +71,9 @@ export default function ProgrammesRegistrationCard() {
 
   // Dedicated Content Submission Modal State
   const [contentModalProgram, setContentModalProgram] = useState<ProgramData | null>(null);
+
+  // Dedicated Print Candidate Sheet State
+  const [printCandidateProgram, setPrintCandidateProgram] = useState<ProgramData | null>(null);
 
   // Fullscreen Image Preview & Download State
   const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
@@ -638,8 +643,8 @@ export default function ProgrammesRegistrationCard() {
                     )}
                   </div>
 
-                  {/* --- Footer Action Button --- */}
-                  <div className="px-5 pb-5 pt-1">
+                  {/* --- Footer Action Buttons --- */}
+                  <div className="px-5 pb-5 pt-1 flex flex-col gap-2">
                     <button
                       type="button"
                       onClick={() => handleRegisterClick(program)}
@@ -663,6 +668,15 @@ export default function ProgrammesRegistrationCard() {
                           {program.IsOpenRegistration ? "Register Candidate" : "Registration Closed"}
                         </>
                       )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPrintCandidateProgram(program)}
+                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-50 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-300 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+                      title="Print Official A4 Registered Candidate Sheet"
+                    >
+                      <Printer size={13} /> Print Candidate Sheet (A4)
                     </button>
                   </div>
 
@@ -748,6 +762,14 @@ export default function ProgrammesRegistrationCard() {
             </div>
           </div>
         )}
+
+        {/* Print Candidate Sheet Modal (A4) */}
+        <PrintCandidateSheetModal
+          isOpen={Boolean(printCandidateProgram)}
+          programCode={printCandidateProgram?.Program_Code || ""}
+          initialProgramTitle={printCandidateProgram?.Program_Title || ""}
+          onClose={() => setPrintCandidateProgram(null)}
+        />
       </div>
     </div>
   );

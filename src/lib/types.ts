@@ -236,6 +236,17 @@ export interface ProgrammesBoxRecord {
 }
 
 /**
+ * Groups Table (Our_Groups)
+ */
+export interface OurGroupsRecord {
+  group_id: string;
+  created_at?: string;
+  group_title?: string | null;
+  short_dec?: string | null;
+  is_active?: boolean | null;
+}
+
+/**
  * Category Table
  */
 export interface OurCategoryRecord {
