@@ -127,21 +127,11 @@ export default function ProgrammesAnalytics() {
     fetchData();
   }, [meta.batches]);
 
-  // Combined Academic Year Options (from Accademic_Info, state, meta + any in programmes)
+  // Academic Year Options - ONLY from programmes in the table
   const availableAcademicYears = useMemo(() => {
     const list: { id: string; label: string }[] = [];
     const seen = new Set<string>();
 
-    const mergedYears = [...academicYearsList, ...(meta.academicYears || [])];
-    mergedYears.forEach(a => {
-      if (a.accademic_id && !seen.has(a.accademic_id)) {
-        seen.add(a.accademic_id);
-        const label = a.accademic_year ? `${a.accademic_year} (${a.accademic_title || 'Academic'})` : a.accademic_title || "Academic Year";
-        list.push({ id: a.accademic_id, label });
-      }
-    });
-
-    // Also include any raw string/id from programmes
     programmes.forEach(p => {
       if (p.AccademicYear && !seen.has(p.AccademicYear)) {
         seen.add(p.AccademicYear);
@@ -152,26 +142,17 @@ export default function ProgrammesAnalytics() {
 
     // Option for programmes without year
     const hasUnassigned = programmes.some(p => !p.AccademicYear);
-    if (hasUnassigned) {
+    if (hasUnassigned && programmes.length > 0) {
       list.push({ id: "__unassigned__", label: "Unassigned / General Cycle" });
     }
 
     return list;
-  }, [academicYearsList, meta.academicYears, academicMap, programmes]);
+  }, [academicMap, programmes]);
 
-  // Combined Venue Options (from Our_Venues, state, meta + any in programmes)
+  // Venue Options - ONLY from programmes in the table
   const availableVenues = useMemo(() => {
     const list: { id: string; label: string }[] = [];
     const seen = new Set<string>();
-
-    const mergedVenues = [...venuesList, ...(meta.venues || [])];
-    mergedVenues.forEach(v => {
-      if (v.venue_id && !seen.has(v.venue_id)) {
-        seen.add(v.venue_id);
-        const cap = v.venue_capacity ? ` (Cap: ${v.venue_capacity})` : "";
-        list.push({ id: v.venue_id, label: `${v.venue_title}${cap}` });
-      }
-    });
 
     programmes.forEach(p => {
       if (p.Venue && !seen.has(p.Venue)) {
@@ -183,24 +164,17 @@ export default function ProgrammesAnalytics() {
 
     // Option for programmes without venue
     const hasUnassigned = programmes.some(p => !p.Venue);
-    if (hasUnassigned) {
+    if (hasUnassigned && programmes.length > 0) {
       list.push({ id: "__unassigned__", label: "TBA / Campus (No Venue Set)" });
     }
 
     return list;
-  }, [venuesList, meta.venues, venueMap, programmes]);
+  }, [venueMap, programmes]);
 
-  // Combined Category Options (from Our_Category + programmes)
+  // Category Options - ONLY from programmes in the table
   const availableCategories = useMemo(() => {
     const list: { id: string; label: string }[] = [];
     const seen = new Set<string>();
-
-    meta.categories.forEach(c => {
-      if (c.category_id && !seen.has(c.category_id)) {
-        seen.add(c.category_id);
-        list.push({ id: c.category_id, label: c.category_title });
-      }
-    });
 
     programmes.forEach(p => {
       if (p.Category && !seen.has(p.Category)) {
@@ -210,19 +184,12 @@ export default function ProgrammesAnalytics() {
     });
 
     return list;
-  }, [meta.categories, meta.categoryMap, programmes]);
+  }, [meta.categoryMap, programmes]);
 
-  // Combined Group Options (from Our_Groups + programmes)
+  // Group Options - ONLY from programmes in the table
   const availableGroups = useMemo(() => {
     const list: { id: string; label: string }[] = [];
     const seen = new Set<string>();
-
-    meta.groups.forEach(g => {
-      if (g.group_id && !seen.has(g.group_id)) {
-        seen.add(g.group_id);
-        list.push({ id: g.group_id, label: g.group_title || g.group_id });
-      }
-    });
 
     programmes.forEach(p => {
       if (p.Group && !seen.has(p.Group)) {
@@ -232,15 +199,30 @@ export default function ProgrammesAnalytics() {
     });
 
     return list;
-  }, [meta.groups, meta.groupMap, programmes]);
+  }, [meta.groupMap, programmes]);
 
-  // Combined Collaborator Options (from Our_Batches + programmes)
+  // Wing Options - ONLY from programmes in the table
+  const availableWings = useMemo(() => {
+    const list: { WingCode: string; label: string }[] = [];
+    const seen = new Set<string>();
+
+    programmes.forEach(p => {
+      if (p.WingCode && !seen.has(p.WingCode)) {
+        seen.add(p.WingCode);
+        const w = wings.find(item => item.WingCode === p.WingCode);
+        list.push({ WingCode: p.WingCode, label: w?.WingTitle || p.WingCode });
+      }
+    });
+
+    return list;
+  }, [programmes, wings]);
+
+  // Collaborator Options - ONLY from programmes in the table
   const availableCollaborators = useMemo(() => {
-    const batchNames = (meta.batches || []).map(b => b.batch_name).filter(Boolean);
     const progCollabs = programmes.map(p => p.Collaborator).filter(Boolean) as string[];
-    const all = Array.from(new Set([...batchNames, ...progCollabs])).filter(c => c !== "No Collaboration");
+    const all = Array.from(new Set(progCollabs)).filter(c => c && c !== "No Collaboration");
     return all.sort();
-  }, [meta.batches, programmes]);
+  }, [programmes]);
 
   // 2. Derive Filtered Data cleanly with useMemo
   const filteredData = useMemo(() => {
@@ -522,7 +504,7 @@ export default function ProgrammesAnalytics() {
             className="w-full text-xs sm:text-sm p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
           >
             <option value="">All Wings</option>
-            {wings.map(w => <option key={w.WingCode} value={w.WingCode}>{w.WingTitle || w.WingCode}</option>)}
+            {availableWings.map(w => <option key={w.WingCode} value={w.WingCode}>{w.label}</option>)}
           </select>
 
           <select

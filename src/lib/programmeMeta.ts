@@ -65,36 +65,6 @@ export interface ProgrammeMetaState {
   refetch: () => Promise<void>;
 }
 
-// Default standard lists to complement tables so filters never show only 1 option
-const STANDARD_CATEGORIES: OurCategoryRecord[] = [
-  { category_id: "cat-bidaya-01", category_title: "Bidaya", is_active: true },
-  { category_id: "cat-ula-02", category_title: "Ula", is_active: true },
-  { category_id: "cat-thaniya-03", category_title: "Thaniya", is_active: true },
-  { category_id: "cat-thalitha-04", category_title: "Thalitha", is_active: true },
-  { category_id: "cat-rabia-05", category_title: "Rabia", is_active: true },
-  { category_id: "cat-khamisa-06", category_title: "Khamisa", is_active: true },
-  { category_id: "cat-aliya-07", category_title: "Aliya", is_active: true },
-  { category_id: "cat-kulliya-08", category_title: "Kulliya", is_active: true },
-  { category_id: "cat-general-09", category_title: "General / Open", is_active: true },
-];
-
-const STANDARD_VENUES: OurVenuesRecord[] = [
-  { venue_id: "ven-auditorium-01", venue_title: "Main Auditorium", venue_capacity: 250, is_active: true },
-  { venue_id: "ven-halla-02", venue_title: "Hall A - Conference Hall", venue_capacity: 100, is_active: true },
-  { venue_id: "ven-hallb-03", venue_title: "Hall B - Seminar Hall", venue_capacity: 80, is_active: true },
-  { venue_id: "ven-ground-04", venue_title: "Central Campus Stage", venue_capacity: 500, is_active: true },
-  { venue_id: "ven-medialab-05", venue_title: "Digital Media Lab", venue_capacity: 45, is_active: true },
-  { venue_id: "ven-library-06", venue_title: "Central Library Hall", venue_capacity: 60, is_active: true },
-];
-
-const STANDARD_GROUPS: OurGroupsRecord[] = [
-  { group_id: "grp-open-01", group_title: "General Open Group", short_dec: "Open to all students across all wings", is_active: true },
-  { group_id: "grp-junior-02", group_title: "Junior Group", short_dec: "Dedicated group for junior level students (Bidaya & Ula)", is_active: true },
-  { group_id: "grp-senior-03", group_title: "Senior Group", short_dec: "Dedicated group for senior level students (Thaniya & Above)", is_active: true },
-  { group_id: "grp-subjunior-04", group_title: "Sub-Junior Group", short_dec: "Introductory group for early stage candidates", is_active: true },
-  { group_id: "grp-supersenior-05", group_title: "Super Senior Group", short_dec: "Advanced cohort for Aliya and higher research candidates", is_active: true },
-];
-
 // In-memory cache to make lookups instantaneous across components
 let inMemoryMetaCache: {
   categories: OurCategoryRecord[];
@@ -112,13 +82,13 @@ const CACHE_TTL = 30000; // 30s cache
 
 export function useProgrammeMeta(): ProgrammeMetaState {
   const [categories, setCategories] = useState<OurCategoryRecord[]>(
-    () => inMemoryMetaCache?.categories || STANDARD_CATEGORIES
+    () => inMemoryMetaCache?.categories || []
   );
   const [venues, setVenues] = useState<OurVenuesRecord[]>(
-    () => inMemoryMetaCache?.venues || STANDARD_VENUES
+    () => inMemoryMetaCache?.venues || []
   );
   const [groups, setGroups] = useState<OurGroupsRecord[]>(
-    () => inMemoryMetaCache?.groups || STANDARD_GROUPS
+    () => inMemoryMetaCache?.groups || []
   );
   const [academicYears, setAcademicYears] = useState<AccademicInfoRecord[]>(
     () => inMemoryMetaCache?.academicYears || []
@@ -159,41 +129,19 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle").order("WingTitle"),
       ]);
 
-      const rawCat = (catRes.data as OurCategoryRecord[]) || [];
-      const rawVen = (venRes.data as OurVenuesRecord[]) || [];
-      const rawGrp = (grpRes.data as OurGroupsRecord[]) || [];
+      const catData = (catRes.data as OurCategoryRecord[]) || [];
+      const venData = (venRes.data as OurVenuesRecord[]) || [];
+      const grpData = (grpRes.data as OurGroupsRecord[]) || [];
       const acadData = (acadRes.data as AccademicInfoRecord[]) || [];
       const ptsData = (ptsRes.data as PointsTemplateRecord[]) || [];
       const clsData = (clsRes.data as OurClassesRecord[]) || [];
       const batchData = (batchRes.data as OurBatchesRecord[]) || [];
       const wingData = (wingRes.data as WingLookup[]) || [];
 
-      // Merge Supabase entries with standard lists so users always have rich options
-      const mergedCats = [...rawCat];
-      STANDARD_CATEGORIES.forEach((sc) => {
-        if (!mergedCats.some((c) => c.category_title.toLowerCase().trim() === sc.category_title.toLowerCase().trim())) {
-          mergedCats.push(sc);
-        }
-      });
-
-      const mergedVenues = [...rawVen];
-      STANDARD_VENUES.forEach((sv) => {
-        if (!mergedVenues.some((v) => v.venue_title.toLowerCase().trim() === sv.venue_title.toLowerCase().trim())) {
-          mergedVenues.push(sv);
-        }
-      });
-
-      const mergedGroups = [...rawGrp];
-      STANDARD_GROUPS.forEach((sg) => {
-        if (!mergedGroups.some((g) => (g.group_title || "").toLowerCase().trim() === (sg.group_title || "").toLowerCase().trim())) {
-          mergedGroups.push(sg);
-        }
-      });
-
       inMemoryMetaCache = {
-        categories: mergedCats,
-        venues: mergedVenues,
-        groups: mergedGroups,
+        categories: catData,
+        venues: venData,
+        groups: grpData,
         academicYears: acadData,
         pointsTemplates: ptsData,
         classes: clsData,
@@ -202,9 +150,14 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         timestamp: Date.now(),
       };
 
-      setCategories(mergedCats);
-      setVenues(mergedVenues);
-      setGroups(mergedGroups);
+      setCategories(catData);
+      setVenues(venData);
+      setGroups(grpData);
+      setAcademicYears(acadData);
+      setPointsTemplates(ptsData);
+      setClasses(clsData);
+      setBatches(batchData);
+      setWings(wingData);
       setAcademicYears(acadData);
       setPointsTemplates(ptsData);
       setClasses(clsData);

@@ -4,6 +4,7 @@ import { useParams, Link, useLocation } from "react-router-dom";
 import SafeImage from "../../lib/SafeImage";
 import EditWingModal from "./EditWingModal";
 import { exportToExcel } from "../../lib/excelService";
+import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import {
   Edit2,
   Trash2,
@@ -96,6 +97,8 @@ export default function AllWingsList() {
   const [selectedWingForEdit, setSelectedWingForEdit] = useState<WingData | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [actionFeedback, setActionFeedback] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [deletingWing, setDeletingWing] = useState<WingData | null>(null);
+  const [isDeletingWing, setIsDeletingWing] = useState(false);
 
   // Credentials & Copy States
   const [wingPasswords, setWingPasswords] = useState<Record<string, string>>({});
@@ -167,27 +170,31 @@ export default function AllWingsList() {
     setTimeout(() => setActionFeedback(null), 3000);
   };
 
-  const handleDeleteWing = async (wing: WingData) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${wing.WingTitle || wing.WingCode}"? This will remove the wing department record.`
-    );
-    if (!confirmed) return;
+  const handleDeleteWing = (wing: WingData) => {
+    setDeletingWing(wing);
+  };
 
+  const confirmDeleteWing = async () => {
+    if (!deletingWing) return;
+    setIsDeletingWing(true);
     try {
       const { error: delError } = await SupaBaseFunction
         .from("Chs-WingS")
         .delete()
-        .eq("WingCode", wing.WingCode);
+        .eq("WingCode", deletingWing.WingCode);
 
       if (delError) throw delError;
 
-      setWings((prev) => prev.filter((w) => w.WingCode !== wing.WingCode));
-      setActionFeedback({ message: `Wing "${wing.WingTitle || wing.WingCode}" deleted successfully.`, type: "success" });
+      setWings((prev) => prev.filter((w) => w.WingCode !== deletingWing.WingCode));
+      setActionFeedback({ message: `Wing "${deletingWing.WingTitle || deletingWing.WingCode}" deleted successfully.`, type: "success" });
       setTimeout(() => setActionFeedback(null), 3000);
+      setDeletingWing(null);
     } catch (err: any) {
       console.error("Failed to delete wing:", err);
       setActionFeedback({ message: `Error deleting wing: ${err.message}`, type: "error" });
       setTimeout(() => setActionFeedback(null), 4000);
+    } finally {
+      setIsDeletingWing(false);
     }
   };
 
@@ -699,6 +706,17 @@ export default function AllWingsList() {
           setSelectedWingForEdit(null);
         }}
         onSuccess={handleWingEditSuccess}
+      />
+
+      {/* Delete Wing Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingWing)}
+        title="Delete Wing Department?"
+        message={`Are you sure you want to permanently delete wing "${deletingWing?.WingTitle || deletingWing?.WingCode}"? This will remove the wing department record.`}
+        itemDescription={`Wing Code: ${deletingWing?.WingCode || ''}`}
+        isDeleting={isDeletingWing}
+        onConfirm={confirmDeleteWing}
+        onCancel={() => setDeletingWing(null)}
       />
     </div>
   );

@@ -72,6 +72,21 @@ export interface ProgrammeRecord {
   Expected_Time?: string;
   Collaborator?: string;
   is_group_program?: boolean; // Group programme flag
+  points_template?: string;
+  isContentRequired?: boolean;
+  ContentSubmition_deadLine?: string;
+  is_topic_required?: boolean;
+}
+
+export interface TopicRecord {
+  topic_id?: string;
+  created_at?: string;
+  topic_title: string;
+  program_code: string;
+  student_addNo?: string | null;
+  team_uuid?: string | null;
+  topic_content?: string;
+  is_approved?: boolean;
 }
 
 export interface ResultRecord {

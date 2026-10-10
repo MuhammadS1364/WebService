@@ -51,6 +51,7 @@ export default function EditProgrammeModal({
         IsResultPublished: Boolean(program.IsResultPublished),
         isContentRequired: Boolean((program as any).isContentRequired),
         ContentSubmition_deadLine: (program as any).ContentSubmition_deadLine || "",
+        is_topic_required: Boolean((program as any).is_topic_required),
       });
       setErrorMsg("");
     }
@@ -124,6 +125,7 @@ export default function EditProgrammeModal({
           formData.isContentRequired && formData.ContentSubmition_deadLine
             ? formData.ContentSubmition_deadLine
             : null,
+        is_topic_required: Boolean(formData.is_topic_required),
       };
 
       const { error } = await SupaBaseFunction
@@ -494,6 +496,25 @@ export default function EditProgrammeModal({
                 />
               </div>
             )}
+          </div>
+
+          {/* Candidate Topic Registration Requirement (Topics_Box) */}
+          <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                name="is_topic_required"
+                checked={Boolean(formData.is_topic_required)}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="font-bold text-indigo-950">
+                Candidate Topic Registration Required (Topics_Box)
+              </span>
+            </label>
+            <p className="text-[11px] text-indigo-800 pl-6.5">
+              If enabled, candidates must register and get their unique topic title & content (naat lyrics, speech outline) approved before competing.
+            </p>
           </div>
 
           {/* Action Buttons */}

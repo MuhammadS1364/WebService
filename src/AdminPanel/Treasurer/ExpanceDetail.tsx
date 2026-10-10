@@ -66,6 +66,15 @@ export default function ExpancesDetail() {
     loadData();
   }, []);
 
+  // Dynamic Options derived strictly from table data
+  const availableYears = useMemo(() => {
+    return Array.from(new Set(transactions.map((t) => t.AcademicYear).filter(Boolean) as string[])).sort();
+  }, [transactions]);
+
+  const availableMethods = useMemo(() => {
+    return Array.from(new Set(transactions.map((t) => t.Method).filter(Boolean) as string[])).sort();
+  }, [transactions]);
+
   // 4. APPLY FILTERS
   const filteredData = useMemo(() => {
     return transactions.filter((txn) => {
@@ -241,17 +250,17 @@ export default function ExpancesDetail() {
               {/* Academic Year */}
               <select name="academicYear" value={filters.academicYear} onChange={updateFilter} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                 <option value="All">All Academic Years</option>
-                <option value="2025-2026">2025 - 2026</option>
-                <option value="2026-2027">2026 - 2027</option>
+                {availableYears.map((yr) => (
+                  <option key={yr} value={yr}>{yr}</option>
+                ))}
               </select>
 
               {/* Method */}
               <select name="method" value={filters.method} onChange={updateFilter} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                 <option value="All">All Methods</option>
-                <option value="Cash">Cash</option>
-                <option value="Credit Card">Credit Card</option>
-                <option value="Debit Card">Debit Card</option>
-                <option value="UPI / Bank Transfer">UPI / Bank Transfer</option>
+                {availableMethods.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
               </select>
 
               {/* Dates */}

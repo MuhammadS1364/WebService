@@ -8,6 +8,7 @@ import { Download, Upload, FileSpreadsheet, PlusCircle, Key } from "lucide-react
 import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
+import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 
 interface StudentRecord {
   AddNo: string;
@@ -85,18 +86,33 @@ export default function OurStudentsList() {
 
   useEffect(() => { setFilterDistrict("All"); }, [filterState]);
 
+  const [deletingStudent, setDeletingStudent] = useState<{ addNo: string; name: string } | null>(null);
+  const [isDeletingStudent, setIsDeletingStudent] = useState(false);
+
   const toggleStudentSelection = (addNo: string) => {
     setSelectedStudents((prev) => prev.includes(addNo) ? prev.filter((id) => id !== addNo) : [...prev, addNo]);
   };
 
-  const handleDeleteStudentRecord = async (stnAddNo: string, studentName: string) => {
-    if (!window.confirm(`Delete profile for ${studentName}?`)) return;
+  const handleDeleteStudentRecord = (stnAddNo: string, studentName: string) => {
+    setDeletingStudent({ addNo: stnAddNo, name: studentName });
+  };
+
+  const confirmDeleteStudent = async () => {
+    if (!deletingStudent) return;
+    setIsDeletingStudent(true);
     try {
-      setActionLoading(stnAddNo);
-      const { error } = await SupaBaseFunction.from("StudentsBox").delete().eq("AddNo", stnAddNo);
+      setActionLoading(deletingStudent.addNo);
+      const { error } = await SupaBaseFunction.from("StudentsBox").delete().eq("AddNo", deletingStudent.addNo);
       if (error) throw error;
-      setStudents((prev) => prev.filter((stn) => stn.AddNo !== stnAddNo));
-    } catch (err: any) { alert(`Error: ${err.message}`); } finally { setActionLoading(null); }
+      setStudents((prev) => prev.filter((stn) => stn.AddNo !== deletingStudent.addNo));
+      setDeletingStudent(null);
+    } catch (err: any) {
+      console.error("Error deleting student:", err);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setActionLoading(null);
+      setIsDeletingStudent(false);
+    }
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -265,6 +281,17 @@ export default function OurStudentsList() {
       <ExcelUuidReferenceModal
         isOpen={isUuidModalOpen}
         onClose={() => setIsUuidModalOpen(false)}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingStudent)}
+        title="Delete Student Profile?"
+        message={`Are you sure you want to permanently delete profile for "${deletingStudent?.name}"?`}
+        itemDescription={`Admission No: ${deletingStudent?.addNo || ''}`}
+        isDeleting={isDeletingStudent}
+        onConfirm={confirmDeleteStudent}
+        onCancel={() => setDeletingStudent(null)}
       />
     </div>
   );

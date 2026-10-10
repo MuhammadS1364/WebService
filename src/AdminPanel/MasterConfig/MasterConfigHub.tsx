@@ -3,6 +3,15 @@ import { useSearchParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
+import {
+  deleteBatchCascade,
+  deleteClassCascade,
+  deleteCategoryCascade,
+  deleteVenueCascade,
+  deleteGroupCascade,
+  deletePointsTemplateCascade,
+} from "../../lib/cascadeDeleteService";
+import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import type {
   OurClassesRecord,
   OurBatchesRecord,
@@ -221,6 +230,8 @@ function ClassesManager({
   const [editingItem, setEditingItem] = useState<OurClassesRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deletingClass, setDeletingClass] = useState<OurClassesRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     standard_name: "",
@@ -338,21 +349,23 @@ function ClassesManager({
     }
   };
 
-  const handleDelete = async (item: OurClassesRecord) => {
-    const title = item.standard_name || item.class_nick_name || "this class";
-    if (!window.confirm(`Are you sure you want to delete class "${title}"? Note: Deletion will fail if categories are referencing this class.`)) {
-      return;
-    }
+  const handleDelete = (item: OurClassesRecord) => {
+    setDeletingClass(item);
+  };
+
+  const confirmDeleteClass = async () => {
+    if (!deletingClass) return;
+    setIsDeleting(true);
     try {
-      const { error } = await SupaBaseFunction
-        .from("Our_Classes")
-        .delete()
-        .eq("class_id", item.class_id);
-      if (error) throw error;
-      setClasses(prev => prev.filter(c => c.class_id !== item.class_id));
+      await deleteClassCascade(deletingClass);
+      setClasses(prev => prev.filter(c => c.class_id !== deletingClass.class_id));
+      setDeletingClass(null);
       onDataChanged();
     } catch (err: any) {
+      console.error("Cannot delete class:", err);
       alert("Cannot delete this class: " + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -683,6 +696,17 @@ function ClassesManager({
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingClass)}
+        title="Delete Class Record?"
+        message={`Are you sure you want to permanently delete class "${deletingClass?.standard_name || deletingClass?.class_nick_name || ''}"? Any linked categories or student class references will be safely unlinked.`}
+        itemDescription={`Class ID: ${deletingClass?.class_id || ''}`}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteClass}
+        onCancel={() => setDeletingClass(null)}
+      />
     </div>
   );
 }
@@ -712,6 +736,8 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
   const [editingItem, setEditingItem] = useState<OurBatchesRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deletingBatch, setDeletingBatch] = useState<OurBatchesRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [logoMode, setLogoMode] = useState<"upload" | "url">("upload");
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -878,20 +904,23 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
     }
   };
 
-  const handleDelete = async (item: OurBatchesRecord) => {
-    if (!window.confirm(`Are you sure you want to delete batch "${item.batch_name}"?`)) {
-      return;
-    }
+  const handleDelete = (item: OurBatchesRecord) => {
+    setDeletingBatch(item);
+  };
+
+  const confirmDeleteBatch = async () => {
+    if (!deletingBatch) return;
+    setIsDeleting(true);
     try {
-      const { error } = await SupaBaseFunction
-        .from("Our_Batches")
-        .delete()
-        .eq("batch_id", item.batch_id);
-      if (error) throw error;
-      setBatches(prev => prev.filter(b => b.batch_id !== item.batch_id));
+      await deleteBatchCascade(deletingBatch);
+      setBatches(prev => prev.filter(b => b.batch_id !== deletingBatch.batch_id));
+      setDeletingBatch(null);
       onDataChanged();
     } catch (err: any) {
+      console.error("Cannot delete batch:", err);
       alert("Cannot delete batch: " + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1350,6 +1379,17 @@ function BatchesManager({ onDataChanged }: { onDataChanged: () => void }) {
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingBatch)}
+        title="Delete Batch Record?"
+        message={`Are you sure you want to permanently delete batch "${deletingBatch?.batch_name || ''}"? Any linked classes and programmes will be safely unlinked.`}
+        itemDescription={`Batch ID: ${deletingBatch?.batch_id || ''}`}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteBatch}
+        onCancel={() => setDeletingBatch(null)}
+      />
     </div>
   );
 }
@@ -1389,6 +1429,8 @@ function CategoriesManager({
   const [editingItem, setEditingItem] = useState<OurCategoryRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deletingCategory, setDeletingCategory] = useState<OurCategoryRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     category_title: "",
@@ -1502,20 +1544,23 @@ function CategoriesManager({
     }
   };
 
-  const handleDelete = async (item: OurCategoryRecord) => {
-    if (!window.confirm(`Delete category "${item.category_title}"? Note: Cannot be deleted if assigned to programmes.`)) {
-      return;
-    }
+  const handleDelete = (item: OurCategoryRecord) => {
+    setDeletingCategory(item);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!deletingCategory) return;
+    setIsDeleting(true);
     try {
-      const { error } = await SupaBaseFunction
-        .from("Our_Category")
-        .delete()
-        .eq("category_id", item.category_id);
-      if (error) throw error;
-      setCategories(prev => prev.filter(c => c.category_id !== item.category_id));
+      await deleteCategoryCascade(deletingCategory);
+      setCategories(prev => prev.filter(c => c.category_id !== deletingCategory.category_id));
+      setDeletingCategory(null);
       onDataChanged();
     } catch (err: any) {
+      console.error("Cannot delete category:", err);
       alert("Cannot delete category: " + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1818,6 +1863,17 @@ function CategoriesManager({
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingCategory)}
+        title="Delete Category Record?"
+        message={`Are you sure you want to permanently delete category "${deletingCategory?.category_title || ''}"? Any assigned programmes will have category unlinked safely.`}
+        itemDescription={`Category ID: ${deletingCategory?.category_id || ''}`}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteCategory}
+        onCancel={() => setDeletingCategory(null)}
+      />
     </div>
   );
 }
@@ -1842,6 +1898,8 @@ function GroupsManager({ onDataChanged }: { onDataChanged: () => void }) {
   const [editingItem, setEditingItem] = useState<OurGroupsRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deletingGroup, setDeletingGroup] = useState<OurGroupsRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     group_title: "",
@@ -1951,23 +2009,23 @@ function GroupsManager({ onDataChanged }: { onDataChanged: () => void }) {
     }
   };
 
-  const handleDelete = async (item: OurGroupsRecord) => {
-    if (!window.confirm(`Delete group "${item.group_title}"? Programmes referencing this group may be affected.`)) {
-      return;
-    }
+  const handleDelete = (item: OurGroupsRecord) => {
+    setDeletingGroup(item);
+  };
 
+  const confirmDeleteGroup = async () => {
+    if (!deletingGroup) return;
+    setIsDeleting(true);
     try {
-      const { error } = await SupaBaseFunction
-        .from("Our_Groups")
-        .delete()
-        .eq("group_id", item.group_id);
-
-      if (error) throw error;
-      setGroups(prev => prev.filter(g => g.group_id !== item.group_id));
+      await deleteGroupCascade(deletingGroup);
+      setGroups(prev => prev.filter(g => g.group_id !== deletingGroup.group_id));
+      setDeletingGroup(null);
       onDataChanged();
     } catch (err: any) {
       console.error("Failed to delete group:", err);
       alert(`Could not delete group: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -2178,6 +2236,17 @@ function GroupsManager({ onDataChanged }: { onDataChanged: () => void }) {
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingGroup)}
+        title="Delete Activity Group?"
+        message={`Are you sure you want to permanently delete group "${deletingGroup?.group_title || ''}"? Any assigned programmes will have group unlinked safely.`}
+        itemDescription={`Group ID: ${deletingGroup?.group_id || ''}`}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteGroup}
+        onCancel={() => setDeletingGroup(null)}
+      />
     </div>
   );
 }
@@ -2203,6 +2272,8 @@ function VenuesManager({ onDataChanged }: { onDataChanged: () => void }) {
   const [editingItem, setEditingItem] = useState<OurVenuesRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deletingVenue, setDeletingVenue] = useState<OurVenuesRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     venue_title: "",
@@ -2308,20 +2379,23 @@ function VenuesManager({ onDataChanged }: { onDataChanged: () => void }) {
     }
   };
 
-  const handleDelete = async (item: OurVenuesRecord) => {
-    if (!window.confirm(`Delete venue "${item.venue_title}"? Note: Cannot be deleted if assigned to programmes.`)) {
-      return;
-    }
+  const handleDelete = (item: OurVenuesRecord) => {
+    setDeletingVenue(item);
+  };
+
+  const confirmDeleteVenue = async () => {
+    if (!deletingVenue) return;
+    setIsDeleting(true);
     try {
-      const { error } = await SupaBaseFunction
-        .from("Our_Venues")
-        .delete()
-        .eq("venue_id", item.venue_id);
-      if (error) throw error;
-      setVenues(prev => prev.filter(v => v.venue_id !== item.venue_id));
+      await deleteVenueCascade(deletingVenue);
+      setVenues(prev => prev.filter(v => v.venue_id !== deletingVenue.venue_id));
+      setDeletingVenue(null);
       onDataChanged();
     } catch (err: any) {
+      console.error("Cannot delete venue:", err);
       alert("Cannot delete venue: " + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -2515,6 +2589,17 @@ function VenuesManager({ onDataChanged }: { onDataChanged: () => void }) {
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingVenue)}
+        title="Delete Venue Record?"
+        message={`Are you sure you want to permanently delete venue "${deletingVenue?.venue_title || ''}"? Any assigned programmes will have venue unlinked safely.`}
+        itemDescription={`Venue ID: ${deletingVenue?.venue_id || ''}`}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteVenue}
+        onCancel={() => setDeletingVenue(null)}
+      />
     </div>
   );
 }
@@ -2548,6 +2633,8 @@ function PointsTemplatesManager({ onDataChanged }: { onDataChanged: () => void }
   const [editingItem, setEditingItem] = useState<PointsTemplateRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  const [deletingTemplate, setDeletingTemplate] = useState<PointsTemplateRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const initialForm = {
     point_template_title: "",
@@ -2663,20 +2750,23 @@ function PointsTemplatesManager({ onDataChanged }: { onDataChanged: () => void }
     }
   };
 
-  const handleDelete = async (item: PointsTemplateRecord) => {
-    if (!window.confirm(`Delete points template "${item.point_template_title}"? Note: Deletion will fail if programmes reference it.`)) {
-      return;
-    }
+  const handleDelete = (item: PointsTemplateRecord) => {
+    setDeletingTemplate(item);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!deletingTemplate) return;
+    setIsDeleting(true);
     try {
-      const { error } = await SupaBaseFunction
-        .from("Points_Templates")
-        .delete()
-        .eq("p_template_id", item.p_template_id);
-      if (error) throw error;
-      setTemplates(prev => prev.filter(t => t.p_template_id !== item.p_template_id));
+      await deletePointsTemplateCascade(deletingTemplate);
+      setTemplates(prev => prev.filter(t => t.p_template_id !== deletingTemplate.p_template_id));
+      setDeletingTemplate(null);
       onDataChanged();
     } catch (err: any) {
+      console.error("Cannot delete template:", err);
       alert("Cannot delete template: " + err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -3000,6 +3090,17 @@ function PointsTemplatesManager({ onDataChanged }: { onDataChanged: () => void }
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingTemplate)}
+        title="Delete Points Template?"
+        message={`Are you sure you want to permanently delete points template "${deletingTemplate?.point_template_title || ''}"? Any assigned programmes will have template unlinked safely.`}
+        itemDescription={`Template ID: ${deletingTemplate?.p_template_id || ''}`}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteTemplate}
+        onCancel={() => setDeletingTemplate(null)}
+      />
     </div>
   );
 }

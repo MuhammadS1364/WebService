@@ -46,6 +46,7 @@ import CreateOutReach from './OutReachPanel/OutReach/CreateOutReach';
 import EditeOutReach from './OutReachPanel/Edite/EditeOutReach';
 import EditeAchievement from './OutReachPanel/Edite/EditeAchievement';
 import OutReachAndAchievements from './PublicHome/OutReachAndAchievements/OutReachAndAchievements';
+import ResultedLeaderboard from './PublicHome/ResultedLeaderboard';
 import PublicHomePanel from './PublicHome/PublicHomePanel';
 import PublicPageDashboard from './PublicHome/PublicDashboard';
 import StudentContentShowcase from './PublicHome/StudentContentShowcase';
@@ -98,6 +99,8 @@ export default function App() {
           <Route path='our-achievements' element={<OutReachAndAchievements />} />
           <Route path='programmes-calendar' element={<ProgrammesCalendar />} />
           <Route path='donate-us' element={<CreateDonationForUs />} />
+          <Route path='leaderboard' element={<ResultedLeaderboard />} />
+          <Route path='resulted-leaderboard' element={<ResultedLeaderboard />} />
         </Route>
 
         {/* ADMIN PANEL (Protected) */}
@@ -135,6 +138,8 @@ export default function App() {
           <Route path='our-categories' element={<MasterConfigWrapper defaultTab="categories" />} />
           <Route path='our-venues' element={<MasterConfigWrapper defaultTab="venues" />} />
           <Route path='points-templates' element={<MasterConfigWrapper defaultTab="templates" />} />
+          <Route path='leaderboard' element={<ResultedLeaderboard isAdmin={true} />} />
+          <Route path='resulted-leaderboard' element={<ResultedLeaderboard isAdmin={true} />} />
         </Route>
 
         {/* STUDENT PANEL (Protected) */}

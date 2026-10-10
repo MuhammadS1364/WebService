@@ -158,14 +158,11 @@ export default function PublicProgrammesList() {
 
   const uniqueCategories = useMemo(() => {
     const set = new Set<string>();
-    meta.categories.forEach((c) => {
-      if (c.category_id) set.add(c.category_id);
-    });
     programmes.forEach((p) => {
       if (p.Category) set.add(p.Category);
     });
     return Array.from(set);
-  }, [meta.categories, programmes]);
+  }, [programmes]);
 
   // Export exact data currently displayed
   const handleExportDisplayed = () => {

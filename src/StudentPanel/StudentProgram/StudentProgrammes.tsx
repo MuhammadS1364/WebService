@@ -6,6 +6,7 @@ import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvert
 import SafeImage from "../../lib/SafeImage";
 import ProgrammeFeedbackModal from "../../PublicProgrammesComponents/ProgrammeFeedbackModal";
 import SubmitContentModal from "../../PublicProgrammesComponents/SubmitContentModal";
+import TopicRegistrationModal from "../../components/TopicRegistrationModal";
 import { resolveStudentProfile } from "../../lib/accountResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import {
@@ -18,6 +19,7 @@ import {
   Send,
   CheckCircle2,
   Clock,
+  Sparkles,
 } from "lucide-react";
 
 // 1. Define explicit structures matching your Supabase Database Schemas
@@ -43,6 +45,7 @@ interface ProgramItem {
   Venue?: string;
   isContentRequired?: boolean;
   ContentSubmition_deadLine?: string | null;
+  is_topic_required?: boolean;
 }
 
 export default function StudentProgrammes() {
@@ -62,12 +65,15 @@ export default function StudentProgrammes() {
   const [loading, setLoading] = useState<boolean>(() => !localStorage.getItem("cached_student_profile"));
   const [programs, setPrograms] = useState<ProgramItem[]>([]);
   const [submittedContents, setSubmittedContents] = useState<Record<string, { content_title: string }>>({});
+  const [submittedTopics, setSubmittedTopics] = useState<Record<string, { topic_title: string; is_approved: boolean }>>({});
   
   // Fullscreen image state
   const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
 
   // Content Submission Modal State
   const [contentModalProgram, setContentModalProgram] = useState<ProgramItem | null>(null);
+  // Topic Registration Modal State
+  const [topicModalProgram, setTopicModalProgram] = useState<ProgramItem | null>(null);
 
   const handleDownloadImage = async (url: string, title?: string) => {
     try {
@@ -152,6 +158,25 @@ export default function StudentProgrammes() {
               }
             });
             setSubmittedContents(map);
+          }
+
+          // Fetch existing registered topics for this student (Topics_Box)
+          const { data: tData } = await SupaBaseFunction
+            .from("Topics_Box")
+            .select("program_code, topic_title, is_approved")
+            .eq("student_addNo", studentData.AddNo);
+
+          if (tData && isMounted) {
+            const topicMap: Record<string, { topic_title: string; is_approved: boolean }> = {};
+            tData.forEach((row: any) => {
+              if (row.program_code) {
+                topicMap[row.program_code] = {
+                  topic_title: row.topic_title || "Registered Topic",
+                  is_approved: Boolean(row.is_approved),
+                };
+              }
+            });
+            setSubmittedTopics(topicMap);
           }
         }
       } catch (error) {
@@ -411,6 +436,52 @@ export default function StudentProgrammes() {
                     </div>
                   )}
 
+                  {/* Topic Registration Required Section (Topics_Box) */}
+                  {prog.is_topic_required && (
+                    <div className="mb-3 p-3 bg-indigo-50/80 border border-indigo-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-indigo-900 flex items-center gap-1.5">
+                          <Sparkles size={13} className="text-indigo-600 shrink-0" />
+                          Topic Registration Required
+                        </span>
+                        <span className="text-[10px] text-indigo-600 font-semibold uppercase tracking-wider">
+                          Topics_Box
+                        </span>
+                      </div>
+
+                      {submittedTopics[prog.Program_Code] ? (
+                        <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-indigo-200 text-xs">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {submittedTopics[prog.Program_Code].is_approved ? (
+                              <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                            ) : (
+                              <Clock size={14} className="text-amber-500 shrink-0" />
+                            )}
+                            <span className="font-bold text-slate-800 truncate">
+                              {submittedTopics[prog.Program_Code].topic_title}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setTopicModalProgram(prog)}
+                            className="text-[10px] font-bold text-indigo-600 hover:underline shrink-0"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setTopicModalProgram(prog)}
+                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer"
+                        >
+                          <FileText size={13} />
+                          <span>Register Topic & Lyrics</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <div className="border-t border-gray-100 pt-3 flex items-center justify-between text-xs font-medium text-gray-500 mb-3">
                     <div>
                       {formatResultDate(prog.Date)}
@@ -455,6 +526,38 @@ export default function StudentProgrammes() {
             }}
             program={contentModalProgram}
             studentAddNo={student?.AddNo || ""}
+          />
+        )}
+
+        {/* Modal: Register Topic for Programmes with is_topic_required */}
+        {topicModalProgram && (
+          <TopicRegistrationModal
+            isOpen={Boolean(topicModalProgram)}
+            onClose={() => setTopicModalProgram(null)}
+            programCode={topicModalProgram.Program_Code}
+            programTitle={topicModalProgram.Program_Title}
+            studentAddNo={student?.AddNo || null}
+            onSuccess={() => {
+              // Refresh topic state
+              if (student?.AddNo && topicModalProgram) {
+                SupaBaseFunction.from("Topics_Box")
+                  .select("program_code, topic_title, is_approved")
+                  .eq("student_addNo", student.AddNo)
+                  .eq("program_code", topicModalProgram.Program_Code)
+                  .maybeSingle()
+                  .then(({ data }) => {
+                    if (data) {
+                      setSubmittedTopics((prev) => ({
+                        ...prev,
+                        [data.program_code]: {
+                          topic_title: data.topic_title || "Registered Topic",
+                          is_approved: Boolean(data.is_approved),
+                        },
+                      }));
+                    }
+                  });
+              }
+            }}
           />
         )}
 

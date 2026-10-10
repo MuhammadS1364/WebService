@@ -250,27 +250,23 @@ export default function StudentsAnalyticsGeneral() {
     }));
   }, [students, meta.classMap, meta.classes, meta.categories]);
 
-  // Extract filter options - combining database master entries with student records
+  // Extract filter options - ONLY from available student records in the table
   useEffect(() => {
-    const classNamesFromStudents = hydratedStudents
-      .map((s) => s.resolvedClassName)
-      .filter((v): v is string => Boolean(v && v !== "Unassigned"));
+    const classNames = Array.from(
+      new Set(
+        hydratedStudents
+          .map((s) => s.resolvedClassName)
+          .filter((v): v is string => Boolean(v && v !== "Unassigned"))
+      )
+    ).sort();
 
-    const classNamesFromMeta = meta.classes
-      .map((c) => c.standard_name)
-      .filter(Boolean);
-
-    const mergedClasses = Array.from(new Set([...classNamesFromMeta, ...classNamesFromStudents])).sort();
-
-    const catNamesFromStudents = hydratedStudents
-      .map((s) => s.resolvedCategoryName)
-      .filter((v): v is string => Boolean(v && v !== "General"));
-
-    const catNamesFromMeta = meta.categories
-      .map((c) => c.category_title)
-      .filter(Boolean);
-
-    const mergedCategories = Array.from(new Set([...catNamesFromMeta, ...catNamesFromStudents])).sort();
+    const catNames = Array.from(
+      new Set(
+        hydratedStudents
+          .map((s) => s.resolvedCategoryName)
+          .filter((v): v is string => Boolean(v && v !== "General"))
+      )
+    ).sort();
 
     const extractUnique = (key: keyof Student): string[] => {
       const values = hydratedStudents
@@ -280,13 +276,13 @@ export default function StudentsAnalyticsGeneral() {
     };
 
     setFilterOptions({
-      classes: mergedClasses,
-      categories: mergedCategories,
+      classes: classNames,
+      categories: catNames,
       states: extractUnique("StnState"),
       districts: extractUnique("StnDistrict"),
       colleges: extractUnique("CollegeName"),
     });
-  }, [hydratedStudents, meta.classes, meta.categories]);
+  }, [hydratedStudents]);
 
   // When a student is selected, fetch their enrolled programmes & result positions
   const handleSelectStudent = async (student: Student) => {

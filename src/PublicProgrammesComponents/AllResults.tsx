@@ -139,6 +139,28 @@ export default function AllResultsList() {
     return meta.venueMap[ven] || ven;
   };
 
+  // Dynamic Filter Options - ONLY from loaded results table
+  const { uniqueWings, uniqueCategories } = useMemo(() => {
+    const wingMap = new Map<string, string>();
+    const catMap = new Map<string, string>();
+
+    results.forEach((r) => {
+      if (r.programme?.WingCode) {
+        const title = meta.wingMap[r.programme.WingCode] || r.programme.WingCode;
+        wingMap.set(r.programme.WingCode, title);
+      }
+      if (r.programme?.Category) {
+        const title = meta.categoryMap[r.programme.Category] || r.programme.Category;
+        catMap.set(r.programme.Category, title);
+      }
+    });
+
+    return {
+      uniqueWings: Array.from(wingMap.entries()).map(([code, label]) => ({ code, label })),
+      uniqueCategories: Array.from(catMap.entries()).map(([id, label]) => ({ id, label })),
+    };
+  }, [results, meta.wingMap, meta.categoryMap]);
+
   // Filtered Results
   const filteredResults = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -258,9 +280,9 @@ export default function AllResultsList() {
             className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
           >
             <option value="All">All Wings</option>
-            {meta.wings.map((w) => (
-              <option key={w.WingCode} value={w.WingCode}>
-                {w.WingTitle || w.WingCode}
+            {uniqueWings.map((w) => (
+              <option key={w.code} value={w.code}>
+                {w.label}
               </option>
             ))}
           </select>
@@ -271,9 +293,9 @@ export default function AllResultsList() {
             className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
           >
             <option value="All">All Categories</option>
-            {meta.categories.map((c) => (
-              <option key={c.category_id} value={c.category_id}>
-                {c.category_title}
+            {uniqueCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
               </option>
             ))}
           </select>

@@ -3,7 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
-import { Printer } from "lucide-react";
+import TopicRegistrationModal from "../components/TopicRegistrationModal";
+import { Printer, FileText, Sparkles } from "lucide-react";
 
 // Define the shape of your program data
 interface ProgramDetails {
@@ -11,6 +12,7 @@ interface ProgramDetails {
   Program_Title: string;
   Category?: string;
   Total_Registration?: number;
+  is_topic_required?: boolean;
 }
 
 // Define the shape of your status alerts
@@ -38,6 +40,8 @@ export default function CandidateRegistration() {
   const [categoryMismatch, setCategoryMismatch] = useState<boolean>(false);
   const [status, setStatus] = useState<StatusState>({ type: "", text: "" });
   const [isPrintSheetOpen, setIsPrintSheetOpen] = useState<boolean>(false);
+  const [isTopicModalOpen, setIsTopicModalOpen] = useState<boolean>(false);
+  const [lastRegisteredStudent, setLastRegisteredStudent] = useState<string>("");
 
   // ----------------------------------------
   // 1. Fetch current program info 
@@ -53,7 +57,7 @@ export default function CandidateRegistration() {
       try {
         const { data, error } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Category, Total_Registration")
+          .select("Program_Code, Program_Title, Category, Total_Registration, is_topic_required")
           .eq("Program_Code", P_Code)
           .maybeSingle();
 
@@ -236,7 +240,14 @@ export default function CandidateRegistration() {
           .eq("AddNo", candidateCode.trim());
       }
 
-      setStatus({ type: "success", text: "🎉 Candidate successfully assigned to program!" });
+      const registeredCode = candidateCode.trim();
+      setLastRegisteredStudent(registeredCode);
+      setStatus({
+        type: "success",
+        text: programDetails?.is_topic_required
+          ? "🎉 Candidate successfully assigned! Topic registration is required for this event."
+          : "🎉 Candidate successfully assigned to program!",
+      });
       setCandidateCode("");
       setStudentName("");
       
@@ -310,6 +321,15 @@ export default function CandidateRegistration() {
           <div className="space-y-6 py-4 animate-in fade-in zoom-in duration-300">
             <p className="text-slate-600 text-center font-medium">What would you like to do next?</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {programDetails?.is_topic_required && (
+                <button
+                  type="button"
+                  onClick={() => setIsTopicModalOpen(true)}
+                  className="sm:col-span-2 w-full py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-md shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer text-center flex items-center justify-center gap-2"
+                >
+                  <FileText size={16} /> Register Candidate Topic (Topics_Box)
+                </button>
+              )}
               <button
                 onClick={() => setStatus({ type: "", text: "" })}
                 className="w-full py-3.5 bg-violet-600 text-white font-bold rounded-xl shadow-md shadow-violet-200 hover:bg-violet-700 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer text-center"
@@ -345,6 +365,23 @@ export default function CandidateRegistration() {
                   </span>
                 )}
               </div>
+
+              {/* Notice if Topic Registration is required */}
+              {programDetails?.is_topic_required && (
+                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-indigo-900 font-semibold">
+                    <Sparkles size={16} className="text-indigo-600 shrink-0" />
+                    <span>Topic Registration required for this competition.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsTopicModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shrink-0 transition flex items-center gap-1.5 cursor-pointer text-[11px]"
+                  >
+                    <FileText size={12} /> Open Topic Form
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Field 2: Target Candidate Admission Code */}
@@ -414,6 +451,17 @@ export default function CandidateRegistration() {
             programCode={programDetails.Program_Code}
             initialProgramTitle={programDetails.Program_Title}
             onClose={() => setIsPrintSheetOpen(false)}
+          />
+        )}
+
+        {/* Topic Registration Modal (Topics_Box) */}
+        {programDetails && (
+          <TopicRegistrationModal
+            isOpen={isTopicModalOpen}
+            onClose={() => setIsTopicModalOpen(false)}
+            programCode={programDetails.Program_Code}
+            programTitle={programDetails.Program_Title}
+            studentAddNo={lastRegisteredStudent || candidateCode.trim() || null}
           />
         )}
       </div>

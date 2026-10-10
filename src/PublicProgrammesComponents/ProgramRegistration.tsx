@@ -60,6 +60,7 @@ export default function ProgrammeRegistration() {
     IsApproved: false,
     isContentRequired: false,
     ContentSubmition_deadLine: "",
+    is_topic_required: false,
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -263,6 +264,7 @@ export default function ProgrammeRegistration() {
           formData.isContentRequired && formData.ContentSubmition_deadLine
             ? formData.ContentSubmition_deadLine
             : null,
+        is_topic_required: Boolean(formData.is_topic_required),
         created_at: new Date().toTimeString().split(" ")[0],
       };
 
@@ -743,6 +745,28 @@ export default function ProgrammeRegistration() {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Candidate Topic Registration Switch (Topics_Box) */}
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="is_topic_required"
+                  name="is_topic_required"
+                  checked={Boolean(formData.is_topic_required)}
+                  onChange={handleChange}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <label htmlFor="is_topic_required" className="cursor-pointer">
+                  <span className="block text-xs font-bold text-indigo-950">
+                    Candidate Topic Registration Required (Topics_Box)
+                  </span>
+                  <span className="block text-[11px] text-indigo-800 mt-0.5">
+                    If enabled, candidates must register their specific topic title & lyrics/outline, which must be unique across the competition and approved by judges.
+                  </span>
+                </label>
+              </div>
             </div>
 
             {isAdmin && (

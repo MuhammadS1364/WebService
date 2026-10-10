@@ -14,6 +14,7 @@ interface Transaction {
   Method?: string | null;
   Income_Outcome?: string | null;
   Treasurer_Email?: string | null;
+  AcademicYear?: string | null;
 }
 
 export default function TreasurerAnalytics() {
@@ -95,6 +96,14 @@ export default function TreasurerAnalytics() {
 
     loadDashboardData();
   }, [decodedEmail]);
+
+  const availableYears = useMemo(() => {
+    return Array.from(new Set(transactions.map((t) => t.AcademicYear).filter(Boolean) as string[])).sort();
+  }, [transactions]);
+
+  const availableTypes = useMemo(() => {
+    return Array.from(new Set(transactions.map((t) => t.Income_Outcome).filter(Boolean) as string[])).sort();
+  }, [transactions]);
 
   const filteredData = useMemo(() => {
     return transactions.filter((txn) => {
@@ -243,13 +252,15 @@ export default function TreasurerAnalytics() {
             </div>
             <select name="academicYear" value={filters.academicYear} onChange={handleFilterChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
               <option value="All">All Academic Years</option>
-              <option value="2025-2026">2025 - 2026</option>
-              <option value="2026-2027">2026 - 2027</option>
+              {availableYears.map((yr) => (
+                <option key={yr} value={yr}>{yr}</option>
+              ))}
             </select>
             <select name="type" value={filters.type} onChange={handleFilterChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
               <option value="All">All Types</option>
-              <option value="Income">Income Only</option>
-              <option value="Expense">Expense Only</option>
+              {availableTypes.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
             </select>
           </div>
         </div>

@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Database,
+  Trophy,
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -250,6 +251,9 @@ export default function AdminPanel() {
                 </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/wing-general-anaylatics`} className={desktopNavLinkClasses}>
                   Wings Analytics
+                </NavLink>
+                <NavLink to={`/admin-panel/${actUser}/resulted-leaderboard`} className={desktopNavLinkClasses}>
+                  Resulted Leaderboard
                 </NavLink>
               </div>
             )}
@@ -492,6 +496,15 @@ export default function AdminPanel() {
                 >
                   <TrendingUp size={16} className="text-cyan-600" />
                   <span>Analytics</span>
+                </NavLink>
+
+                <NavLink
+                  to={`/admin-panel/${actUser}/resulted-leaderboard`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-semibold border border-amber-200 col-span-2"
+                >
+                  <Trophy size={16} className="text-amber-500" />
+                  <span>Resulted Student Leaderboard</span>
                 </NavLink>
               </div>
 

@@ -6,6 +6,12 @@ import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
+import {
+  deleteProgrammeCascade,
+  deleteProgrammesBulkCascade,
+} from "../../lib/cascadeDeleteService";
+import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
+import AdminTopicsManagerModal from "../../components/AdminTopicsManagerModal";
 import { 
   Edit3, 
   Calendar, 
@@ -17,7 +23,8 @@ import {
   X,
   Award,
   Key,
-  Printer
+  Printer,
+  Trash2,
 } from "lucide-react"; 
 
 export interface Programme {
@@ -38,6 +45,7 @@ export interface Programme {
   Program_Poster: string | null;
   IsConducted: boolean;
   AccademicYear: string | null;
+  is_topic_required?: boolean;
 }
 
 export interface Wing {
@@ -77,6 +85,19 @@ export default function AdminProgrammesList() {
   const [printSheetProgram, setPrintSheetProgram] = useState<Programme | null>(null);
   const [fullscreenPoster, setFullscreenPoster] = useState<{ url: string; title: string } | null>(null);
   const [isUuidModalOpen, setIsUuidModalOpen] = useState(false);
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    type: "single" | "bulk";
+    code?: string;
+    title?: string;
+    codes?: string[];
+  }>({
+    isOpen: false,
+    type: "single",
+  });
+  const [isExecutingDelete, setIsExecutingDelete] = useState(false);
+  const [isTopicsManagerOpen, setIsTopicsManagerOpen] = useState(false);
+  const [selectedTopicProg, setSelectedTopicProg] = useState<Programme | null>(null);
   
   const [isLoading, setIsLoading] = useState({ fetch: true, import: false, export: false, action: false });
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -140,29 +161,14 @@ export default function AdminProgrammesList() {
   };
 
   const uniqueValues = useMemo(() => {
-    const progYears = programmes.map((p) => p.AccademicYear).filter(Boolean) as string[];
-    const metaYears = meta.academicYears.map((a) => a.accademic_id).filter(Boolean);
-
-    const progCats = programmes.map((p) => p.Category).filter(Boolean) as string[];
-    const metaCats = meta.categories.map((c) => c.category_id).filter(Boolean);
-
-    const progGroups = programmes.map((p) => p.Group).filter(Boolean) as string[];
-    const metaGroups = meta.groups.map((g) => g.group_id).filter(Boolean);
-
-    const progVenues = programmes.map((p) => p.Venue).filter(Boolean) as string[];
-    const metaVenues = meta.venues.map((v) => v.venue_id).filter(Boolean);
-
-    const progWings = programmes.map((p) => p.WingCode).filter(Boolean) as string[];
-    const metaWings = meta.wings.map((w) => w.WingCode).filter(Boolean);
-
     return {
-      AccademicYear: Array.from(new Set([...metaYears, ...progYears])),
-      Category: Array.from(new Set([...metaCats, ...progCats])),
-      Group: Array.from(new Set([...metaGroups, ...progGroups])),
-      Venue: Array.from(new Set([...metaVenues, ...progVenues])),
-      WingCode: Array.from(new Set([...metaWings, ...progWings])),
+      AccademicYear: Array.from(new Set(programmes.map((p) => p.AccademicYear).filter(Boolean) as string[])),
+      Category: Array.from(new Set(programmes.map((p) => p.Category).filter(Boolean) as string[])),
+      Group: Array.from(new Set(programmes.map((p) => p.Group).filter(Boolean) as string[])),
+      Venue: Array.from(new Set(programmes.map((p) => p.Venue).filter(Boolean) as string[])),
+      WingCode: Array.from(new Set(programmes.map((p) => p.WingCode).filter(Boolean) as string[])),
     };
-  }, [programmes, meta.academicYears, meta.categories, meta.groups, meta.venues, meta.wings]);
+  }, [programmes]);
 
   const filteredProgrammes = useMemo(() => {
     return programmes.filter((p) => {
@@ -202,19 +208,60 @@ export default function AdminProgrammesList() {
     }
   };
 
+  // --- 1.5 SINGLE DELETE PROGRAMME (triggers in-app modal) ---
+  const handleSingleDelete = (code: string, title?: string | null) => {
+    setDeleteModalState({
+      isOpen: true,
+      type: "single",
+      code,
+      title: title || code,
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsExecutingDelete(true);
+    try {
+      if (deleteModalState.type === "single" && deleteModalState.code) {
+        const code = deleteModalState.code;
+        const displayTitle = deleteModalState.title || code;
+        await deleteProgrammeCascade(code);
+        showToast(`Programme "${displayTitle}" deleted successfully.`, "success");
+        setSelectedPrograms(prev => {
+          const next = new Set(prev);
+          next.delete(code);
+          return next;
+        });
+      } else if (deleteModalState.type === "bulk" && deleteModalState.codes?.length) {
+        const codes = deleteModalState.codes;
+        await deleteProgrammesBulkCascade(codes);
+        showToast(`Successfully deleted ${codes.length} programmes.`, "success");
+        setSelectedPrograms(new Set());
+      }
+      setDeleteModalState({ isOpen: false, type: "single" });
+      await fetchData();
+    } catch (error: any) {
+      showToast(error.message || "Failed to delete programme.", "error");
+    } finally {
+      setIsExecutingDelete(false);
+    }
+  };
+
   // --- 2. BULK ACTION (Update Multiple) ---
   const handleBulkAction = async (action: string) => {
     if (selectedPrograms.size === 0) return;
-    setIsLoading(prev => ({ ...prev, action: true }));
     
+    if (action === "Delete") {
+      setDeleteModalState({
+        isOpen: true,
+        type: "bulk",
+        codes: Array.from(selectedPrograms),
+      });
+      return;
+    }
+
+    setIsLoading(prev => ({ ...prev, action: true }));
     try {
-      if (action === "Delete" && window.confirm(`Permanently delete ${selectedPrograms.size} programs?`)) {
-        const codes = Array.from(selectedPrograms);
-        const { error } = await SupaBaseFunction.from('ProgrammesBox').delete().in('Program_Code', codes);
-        if (error) throw error;
-        showToast(`Successfully deleted programs.`, "success");
-      } 
-      else if (action === "ToggleApprove") {
+      if (action === "ToggleApprove") {
         const toApprove = Array.from(selectedPrograms).filter(code => !programmes.find(p => p.Program_Code === code)?.IsApproved);
         const toUnapprove = Array.from(selectedPrograms).filter(code => programmes.find(p => p.Program_Code === code)?.IsApproved);
         
@@ -240,9 +287,9 @@ export default function AdminProgrammesList() {
       await fetchData();
       setSelectedPrograms(new Set());
     } catch (error: any) {
-       showToast(error.message || "Bulk action failed.", "error");
+      showToast(error.message || "Bulk action failed.", "error");
     } finally {
-       setIsLoading(prev => ({ ...prev, action: false }));
+      setIsLoading(prev => ({ ...prev, action: false }));
     }
   };
 
@@ -352,6 +399,18 @@ export default function AdminProgrammesList() {
             <button onClick={() => setIsUuidModalOpen(true)} type="button" className="flex items-center gap-1.5 px-3.5 py-2.5 bg-purple-50 border border-purple-200 text-purple-700 rounded-xl text-xs sm:text-sm font-bold hover:bg-purple-100 transition shadow-xs cursor-pointer" title="View copyable UUIDs for Classes & Categories for Excel import">
               <Key size={14} className="text-purple-600" />
               <span>Reference UUIDs</span>
+            </button>
+            <button
+              onClick={() => {
+                setSelectedTopicProg(null);
+                setIsTopicsManagerOpen(true);
+              }}
+              type="button"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-xl text-xs sm:text-sm font-bold hover:bg-indigo-100 transition shadow-xs cursor-pointer"
+              title="Manage and approve candidate registered topics in Topics_Box"
+            >
+              <FileText size={14} className="text-indigo-600" />
+              <span>Topics Registry</span>
             </button>
             <button onClick={handleExport} disabled={isLoading.export} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-white border-2 border-emerald-600 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-50 transition disabled:opacity-70 shadow-sm cursor-pointer">
               {isLoading.export ? <span className="animate-spin h-4 w-4 border-2 border-emerald-700 border-t-transparent rounded-full"></span> : "Export Excel (All)"}
@@ -596,7 +655,31 @@ export default function AdminProgrammesList() {
                           className="py-2.5 px-3 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                           title="Print Official A4 Candidate Attendance & Evaluation Sheet"
                         >
-                          <Printer size={13} /> Candidate Sheet (A4)
+                          <Printer size={13} /> Sheet (A4)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTopicProg(prog);
+                            setIsTopicsManagerOpen(true);
+                          }}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer ${
+                            prog.is_topic_required
+                              ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                              : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+                          }`}
+                          title="View & Approve Registered Topics (Topics_Box)"
+                        >
+                          <FileText size={13} /> Topics
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isLoading.action}
+                          onClick={() => handleSingleDelete(prog.Program_Code, prog.Program_Title)}
+                          className="py-2.5 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center justify-center shadow-2xs cursor-pointer disabled:opacity-50"
+                          title="Permanently Delete Programme"
+                        >
+                          <Trash2 size={13} />
                         </button>
                       </div>
 
@@ -750,6 +833,34 @@ export default function AdminProgrammesList() {
         <ExcelUuidReferenceModal
           isOpen={isUuidModalOpen}
           onClose={() => setIsUuidModalOpen(false)}
+        />
+
+        {/* Admin Topics Registry Manager Modal (Topics_Box) */}
+        <AdminTopicsManagerModal
+          isOpen={isTopicsManagerOpen}
+          onClose={() => setIsTopicsManagerOpen(false)}
+          programCode={selectedTopicProg?.Program_Code}
+          programTitle={selectedTopicProg?.Program_Title || undefined}
+        />
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmDeleteModal
+          isOpen={deleteModalState.isOpen}
+          title={deleteModalState.type === "bulk" ? `Delete ${deleteModalState.codes?.length || 0} Programmes?` : "Delete Programme?"}
+          message={
+            deleteModalState.type === "bulk"
+              ? `Are you sure you want to permanently remove all ${deleteModalState.codes?.length || 0} selected programmes? This will remove the events along with all candidate registrations, results, feedback, and student submissions.`
+              : `Are you sure you want to permanently delete programme "${deleteModalState.title}" (${deleteModalState.code})? All associated candidate registrations, results, and submissions will also be removed.`
+          }
+          itemDescription={
+            deleteModalState.type === "bulk"
+              ? `Selected: ${(deleteModalState.codes || []).slice(0, 4).join(", ")}${(deleteModalState.codes?.length || 0) > 4 ? ` (+${(deleteModalState.codes?.length || 0) - 4} more)` : ""}`
+              : `Code: ${deleteModalState.code || ""}`
+          }
+          confirmText="Yes, Permanently Delete"
+          isDeleting={isExecutingDelete}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteModalState({ isOpen: false, type: "single" })}
         />
       </div>
     </div>

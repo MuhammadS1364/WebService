@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  Trophy,
 } from 'lucide-react';
 
 export default function PublicHomePanel() {
@@ -77,6 +78,10 @@ export default function PublicHomePanel() {
           <NavLink to={`/public-panel/our-achievements`} className={desktopNavLinkClasses}>
             <Award size={16} className="text-purple-600" />
             <span>Our Achievements</span>
+          </NavLink>
+          <NavLink to={`/public-panel/resulted-leaderboard`} className={desktopNavLinkClasses}>
+            <Trophy size={16} className="text-amber-500" />
+            <span>Resulted Leaderboard</span>
           </NavLink>
           <NavLink to={`/public-panel/donate-us`} className={desktopNavLinkClasses}>
             <HeartHandshake size={16} className="text-rose-500" />
@@ -165,6 +170,7 @@ export default function PublicHomePanel() {
                   { to: "/public-panel/programmes-calendar", icon: Calendar, label: "Events & Programme Calendar", color: "text-emerald-700" },
                   { to: "/public-panel/our-hightligths-evens", icon: Sparkles, label: "Grand Highlights & Media", color: "text-amber-500" },
                   { to: "/public-panel/our-achievements", icon: Award, label: "Official Achievements", color: "text-purple-600" },
+                  { to: "/public-panel/resulted-leaderboard", icon: Trophy, label: "Resulted Student Leaderboard", color: "text-amber-500" },
                   { to: "/public-panel/donate-us", icon: HeartHandshake, label: "Donate to Anjuman-e-Huda", color: "text-rose-500" },
                   { to: "/login", icon: LogIn, label: "Portal Authorized Login", color: "text-emerald-600" },
                 ].map((item) => {
@@ -263,6 +269,14 @@ export default function PublicHomePanel() {
           >
             <Award size={17} className="mb-0.5 text-purple-600" />
             <span>Achieve</span>
+          </NavLink>
+
+          <NavLink
+            to="/public-panel/resulted-leaderboard"
+            className={bottomBarLinkClasses}
+          >
+            <Trophy size={17} className="mb-0.5 text-amber-500" />
+            <span>Ranks</span>
           </NavLink>
 
           <NavLink
