@@ -498,18 +498,11 @@ export default function ProgrammeRegistration() {
                   className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm font-medium bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition"
                 >
                   <option value="">No Category (General / All Classes)</option>
-                  {meta.categories.map((c) => {
-                    const classNames = [c.class_1, c.class_2, c.class_3]
-                      .filter(Boolean)
-                      .map((cid) => meta.classMap[cid!] || "")
-                      .filter(Boolean);
-                    const classLabel = classNames.length > 0 ? ` [Classes: ${classNames.join(", ")}]` : "";
-                    return (
-                      <option key={c.category_id} value={c.category_id}>
-                        {c.category_title}{classLabel}
-                      </option>
-                    );
-                  })}
+                  {meta.categories.map((c) => (
+                    <option key={c.category_id} value={c.category_id}>
+                      {c.category_title}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -609,7 +602,7 @@ export default function ProgrammeRegistration() {
                   <option value="">No Group / Open Participation</option>
                   {meta.groups.map((g) => (
                     <option key={g.group_id} value={g.group_id}>
-                      {g.group_title} {g.short_dec ? `(${g.short_dec})` : ""}
+                      {g.group_title}
                     </option>
                   ))}
                 </select>

@@ -55,7 +55,7 @@ export default function PrintCandidateSheetModal({
   const [sheetType, setSheetType] = useState<"evaluation" | "attendance" | "contestant">("evaluation");
   const [density, setDensity] = useState<"standard" | "compact" | "ultra">("compact");
   const [includeBlankRows, setIncludeBlankRows] = useState<boolean>(true);
-  const [blankRowsCount, setBlankRowsCount] = useState<number>(3);
+  const [blankRowsCount, setBlankRowsCount] = useState<number>(10);
   const [customNotes, setCustomNotes] = useState<string>("Official event document. Please maintain confidentiality.");
 
   // Fetch programme & registered candidates
@@ -81,16 +81,15 @@ export default function PrintCandidateSheetModal({
         // 2. Fetch Candidate Registrations
         const { data: regRows, error: regErr } = await SupaBaseFunction
           .from("CandidateRegistrationTable")
-          .select("Candidate_Code, CandidateUUiD, created_at")
-          .eq("Program_Code", programCode)
-          .order("created_at", { ascending: true });
+          .select("Candidate_Code, CandidateUUiD")
+          .eq("Program_Code", programCode);
 
         if (regErr) throw regErr;
 
         const regList = (regRows || []).map((r) => ({
           code: (r.Candidate_Code || "").trim(),
           uuid: r.CandidateUUiD,
-          date: r.created_at,
+          date: undefined,
         })).filter(r => Boolean(r.code));
 
         const uniqueCodes = Array.from(new Set(regList.map(r => r.code)));
@@ -100,7 +99,7 @@ export default function PrintCandidateSheetModal({
         if (uniqueCodes.length > 0) {
           const { data: studentsData } = await SupaBaseFunction
             .from("StudentsBox")
-            .select("AddNo, StudentName, Class, Stn_Class, FatherName, MobileNo, StnDistrict, StnState")
+            .select("AddNo, StudentName, Stn_Class, FatherName, MobileNo, StnDistrict, StnState")
             .in("AddNo", uniqueCodes);
 
           if (studentsData) {
@@ -123,6 +122,26 @@ export default function PrintCandidateSheetModal({
             contentData.forEach((c: any) => {
               if (c.student_addNo) contentMap[c.student_addNo.trim()] = c.content_title;
             });
+          }
+
+          // 4b. Also fetch registered topics from Topics_Box if applicable
+          try {
+            const { data: topicData } = await SupaBaseFunction
+              .from("Topics_Box")
+              .select("student_addNo, topic_title")
+              .eq("program_code", programCode)
+              .in("student_addNo", uniqueCodes);
+
+            if (topicData) {
+              topicData.forEach((t: any) => {
+                if (t.student_addNo && t.topic_title) {
+                  // Prefer topic title or merge
+                  contentMap[t.student_addNo.trim()] = t.topic_title;
+                }
+              });
+            }
+          } catch (tErr) {
+            console.warn("Notice loading Topics_Box for print sheet:", tErr);
           }
         }
 
@@ -423,18 +442,30 @@ export default function PrintCandidateSheetModal({
                 <span>Include Blank Rows</span>
               </label>
               {includeBlankRows && (
-                <select
-                  value={blankRowsCount}
-                  onChange={(e) => setBlankRowsCount(Number(e.target.value))}
-                  className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg px-2 py-0.5 outline-hidden"
-                  title="Number of blank on-spot rows"
-                >
-                  <option value={1}>1 Row</option>
-                  <option value={2}>2 Rows</option>
-                  <option value={3}>3 Rows</option>
-                  <option value={5}>5 Rows</option>
-                  <option value={8}>8 Rows</option>
-                </select>
+                <div className="flex items-center gap-1">
+                  <select
+                    value={blankRowsCount}
+                    onChange={(e) => setBlankRowsCount(Number(e.target.value))}
+                    className="bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg px-2 py-0.5 outline-hidden cursor-pointer"
+                    title="Number of blank on-spot rows (default 10)"
+                  >
+                    <option value={5}>5 Rows</option>
+                    <option value={10}>10 Rows (Default)</option>
+                    <option value={15}>15 Rows</option>
+                    <option value={20}>20 Rows</option>
+                    <option value={25}>25 Rows</option>
+                    <option value={30}>30 Rows</option>
+                    <option value={50}>50 Rows (Expanded)</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setBlankRowsCount((prev) => prev + 5)}
+                    className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                    title="Add 5 more blank rows"
+                  >
+                    +5 Expand
+                  </button>
+                </div>
               )}
             </div>
 

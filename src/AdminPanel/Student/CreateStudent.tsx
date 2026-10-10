@@ -27,6 +27,7 @@ export default function StudentRegistration() {
         CollegeName: "", Class: "", StnState: "", StnDistrict: ""
     });
 
+    // Canonical and DB-backed list of all standard class names strictly from Our_Classes
     const standardClassesOptions = useMemo(() => {
         const list: { id?: string; standard_name: string; class_nick_name?: string; class_serial_number?: number }[] = [];
         const seenNames = new Set<string>();
@@ -45,31 +46,6 @@ export default function StudentRegistration() {
                 }
             });
         }
-
-        const defaultStandardNames = [
-            "Secondary First Year",
-            "Secondary Second Year",
-            "Secondary Third Year",
-            "Secondary Fourth Year",
-            "Secondary Final Year",
-            "Senior Secondary First Year",
-            "Senior Secondary Second Year",
-            "Degree First Year",
-            "Degree Second Year",
-            "Degree Final Year",
-            "PG First Year",
-            "PG Final Year",
-        ];
-
-        defaultStandardNames.forEach((defName, idx) => {
-            if (!seenNames.has(defName.toLowerCase())) {
-                seenNames.add(defName.toLowerCase());
-                list.push({
-                    standard_name: defName,
-                    class_serial_number: idx + 1,
-                });
-            }
-        });
 
         return list.sort((a, b) => (a.class_serial_number ?? 99) - (b.class_serial_number ?? 99));
     }, [meta.classes]);
@@ -90,7 +66,7 @@ export default function StudentRegistration() {
             setImagePreview(squareUrl);
             setSelectedFile(file);
             setImageUrl("");
-        } catch (err: any) {
+        } catch {
             setUploadError("Unable to crop photo. Please try a different image.");
         }
     };

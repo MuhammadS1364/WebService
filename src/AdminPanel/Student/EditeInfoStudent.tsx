@@ -128,7 +128,7 @@ export default function EditStudentRecord() {
     }
   }, [meta.classes, formData.Stn_Class, formData.Class]);
 
-  // Canonical and DB-backed list of all standard class names
+  // Canonical and DB-backed list of all standard class names strictly from Our_Classes
   const standardClassesOptions = useMemo(() => {
     const list: { id?: string; standard_name: string; class_nick_name?: string; class_serial_number?: number }[] = [];
     const seenNames = new Set<string>();
@@ -148,33 +148,17 @@ export default function EditStudentRecord() {
       });
     }
 
-    const defaultStandardNames = [
-      "Secondary First Year",
-      "Secondary Second Year",
-      "Secondary Third Year",
-      "Secondary Fourth Year",
-      "Secondary Final Year",
-      "Senior Secondary First Year",
-      "Senior Secondary Second Year",
-      "Degree First Year",
-      "Degree Second Year",
-      "Degree Final Year",
-      "PG First Year",
-      "PG Final Year",
-    ];
-
-    defaultStandardNames.forEach((defName, idx) => {
-      if (!seenNames.has(defName.toLowerCase())) {
-        seenNames.add(defName.toLowerCase());
-        list.push({
-          standard_name: defName,
-          class_serial_number: idx + 1,
-        });
-      }
-    });
+    // Preserve student's current recorded class if not in Our_Classes so it is never hidden
+    if (formData.Class && !seenNames.has(formData.Class.toLowerCase())) {
+      list.push({
+        standard_name: formData.Class,
+        class_nick_name: "Existing Class",
+        class_serial_number: 999,
+      });
+    }
 
     return list.sort((a, b) => (a.class_serial_number ?? 99) - (b.class_serial_number ?? 99));
-  }, [meta.classes]);
+  }, [meta.classes, formData.Class]);
 
   // Fixes TS7006 & TS2339 by strictly typing the event target name mapping keys
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -204,7 +188,7 @@ export default function EditStudentRecord() {
           ...prev,
           Student_Photo_Urls: squareDataUrl,
         }));
-      } catch (err: any) {
+      } catch {
         setImageError("Could not process photo file.");
       }
     }

@@ -5,6 +5,7 @@ import SafeImage from "../../lib/SafeImage";
 import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
+import AdminTopicsManagerModal from "../../components/AdminTopicsManagerModal";
 import {
   Calendar,
   Users,
@@ -44,6 +45,7 @@ interface Programme {
   is_group_program: boolean;
   isContentRequired?: boolean;
   ContentSubmition_deadLine?: string | null;
+  is_topic_required?: boolean;
 }
 
 interface Student {
@@ -76,6 +78,8 @@ export default function WingProgrammes() {
   const [loadingCands, setLoadingCands] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "individual" | "group">("all");
+  const [selectedTopicProg, setSelectedTopicProg] = useState<string | null>(null);
+  const [isTopicsModalOpen, setIsTopicsModalOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -171,6 +175,26 @@ export default function WingProgrammes() {
       // Revert on error
       setProgrammes(prev =>
         prev.map(p => (p.Program_Code === code ? { ...p, isContentRequired: currentStatus } : p))
+      );
+    }
+  };
+
+  const toggleTopicReq = async (code: string, currentStatus: boolean) => {
+    const nextStatus = !currentStatus;
+    setProgrammes(prev =>
+      prev.map(p => (p.Program_Code === code ? { ...p, is_topic_required: nextStatus } : p))
+    );
+
+    try {
+      await SupaBaseFunction
+        .from("ProgrammesBox")
+        .update({ is_topic_required: nextStatus })
+        .eq("Program_Code", code);
+    } catch (e) {
+      console.error("Failed to update topic registration requirement:", e);
+      // Revert on error
+      setProgrammes(prev =>
+        prev.map(p => (p.Program_Code === code ? { ...p, is_topic_required: currentStatus } : p))
       );
     }
   };
@@ -339,6 +363,7 @@ export default function WingProgrammes() {
                     <th className="px-4 py-4 text-center">Registrations & Content</th>
                     <th className="px-4 py-4 text-center">Registration Control</th>
                     <th className="px-4 py-4 text-center">Content Submission</th>
+                    <th className="px-4 py-4 text-center">Topic Registration</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -488,26 +513,68 @@ export default function WingProgrammes() {
                             )}
                           </td>
 
+                          {/* BUTTON 3: Topic Registration Toggle (ON / OFF) */}
+                          <td className="px-4 py-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggleTopicReq(p.Program_Code, Boolean(p.is_topic_required))}
+                              className={`px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide transition-all cursor-pointer shadow-2xs active:scale-95 inline-flex items-center gap-1.5 ${
+                                p.is_topic_required
+                                  ? "bg-indigo-50 text-indigo-800 border border-indigo-300 hover:bg-indigo-100"
+                                  : "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"
+                              }`}
+                              title={p.is_topic_required ? "Click to Turn Topic Registration OFF" : "Click to Turn Topic Registration ON"}
+                            >
+                              {p.is_topic_required ? (
+                                <>
+                                  <FileText size={12} className="text-indigo-600" />
+                                  <span>Topic: ON</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                  <span>Topic: OFF</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
+
                           {/* Actions */}
                           <td className="px-6 py-4 text-right">
-                            <button
-                              onClick={() => toggleCandidates(p.Program_Code)}
-                              className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                                isExp
-                                  ? "bg-slate-200 text-slate-800"
-                                  : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
-                              }`}
-                            >
-                              <span>{isExp ? "Hide List" : "Candidates"}</span>
-                              {isExp ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              {p.is_topic_required && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedTopicProg(p.Program_Code);
+                                    setIsTopicsModalOpen(true);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-all cursor-pointer shadow-2xs"
+                                  title="View & Manage Candidate Topics"
+                                >
+                                  <FileText size={12} />
+                                  <span>Topics</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={() => toggleCandidates(p.Program_Code)}
+                                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+                                  isExp
+                                    ? "bg-slate-200 text-slate-800"
+                                    : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+                                }`}
+                              >
+                                <span>{isExp ? "Hide List" : "Candidates"}</span>
+                                {isExp ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                            </div>
                           </td>
                         </tr>
 
                         {/* Expanded Candidate Details */}
                         {isExp && (
                           <tr>
-                            <td colSpan={7} className="bg-slate-50/70 p-5 border-y border-slate-100">
+                            <td colSpan={8} className="bg-slate-50/70 p-5 border-y border-slate-100">
                               <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -610,6 +677,15 @@ export default function WingProgrammes() {
             isOpen={Boolean(printCandidateCode)}
             programCode={printCandidateCode}
             onClose={() => setPrintCandidateCode(null)}
+          />
+        )}
+
+        {/* Admin Topics Manager Modal (Topics_Box) */}
+        {isTopicsModalOpen && (
+          <AdminTopicsManagerModal
+            isOpen={isTopicsModalOpen}
+            onClose={() => setIsTopicsModalOpen(false)}
+            programCode={selectedTopicProg || undefined}
           />
         )}
 

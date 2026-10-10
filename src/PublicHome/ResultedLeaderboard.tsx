@@ -84,6 +84,7 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
   const [classFilter, setClassFilter] = useState("All");
   const [minPointsFilter, setMinPointsFilter] = useState<"all" | "has_points" | "winners_only">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   // Modal inspection state
   const [selectedStudentForModal, setSelectedStudentForModal] = useState<StudentLeaderboardEntry | null>(null);
@@ -399,6 +400,12 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
 
     return filtered;
   }, [allEntries, searchQuery, classFilter, minPointsFilter, pointStream]);
+
+  // Default to 10 rows unless expanded by user
+  const displayedLeaderboard = useMemo(() => {
+    if (isExpanded) return filteredLeaderboard;
+    return filteredLeaderboard.slice(0, 10);
+  }, [filteredLeaderboard, isExpanded]);
 
   // Top 3 Podium
   const top3 = useMemo(() => {
@@ -739,7 +746,7 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
               <span>{getStreamTitle()}</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Showing {filteredLeaderboard.length} candidates ranked by {pointStream === "programmes" ? "competition scores" : pointStream === "outreach_achievements" ? "outreach & achievements" : "overall grand total points"}.
+              Showing {displayedLeaderboard.length} of {filteredLeaderboard.length} candidates ranked by {pointStream === "programmes" ? "competition scores" : pointStream === "outreach_achievements" ? "outreach & achievements" : "overall grand total points"}.
             </p>
           </div>
         </div>
@@ -781,7 +788,6 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                       <th className="py-3.5 px-3 text-center">PRG Pts</th>
                       <th className="py-3.5 px-3 text-center">OUT Pts</th>
                       <th className="py-3.5 px-3 text-center">ACH Pts</th>
-                      <th className="py-3.5 px-3 text-center">Medals</th>
                     </>
                   )}
                   <th className="py-3.5 px-4 text-right">
@@ -795,7 +801,7 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredLeaderboard.map((student, idx) => {
+                {displayedLeaderboard.map((student, idx) => {
                   const rank = idx + 1;
                   const isTop1 = rank === 1;
                   const isTop2 = rank === 2;
@@ -919,15 +925,6 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                           <td className="py-3.5 px-3 text-center font-mono font-bold text-purple-700">
                             {student.achievementPoints}
                           </td>
-                          <td className="py-3.5 px-3 text-center font-semibold text-xs text-slate-600">
-                            {student.firstCount + student.secondCount + student.thirdCount > 0 ? (
-                              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 font-bold">
-                                {student.firstCount + student.secondCount + student.thirdCount} medals
-                              </span>
-                            ) : (
-                              <span className="text-slate-300">-</span>
-                            )}
-                          </td>
                         </>
                       )}
 
@@ -958,6 +955,26 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                 })}
               </tbody>
             </table>
+
+            {/* Expand / Collapse Rows Controls (Default 10 Rows) */}
+            {filteredLeaderboard.length > 10 && (
+              <div className="p-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span className="text-xs text-slate-600 font-semibold">
+                  Showing {isExpanded ? filteredLeaderboard.length : Math.min(10, filteredLeaderboard.length)} of {filteredLeaderboard.length} ranked candidate rows
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-white border border-slate-300 text-indigo-700 font-bold rounded-xl text-xs hover:bg-indigo-50 hover:border-indigo-300 transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {isExpanded ? (
+                    <span>▲ Show Top 10 Only</span>
+                  ) : (
+                    <span>▼ Expand to Show All {filteredLeaderboard.length} Candidates</span>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

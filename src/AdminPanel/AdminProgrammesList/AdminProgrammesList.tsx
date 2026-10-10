@@ -183,7 +183,10 @@ export default function AdminProgrammesList() {
   }, [programmes, filters]);
 
   // --- 1. SINGLE ACTION (Update One By One) ---
-  const handleSingleAction = async (code: string, action: "ToggleApprove" | "ToggleReg") => {
+  const handleSingleAction = async (
+    code: string,
+    action: "ToggleApprove" | "ToggleReg" | "ToggleContent" | "ToggleTopic"
+  ) => {
     setIsLoading(prev => ({ ...prev, action: true }));
     try {
       const prog = programmes.find(p => p.Program_Code === code);
@@ -199,6 +202,16 @@ export default function AdminProgrammesList() {
         const { error } = await SupaBaseFunction.from('ProgrammesBox').update({ IsOpenRegistration: newStatus }).eq('Program_Code', code);
         if (error) throw error;
         showToast(`Registration ${newStatus ? 'Opened' : 'Closed'}.`, "success");
+      } else if (action === "ToggleContent") {
+        const newStatus = !(prog as any).isContentRequired;
+        const { error } = await SupaBaseFunction.from('ProgrammesBox').update({ isContentRequired: newStatus }).eq('Program_Code', code);
+        if (error) throw error;
+        showToast(`Content submission ${newStatus ? 'Activated' : 'Deactivated'}.`, "success");
+      } else if (action === "ToggleTopic") {
+        const newStatus = !prog.is_topic_required;
+        const { error } = await SupaBaseFunction.from('ProgrammesBox').update({ is_topic_required: newStatus }).eq('Program_Code', code);
+        if (error) throw error;
+        showToast(`Topic registration ${newStatus ? 'Activated' : 'Deactivated'}.`, "success");
       }
       await fetchData(); // Refresh data to show updated state
     } catch (error: any) {
@@ -282,6 +295,28 @@ export default function AdminProgrammesList() {
         
         await Promise.all(promises);
         showToast(`Registration status toggled successfully.`, "success");
+      }
+      else if (action === "ToggleContent") {
+        const toEnable = Array.from(selectedPrograms).filter(code => !(programmes.find(p => p.Program_Code === code) as any)?.isContentRequired);
+        const toDisable = Array.from(selectedPrograms).filter(code => (programmes.find(p => p.Program_Code === code) as any)?.isContentRequired);
+        
+        const promises = [];
+        if (toEnable.length > 0) promises.push(SupaBaseFunction.from('ProgrammesBox').update({ isContentRequired: true }).in('Program_Code', toEnable));
+        if (toDisable.length > 0) promises.push(SupaBaseFunction.from('ProgrammesBox').update({ isContentRequired: false }).in('Program_Code', toDisable));
+        
+        await Promise.all(promises);
+        showToast(`Content submission requirement toggled successfully.`, "success");
+      }
+      else if (action === "ToggleTopic") {
+        const toEnable = Array.from(selectedPrograms).filter(code => !programmes.find(p => p.Program_Code === code)?.is_topic_required);
+        const toDisable = Array.from(selectedPrograms).filter(code => programmes.find(p => p.Program_Code === code)?.is_topic_required);
+        
+        const promises = [];
+        if (toEnable.length > 0) promises.push(SupaBaseFunction.from('ProgrammesBox').update({ is_topic_required: true }).in('Program_Code', toEnable));
+        if (toDisable.length > 0) promises.push(SupaBaseFunction.from('ProgrammesBox').update({ is_topic_required: false }).in('Program_Code', toDisable));
+        
+        await Promise.all(promises);
+        showToast(`Topic registration requirement toggled successfully.`, "success");
       }
       
       await fetchData();
@@ -465,6 +500,8 @@ export default function AdminProgrammesList() {
                 <option value="">Bulk Actions...</option>
                 <option value="ToggleApprove">Toggle Approval</option>
                 <option value="ToggleReg">Toggle Registration</option>
+                <option value="ToggleContent">Toggle Content Submission</option>
+                <option value="ToggleTopic">Toggle Topic Registration</option>
                 <option value="Delete">Delete Selected</option>
              </select>
           </div>
@@ -705,6 +742,35 @@ export default function AdminProgrammesList() {
                           }`}
                         >
                           {prog.IsOpenRegistration ? "Close Reg" : "Open Reg"}
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={isLoading.action}
+                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleContent")}
+                          className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold border transition disabled:opacity-50 cursor-pointer text-center ${
+                            (prog as any).isContentRequired
+                              ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+                              : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                          }`}
+                          title={(prog as any).isContentRequired ? "Content Submission ON (Click to turn OFF)" : "Content Submission OFF (Click to turn ON)"}
+                        >
+                          Content: {(prog as any).isContentRequired ? "ON" : "OFF"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isLoading.action}
+                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleTopic")}
+                          className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold border transition disabled:opacity-50 cursor-pointer text-center ${
+                            prog.is_topic_required
+                              ? "bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100"
+                              : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                          }`}
+                          title={prog.is_topic_required ? "Topic Registration ON (Click to turn OFF)" : "Topic Registration OFF (Click to turn ON)"}
+                        >
+                          Topic: {prog.is_topic_required ? "ON" : "OFF"}
                         </button>
                       </div>
                     </div>
