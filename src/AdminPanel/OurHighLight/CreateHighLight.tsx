@@ -10,7 +10,6 @@ import {
   Eye,
   Radio,
   Upload,
-  X,
   FileUp,
   Link as LinkIcon,
 } from "lucide-react";

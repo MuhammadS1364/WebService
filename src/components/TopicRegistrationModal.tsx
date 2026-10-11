@@ -29,8 +29,6 @@ export default function TopicRegistrationModal({
   teamUuid,
   onSuccess,
 }: TopicRegistrationModalProps) {
-  if (!isOpen) return null;
-
   const [topicTitle, setTopicTitle] = useState("");
   const [topicContent, setTopicContent] = useState("");
   const [existingTopic, setExistingTopic] = useState<{
@@ -55,6 +53,7 @@ export default function TopicRegistrationModal({
 
   // Check if student or team already registered a topic for this program
   useEffect(() => {
+    if (!isOpen) return;
     let isMounted = true;
     const fetchExisting = async () => {
       try {
@@ -220,6 +219,8 @@ export default function TopicRegistrationModal({
       setIsSubmitting(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">

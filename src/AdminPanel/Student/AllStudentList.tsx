@@ -71,18 +71,37 @@ export default function OurStudentsList() {
       stn.AddNo.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesState = filterState === "All" || stn.StnState === filterState;
     const matchesDistrict = filterDistrict === "All" || stn.StnDistrict === filterDistrict;
-    const matchesClass = filterClass === "All" || stn.Class === filterClass;
+    const matchesClass = filterClass === "All"
+      ? true
+      : filterClass === "__unassigned__"
+      ? (!stn.Class || stn.Class.trim() === "" || stn.Class.toLowerCase() === "unassigned")
+      : stn.Class === filterClass;
     return matchesSearch && matchesState && matchesDistrict && matchesClass;
   }), [students, searchQuery, filterState, filterDistrict, filterClass]);
 
+  const unassignedCount = useMemo(() => {
+    return students.filter(s => !s.Class || s.Class.trim() === "" || s.Class.toLowerCase() === "unassigned").length;
+  }, [students]);
+
   const { uniqueStates, uniqueDistricts, uniqueClasses } = useMemo(() => {
-    const valid = students.filter(s => (filterClass === "All" || s.Class === filterClass));
+    const valid = students.filter(s => {
+      if (filterClass === "All") return true;
+      if (filterClass === "__unassigned__") {
+        return !s.Class || s.Class.trim() === "" || s.Class.toLowerCase() === "unassigned";
+      }
+      return s.Class === filterClass;
+    });
+
+    const studentClasses = students.map(s => s.Class).filter(Boolean);
+    const registryClasses = (meta.classes || []).map(c => c.standard_name).filter(Boolean);
+    const allKnownClasses = Array.from(new Set([...studentClasses, ...registryClasses]));
+
     return {
       uniqueStates: Array.from(new Set(valid.map(s => s.StnState).filter(Boolean))),
       uniqueDistricts: Array.from(new Set(valid.filter(s => filterState === "All" || s.StnState === filterState).map(s => s.StnDistrict).filter(Boolean))),
-      uniqueClasses: Array.from(new Set(students.map(s => s.Class).filter(Boolean))),
+      uniqueClasses: allKnownClasses,
     };
-  }, [students, filterState, filterClass]);
+  }, [students, meta.classes, filterState, filterClass]);
 
   useEffect(() => { setFilterDistrict("All"); }, [filterState]);
 
@@ -225,7 +244,10 @@ export default function OurStudentsList() {
           {uniqueDistricts.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
         <select className="p-2 text-sm border border-[#CBD5E1] rounded-lg" onChange={(e) => setFilterClass(e.target.value)} value={filterClass}>
-          <option value="All">All Classes</option>
+          <option value="All">All Classes ({students.length})</option>
+          {unassignedCount > 0 && (
+            <option value="__unassigned__">⚠️ Unassigned Students ({unassignedCount})</option>
+          )}
           {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
@@ -259,7 +281,18 @@ export default function OurStudentsList() {
                   <div className="space-y-1.5 border-t border-[#F1F5F9] pt-3 text-xs text-[#334155]">
                     <div className="flex items-center gap-1.5 truncate"><span className="font-semibold text-[#64748B]">Study Center:</span><span className="truncate font-medium text-[#0F172A]">{student.CollegeName || "Not assigned"}</span></div>
                     <div className="flex items-center gap-1.5"><span className="font-semibold text-[#64748B]">Father:</span><span className="truncate font-medium text-[#0F172A]">{student.FatherName || "N/A"}</span></div>
-                    <div className="flex items-center gap-1.5"><span className="font-semibold text-[#64748B]">Class Target:</span><span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#475569]">{student.Class || "N/A"}</span></div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-[#64748B]">Class Target:</span>
+                      {(!student.Class || student.Class.trim() === "" || student.Class.toLowerCase() === "unassigned") ? (
+                        <span className="rounded bg-amber-100 border border-amber-300 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-800">
+                          ⚠️ Unassigned
+                        </span>
+                      ) : (
+                        <span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#475569]">
+                          {student.Class}
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5"><span className="font-semibold text-[#64748B]">State:</span><span className="rounded bg-[#F1F5F9] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#475569]">{student.StnState || "N/A"}   {student.StnDistrict || "N/A"}</span></div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 rounded-xl bg-[#F8FAFC] border border-[#F1F5F9] p-3 text-center">

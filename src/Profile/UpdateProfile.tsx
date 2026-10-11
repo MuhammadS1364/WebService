@@ -26,7 +26,9 @@ import {
   ImageIcon,
   Upload,
   Loader2,
-  Trash2
+  Trash2,
+  BookOpen,
+  Check
 } from "lucide-react";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../lib/imgbbService";
 
@@ -107,6 +109,39 @@ export default function UpdateProfile() {
   // Upload states
   const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
   const [uploadingWingLogo, setUploadingWingLogo] = useState<boolean>(false);
+
+  // Available classes from Our_Classes registry
+  const [availableClasses, setAvailableClasses] = useState<
+    { class_id?: string; standard_name: string; class_nick_name?: string; class_serial_number?: number }[]
+  >([]);
+  const [useCustomClassInput, setUseCustomClassInput] = useState<boolean>(false);
+  const [showClassListGrid, setShowClassListGrid] = useState<boolean>(true);
+
+  // Fetch all available classes from Our_Classes table
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const { data, error } = await SupaBaseFunction
+          .from("Our_Classes")
+          .select("class_id, standard_name, class_nick_name, class_serial_number")
+          .order("class_serial_number", { ascending: true });
+        if (!error && data && data.length > 0) {
+          setAvailableClasses(data);
+        } else {
+          // Fallback if class_serial_number column or order had issues
+          const fallback = await SupaBaseFunction
+            .from("Our_Classes")
+            .select("class_id, standard_name, class_nick_name, class_serial_number");
+          if (fallback.data && fallback.data.length > 0) {
+            setAvailableClasses(fallback.data);
+          }
+        }
+      } catch (e) {
+        console.warn("Could not load available classes:", e);
+      }
+    };
+    fetchClasses();
+  }, []);
 
   // Handle direct file upload for Student Photo
   const handleStudentPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -328,19 +363,39 @@ export default function UpdateProfile() {
       if (role === "student") {
         if (!studentData.AddNo) throw new Error("Student Admission Number not found.");
 
-        const { error } = await SupaBaseFunction
+        const matchedClass = availableClasses.find(
+          (c) =>
+            (studentData.Class && c.standard_name.toLowerCase() === studentData.Class.toLowerCase()) ||
+            (c.class_nick_name && c.class_nick_name.toLowerCase() === (studentData.Class || "").toLowerCase()) ||
+            c.class_id === studentData.Class
+        );
+
+        const updatePayload: Record<string, any> = {
+          StudentName: studentData.StudentName,
+          FatherName: studentData.FatherName,
+          CollegeName: studentData.CollegeName,
+          Class: studentData.Class || null,
+          StnState: studentData.StnState,
+          StnDistrict: studentData.StnDistrict,
+          Student_Photo_Urls: studentData.Student_Photo_Urls,
+        };
+        if (matchedClass?.class_id) {
+          updatePayload.Stn_Class = matchedClass.class_id;
+        }
+
+        let { error } = await SupaBaseFunction
           .from("StudentsBox")
-          .update({
-            StudentName: studentData.StudentName,
-            FatherName: studentData.FatherName,
-            CollegeName: studentData.CollegeName,
-            Class: studentData.Class,
-            StnState: studentData.StnState,
-            StnDistrict: studentData.StnDistrict,
-            Student_Photo_Urls: studentData.Student_Photo_Urls,
-            // StudentEmail is NEVER altered!
-          })
+          .update(updatePayload)
           .eq("AddNo", studentData.AddNo);
+
+        if (error && error.message?.toLowerCase().includes("class")) {
+          delete updatePayload.Class;
+          const retry = await SupaBaseFunction
+            .from("StudentsBox")
+            .update(updatePayload)
+            .eq("AddNo", studentData.AddNo);
+          error = retry.error;
+        }
 
         if (error) throw error;
 
@@ -751,19 +806,238 @@ export default function UpdateProfile() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Class / Academic Standard
-                </label>
-                <input
-                  type="text"
-                  value={studentData.Class}
-                  onChange={(e) =>
-                    setStudentData({ ...studentData, Class: e.target.value })
-                  }
-                  className="w-full bg-white border border-slate-300 text-slate-800 text-xs sm:text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 outline-none transition font-medium"
-                  placeholder="e.g. Degree 3rd Year"
-                />
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-emerald-600" />
+                    <span>Class / Academic Standard</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setUseCustomClassInput(!useCustomClassInput)}
+                      className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                        useCustomClassInput
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                          : "text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100"
+                      }`}
+                      title="Update class without class list options"
+                    >
+                      {useCustomClassInput ? "← Choose from Class List" : "✏️ Update without Class List Options"}
+                    </button>
+                    {studentData.Class && (
+                      <button
+                        type="button"
+                        onClick={() => setStudentData({ ...studentData, Class: "" })}
+                        className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                        title="Set to unassigned"
+                      >
+                        Set Unassigned
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {useCustomClassInput ? (
+                  <div className="space-y-1.5">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={studentData.Class || ""}
+                        onChange={(e) =>
+                          setStudentData({ ...studentData, Class: e.target.value })
+                        }
+                        className="w-full bg-white border border-indigo-300 text-slate-800 text-xs sm:text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none transition font-medium"
+                        placeholder="Type custom academic class standard (without list options)"
+                      />
+                      {studentData.Class && (
+                        <button
+                          type="button"
+                          onClick={() => setStudentData({ ...studentData, Class: "" })}
+                          className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-indigo-600 font-medium">
+                      <span>✏️ Updating without class list options — type any custom standard freely.</span>
+                      <button
+                        type="button"
+                        onClick={() => setUseCustomClassInput(false)}
+                        className="font-bold underline text-indigo-700 cursor-pointer ml-2"
+                      >
+                        ← Back to Class List Options
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <select
+                        value={studentData.Class || ""}
+                        onChange={(e) =>
+                          setStudentData({ ...studentData, Class: e.target.value })
+                        }
+                        className={`w-full bg-white border text-xs sm:text-sm rounded-xl px-4 py-2.5 outline-none transition font-medium cursor-pointer ${
+                          !studentData.Class
+                            ? "border-amber-300 ring-2 ring-amber-200 text-amber-900"
+                            : "border-slate-300 text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                        }`}
+                      >
+                        <option value="">-- Select Class from Our Classes Registry (Unassigned) --</option>
+                        {availableClasses.map((cls) => (
+                          <option key={cls.class_id || cls.standard_name} value={cls.standard_name}>
+                            {cls.standard_name} {cls.class_nick_name ? `(${cls.class_nick_name})` : ""} {cls.class_serial_number ? `[#${cls.class_serial_number}]` : ""}
+                          </option>
+                        ))}
+                        {/* Preserve current class if not present in Our_Classes table */}
+                        {studentData.Class &&
+                          !availableClasses.some(
+                            (c) =>
+                              c.standard_name.toLowerCase() === studentData.Class.toLowerCase() ||
+                              (c.class_nick_name && c.class_nick_name.toLowerCase() === studentData.Class.toLowerCase())
+                          ) && (
+                            <option value={studentData.Class}>
+                              {studentData.Class} (Current Class)
+                            </option>
+                          )}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* IF {studentData.Class} NULL THEN LIST DOWN ALL THE CLASS LIST THAT AVAILABLE IN OUR TABLE */}
+                {(!studentData.Class || studentData.Class.trim() === "" || studentData.Class.toLowerCase() === "unassigned") ? (
+                  <div className="mt-3 rounded-2xl border-2 border-amber-300 bg-amber-50/80 p-3.5 sm:p-4 shadow-xs space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-amber-200 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wider text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
+                          ⚠️ Status: Unassigned
+                        </span>
+                        <span className="text-xs font-bold text-amber-950">
+                          Available Classes in Our Table ({availableClasses.length})
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-amber-800 font-semibold">
+                        Click any class below to assign directly:
+                      </span>
+                    </div>
+
+                    {availableClasses.length === 0 ? (
+                      <div className="p-3 bg-white/80 rounded-xl text-center text-xs text-slate-500 border border-amber-200">
+                        Loading available classes from table...
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                        {availableClasses.map((cls) => (
+                          <button
+                            key={cls.class_id || cls.standard_name}
+                            type="button"
+                            onClick={() => {
+                              setStudentData({ ...studentData, Class: cls.standard_name });
+                              setUseCustomClassInput(false);
+                            }}
+                            className="group p-2.5 rounded-xl border border-amber-200 hover:border-emerald-500 bg-white hover:bg-emerald-50/80 transition-all text-left shadow-2xs cursor-pointer flex flex-col justify-between"
+                          >
+                            <div className="flex items-start justify-between gap-1">
+                              <span className="text-xs font-bold text-slate-800 group-hover:text-emerald-900 leading-tight">
+                                {cls.standard_name}
+                              </span>
+                              {cls.class_serial_number !== undefined && (
+                                <span className="text-[9px] font-mono font-bold text-slate-400 group-hover:text-emerald-700 bg-slate-100 group-hover:bg-emerald-100 px-1 py-0.5 rounded">
+                                  #{cls.class_serial_number}
+                                </span>
+                              )}
+                            </div>
+                            {cls.class_nick_name && (
+                              <span className="text-[10px] text-slate-500 group-hover:text-emerald-700 mt-1 truncate font-medium">
+                                {cls.class_nick_name}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-amber-900 border-t border-amber-200">
+                      <span>Don't see your class standard in our table?</span>
+                      <button
+                        type="button"
+                        onClick={() => setUseCustomClassInput(true)}
+                        className="font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
+                      >
+                        ✏️ Update without class list options (Type Custom Class) →
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 mt-2">
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <Check className="w-3 h-3" />
+                        </span>
+                        <span className="text-xs text-emerald-900">
+                          Assigned Class: <strong className="font-black text-emerald-950">{studentData.Class}</strong>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowClassListGrid(!showClassListGrid)}
+                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                        >
+                          {showClassListGrid ? "Hide class table list" : "View all classes in table"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setStudentData({ ...studentData, Class: "" })}
+                          className="text-[11px] font-bold text-red-600 hover:text-red-800 underline cursor-pointer"
+                        >
+                          Unassign
+                        </button>
+                      </div>
+                    </div>
+
+                    {showClassListGrid && (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between text-[11px] text-slate-600 font-bold">
+                          <span>All Classes Available in Table ({availableClasses.length})</span>
+                          <span className="text-slate-400 font-normal">Click to switch class</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                          {availableClasses.map((cls) => {
+                            const isSelected = studentData.Class === cls.standard_name;
+                            return (
+                              <button
+                                key={cls.class_id || cls.standard_name}
+                                type="button"
+                                onClick={() => setStudentData({ ...studentData, Class: cls.standard_name })}
+                                className={`p-2 rounded-lg border text-left text-xs transition cursor-pointer flex flex-col justify-between ${
+                                  isSelected
+                                    ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-xs"
+                                    : "bg-white hover:bg-slate-100 text-slate-800 border-slate-200"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="truncate leading-tight">{cls.standard_name}</span>
+                                  {isSelected && <Check className="w-3 h-3 shrink-0" />}
+                                </div>
+                                {cls.class_nick_name && (
+                                  <span className={`text-[10px] mt-0.5 truncate ${isSelected ? "text-emerald-100" : "text-slate-500"}`}>
+                                    {cls.class_nick_name}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
