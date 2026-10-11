@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
+import { uploadImageToImgBB } from "../../lib/imgbbService";
 import {
   Image as ImageIcon,
   Video as VideoIcon,
@@ -8,6 +9,10 @@ import {
   Loader2,
   Eye,
   Radio,
+  Upload,
+  X,
+  FileUp,
+  Link as LinkIcon,
 } from "lucide-react";
 
 interface HighlightFormState {
@@ -43,6 +48,64 @@ export default function CreateHighLight() {
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: string; text: string }>({ type: "", text: "" });
+
+  // Direct file upload states
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState("");
+  const [uploadSource, setUploadSource] = useState<"file" | "url">("file");
+
+  const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFileName(file.name);
+    setIsUploadingFile(true);
+    setFeedback({ type: "", text: "" });
+
+    try {
+      if (file.type.startsWith("image/")) {
+        const uploadRes = await uploadImageToImgBB(file, `highlight_${Date.now()}`);
+        if (uploadRes && (uploadRes.displayUrl || uploadRes.url)) {
+          const finalUrl = uploadRes.displayUrl || uploadRes.url;
+          setFormData((prev) => ({
+            ...prev,
+            PhotoImg_Url: finalUrl,
+            FileType: "Photo",
+          }));
+          setFeedback({
+            type: "success",
+            text: "✅ Photo file uploaded directly and attached successfully!",
+          });
+        }
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          if (result) {
+            setFormData((prev) => ({
+              ...prev,
+              PhotoImg_Url: result,
+              FileType: file.type.startsWith("video/") ? "Video" : "Photo",
+            }));
+            setFeedback({
+              type: "success",
+              text: "✅ Media file processed and attached successfully!",
+            });
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (err: any) {
+      console.error("Highlight upload failed:", err);
+      setFeedback({
+        type: "error",
+        text: err?.message || "Failed to upload file. You can also paste an image URL directly.",
+      });
+    } finally {
+      setIsUploadingFile(false);
+    }
+  };
 
   const checkTitleUniqueness = async (title: string) => {
     const trimmedTitle = title.trim();
@@ -252,47 +315,156 @@ export default function CreateHighLight() {
             </div>
           </div>
 
-          {/* Media Type & URL */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="md:col-span-1">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                Media Resource Type
+          {/* Media Resource (Direct File Upload & URL Support) */}
+          <div className="space-y-3 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-800">
+                Media File & Attachment <span className="text-rose-500">*</span>
               </label>
-              <div className="flex gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
+
+              {/* Toggle upload mode */}
+              <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setUploadSource("file")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                    uploadSource === "file"
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <FileUp size={13} /> Upload File Directly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUploadSource("url")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                    uploadSource === "url"
+                      ? "bg-emerald-600 text-white shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <LinkIcon size={13} /> Paste Web URL
+                </button>
+              </div>
+            </div>
+
+            {/* Direct File Upload Area */}
+            {uploadSource === "file" ? (
+              <div className="space-y-3">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleDirectFileUpload}
+                  accept="image/*,video/*"
+                  className="hidden"
+                />
+
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`p-6 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${
+                    formData.PhotoImg_Url
+                      ? "border-emerald-300 bg-emerald-50/40 hover:bg-emerald-50/70"
+                      : "border-slate-300 hover:border-emerald-500 bg-white hover:bg-slate-50"
+                  }`}
+                >
+                  {isUploadingFile ? (
+                    <div className="flex flex-col items-center justify-center py-4">
+                      <Loader2 size={28} className="text-emerald-600 animate-spin mb-2" />
+                      <p className="text-xs font-bold text-slate-700">Uploading and processing media file...</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Please wait a moment</p>
+                    </div>
+                  ) : formData.PhotoImg_Url ? (
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-4 py-2">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shrink-0 shadow-sm">
+                        {formData.FileType === "Photo" ? (
+                          <img
+                            src={formData.PhotoImg_Url}
+                            alt="Uploaded Highlight"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-white">
+                            <VideoIcon size={24} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <CheckCircle2 size={14} className="text-emerald-600" />
+                          <span>File Uploaded: {selectedFileName || "Attached Media"}</span>
+                        </p>
+                        <p className="text-[11px] text-emerald-700 font-medium mt-0.5">
+                          Ready to broadcast onto public dashboard
+                        </p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                          className="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 underline inline-block"
+                        >
+                          Click to Replace File
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-4 space-y-2">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200 shadow-2xs">
+                        <Upload size={22} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">
+                          Click to browse and upload file directly
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Supports PNG, JPG, JPEG, WEBP, and MP4 video recordings
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* URL Input Option */
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  name="PhotoImg_Url"
+                  value={formData.PhotoImg_Url}
+                  onChange={handleInputChange}
+                  placeholder="https://i.ibb.co/... or https://example.com/photo.jpg or youtube embed"
+                  className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                />
+                <p className="text-[11px] text-slate-500">
+                  Paste any direct public image or video media URL
+                </p>
+              </div>
+            )}
+
+            {/* Media Resource Type Selector */}
+            <div className="pt-2 flex items-center gap-3">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
+                Detected Type:
+              </span>
+              <div className="flex gap-2">
                 {(["Photo", "Video"] as const).map((type) => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, FileType: type }))}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1 text-xs font-bold rounded-lg flex items-center gap-1.5 transition cursor-pointer border ${
                       formData.FileType === type
-                        ? "bg-white text-emerald-700 shadow-xs border border-slate-200"
-                        : "text-slate-600 hover:text-slate-900"
+                        ? "bg-white text-emerald-800 border-emerald-300 shadow-2xs"
+                        : "bg-slate-100 text-slate-500 border-transparent hover:text-slate-800"
                     }`}
                   >
-                    {type === "Photo" ? <ImageIcon size={14} /> : <VideoIcon size={14} />}
+                    {type === "Photo" ? <ImageIcon size={12} /> : <VideoIcon size={12} />}
                     {type}
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                Media Image/Video URL (`PhotoImg_Url`)
-              </label>
-              <input
-                type="url"
-                name="PhotoImg_Url"
-                value={formData.PhotoImg_Url}
-                onChange={handleInputChange}
-                placeholder={
-                  formData.FileType === "Photo"
-                    ? "https://i.ibb.co/... or https://example.com/photo.jpg"
-                    : "https://www.youtube.com/embed/... or direct mp4 url"
-                }
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-              />
             </div>
           </div>
 
