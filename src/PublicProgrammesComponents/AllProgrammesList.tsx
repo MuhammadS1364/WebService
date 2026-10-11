@@ -314,14 +314,21 @@ export default function PublicProgrammesList() {
                       <span>View & Download</span>
                     </div>
                   </div>
-                  {program.Group && (
-                    <div 
-                      className="absolute top-3 left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {program.Group}
-                    </div>
-                  )}
+                  {(() => {
+                    const isUuid = (val: string | null | undefined): boolean => {
+                      if (!val) return false;
+                      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+                    };
+                    const grpName = program.Group ? (meta.groupMap[program.Group] || (!isUuid(program.Group) ? program.Group : "")) : "";
+                    return grpName && !isUuid(grpName) ? (
+                      <div 
+                        className="absolute top-3 left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {grpName}
+                      </div>
+                    ) : null;
+                  })()}
                   {program.is_group_program && (
                     <div 
                       className="absolute top-3 right-3 bg-purple-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm flex items-center gap-1"

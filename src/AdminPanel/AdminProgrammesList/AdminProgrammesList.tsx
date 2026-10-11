@@ -4,7 +4,6 @@ import * as XLSX from "xlsx";
 import EditProgrammeModal from "./EditProgrammeModal";
 import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
-import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
 import {
   deleteProgrammeCascade,
@@ -22,9 +21,11 @@ import {
   FileText, 
   X,
   Award,
-  Key,
   Printer,
   Trash2,
+  MoreHorizontal,
+  CheckCircle2,
+  Clock
 } from "lucide-react"; 
 
 export interface Programme {
@@ -84,7 +85,6 @@ export default function AdminProgrammesList() {
   const [editingProgram, setEditingProgram] = useState<Programme | null>(null);
   const [printSheetProgram, setPrintSheetProgram] = useState<Programme | null>(null);
   const [fullscreenPoster, setFullscreenPoster] = useState<{ url: string; title: string } | null>(null);
-  const [isUuidModalOpen, setIsUuidModalOpen] = useState(false);
   const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean;
     type: "single" | "bulk";
@@ -107,6 +107,8 @@ export default function AdminProgrammesList() {
   const [filters, setFilters] = useState<FilterState>({
     AccademicYear: "", Category: "", Group: "", Venue: "", WingCode: "",
   });
+  const [approvalFilter, setApprovalFilter] = useState<"all" | "approved" | "pending">("all");
+  const [openMenuProgCode, setOpenMenuProgCode] = useState<string | null>(null);
 
   const showToast = (message: string, type: ToastState["type"] = "info") => {
     setToast({ message, type });
@@ -172,6 +174,8 @@ export default function AdminProgrammesList() {
 
   const filteredProgrammes = useMemo(() => {
     return programmes.filter((p) => {
+      if (approvalFilter === "approved" && !p.IsApproved) return false;
+      if (approvalFilter === "pending" && p.IsApproved) return false;
       return (
         (!filters.AccademicYear || p.AccademicYear === filters.AccademicYear) &&
         (!filters.Category || p.Category === filters.Category) &&
@@ -180,7 +184,7 @@ export default function AdminProgrammesList() {
         (!filters.WingCode || p.WingCode === filters.WingCode)
       );
     });
-  }, [programmes, filters]);
+  }, [programmes, filters, approvalFilter]);
 
   // --- 1. SINGLE ACTION (Update One By One) ---
   const handleSingleAction = async (
@@ -431,10 +435,6 @@ export default function AdminProgrammesList() {
             <button onClick={() => fileInputRef.current?.click()} disabled={isLoading.import} className="flex items-center justify-center min-w-23 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition disabled:opacity-70 shadow-sm cursor-pointer">
               {isLoading.import ? <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span> : "Import Excel"}
             </button>
-            <button onClick={() => setIsUuidModalOpen(true)} type="button" className="flex items-center gap-1.5 px-3.5 py-2.5 bg-purple-50 border border-purple-200 text-purple-700 rounded-xl text-xs sm:text-sm font-bold hover:bg-purple-100 transition shadow-xs cursor-pointer" title="View copyable UUIDs for Classes & Categories for Excel import">
-              <Key size={14} className="text-purple-600" />
-              <span>Reference UUIDs</span>
-            </button>
             <button
               onClick={() => {
                 setSelectedTopicProg(null);
@@ -458,6 +458,17 @@ export default function AdminProgrammesList() {
       {/* FILTERS & BULK ACTIONS */}
       <div className="max-w-7xl mx-auto mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
+            {/* Approval Status Filter */}
+            <select
+              className="text-sm font-bold text-slate-800 border border-emerald-300 rounded-xl bg-white py-2 px-3 shadow-xs focus:ring-2 focus:ring-emerald-500 outline-none transition cursor-pointer hover:bg-emerald-50/50"
+              value={approvalFilter}
+              onChange={(e) => setApprovalFilter(e.target.value as any)}
+            >
+              <option value="all">All Programmes ({programmes.length})</option>
+              <option value="approved">✅ Approved ({programmes.filter(p => p.IsApproved).length})</option>
+              <option value="pending">⏳ Pending ({programmes.filter(p => !p.IsApproved).length})</option>
+            </select>
+
             {(['AccademicYear', 'Category', 'Group', 'Venue', 'WingCode'] as const).map((filterKey) => (
               <select 
                 key={filterKey}
@@ -620,159 +631,180 @@ export default function AdminProgrammesList() {
                   </div>
 
                   {/* CARD BODY */}
-                  <div className="p-5 flex flex-col flex-grow bg-white space-y-3.5">
-                    {/* Header */}
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="p-5 flex flex-col flex-grow bg-white space-y-3.5 relative">
+                    {/* Header with Code & Action (...) Dropdown Button */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
                           #{prog.Program_Code}
                         </span>
                         {prog.IsResultPublished && (
                           <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <Award size={11} /> Results Published
+                            <Award size={11} /> Results
                           </span>
                         )}
                         {isContentReq && !prog.IsResultPublished && (
                           <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <FileText size={11} /> Content Req
+                            <FileText size={11} /> Content
                           </span>
                         )}
                       </div>
 
+                      {/* (...) Consolidated Actions Dropdown Menu */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuProgCode(openMenuProgCode === prog.Program_Code ? null : prog.Program_Code)}
+                          className="px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 hover:border-slate-300 transition cursor-pointer shadow-2xs flex items-center gap-1 text-xs"
+                          title="Actions menu"
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
+
+                        {/* Dropdown Menu Popup */}
+                        {openMenuProgCode === prog.Program_Code && (
+                          <div className="absolute right-0 top-9 z-30 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 space-y-0.5 text-xs font-semibold animate-in fade-in zoom-in-95">
+                            <button
+                              type="button"
+                              onClick={() => { setEditingProgram(prog); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-slate-800 transition cursor-pointer"
+                            >
+                              <Edit3 size={14} className="text-indigo-600" /> Edit Details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setPrintSheetProgram(prog); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-violet-700 transition cursor-pointer"
+                            >
+                              <Printer size={14} className="text-violet-600" /> Candidate Sheet (A4)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedTopicProg(prog); setIsTopicsManagerOpen(true); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-indigo-700 transition cursor-pointer"
+                            >
+                              <FileText size={14} className="text-indigo-600" /> Topics Registry
+                            </button>
+                            
+                            <div className="h-px bg-slate-100 my-1" />
+                            
+                            <button
+                              type="button"
+                              disabled={isLoading.action}
+                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleApprove"); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-emerald-800 transition cursor-pointer"
+                            >
+                              <CheckCircle2 size={14} className="text-emerald-600" />
+                              {prog.IsApproved ? "Mark as Pending" : "Approve Programme"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isLoading.action}
+                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleReg"); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-teal-800 transition cursor-pointer"
+                            >
+                              <Clock size={14} className="text-teal-600" />
+                              {prog.IsOpenRegistration ? "Close Registration" : "Open Registration"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isLoading.action}
+                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleContent"); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-amber-800 transition cursor-pointer"
+                            >
+                              <FileText size={14} className="text-amber-600" />
+                              Content: {(prog as any).isContentRequired ? "Disable (ON)" : "Enable (OFF)"}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isLoading.action}
+                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleTopic"); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-indigo-800 transition cursor-pointer"
+                            >
+                              <Layers size={14} className="text-indigo-600" />
+                              Topic: {prog.is_topic_required ? "Disable (ON)" : "Enable (OFF)"}
+                            </button>
+                            
+                            <div className="h-px bg-slate-100 my-1" />
+                            
+                            <button
+                              type="button"
+                              disabled={isLoading.action}
+                              onClick={() => { handleSingleDelete(prog.Program_Code, prog.Program_Title); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 transition cursor-pointer"
+                            >
+                              <Trash2 size={14} /> Delete Programme
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Programme Title */}
+                    <div>
                       <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-2 group-hover:text-emerald-700 transition-colors">
                         {prog.Program_Title || "Untitled Programme"}
                       </h3>
                     </div>
 
-                    {/* Metadata Details */}
-                    <div className="space-y-2 text-xs pt-1 border-t border-slate-100">
-                      <div className="flex items-center gap-2 text-slate-700 font-semibold truncate">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                        <span className="truncate">{getWingName(prog.WingCode)}</span>
+                    {/* Programme Details Card: WingName, Date, Venue */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      {/* Wing Name */}
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200/60">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span className="text-xs text-slate-500 font-bold shrink-0">Wing:</span>
+                        <span className="text-xs font-bold text-slate-800 truncate">{getWingName(prog.WingCode)}</span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-slate-600 font-medium text-[11px]">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <Calendar size={13} className="text-slate-400 shrink-0" />
-                          <span className="truncate">{prog.Date || "TBA"}</span>
+                      {/* Date & Venue Grid */}
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/60 truncate" title={prog.Date || "TBA"}>
+                          <Calendar size={13} className="text-emerald-600 shrink-0" />
+                          <div className="truncate">
+                            <span className="block text-[9px] uppercase font-bold text-slate-400">Date</span>
+                            <span className="font-bold text-slate-700 truncate">{prog.Date || "TBA"}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 truncate">
-                          <MapPin size={13} className="text-slate-400 shrink-0" />
-                          <span className="truncate">{getVenueName(prog.Venue)}</span>
+                        <div className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/60 truncate" title={getVenueName(prog.Venue)}>
+                          <MapPin size={13} className="text-rose-500 shrink-0" />
+                          <div className="truncate">
+                            <span className="block text-[9px] uppercase font-bold text-slate-400">Venue</span>
+                            <span className="font-bold text-slate-700 truncate">{getVenueName(prog.Venue)}</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Registration Stats Counter */}
+                      {/* Registration Stats & Year Counter */}
                       <div className="flex items-center justify-between pt-1 text-[11px]">
                         <div className="flex items-center gap-1.5 text-slate-700 font-bold">
                           <Users size={13} className="text-indigo-600" />
                           <span>{prog.Total_Registration || 0} Registered</span>
                         </div>
                         {prog.AccademicYear && (
-                          <span className="text-[10px] text-slate-400 font-medium">
+                          <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md">
                             {getAcademicYearName(prog.AccademicYear)}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* EDIT & STATUS ACTION BUTTONS */}
-                    <div className="flex flex-col gap-2 pt-3 border-t border-slate-100 mt-auto">
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setEditingProgram(prog)}
-                          className="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                        >
-                          <Edit3 size={13} /> Edit Details
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPrintSheetProgram(prog)}
-                          className="py-2.5 px-3 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                          title="Print Official A4 Candidate Attendance & Evaluation Sheet"
-                        >
-                          <Printer size={13} /> Sheet (A4)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedTopicProg(prog);
-                            setIsTopicsManagerOpen(true);
-                          }}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-2xs cursor-pointer ${
-                            prog.is_topic_required
-                              ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                              : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
-                          }`}
-                          title="View & Approve Registered Topics (Topics_Box)"
-                        >
-                          <FileText size={13} /> Topics
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isLoading.action}
-                          onClick={() => handleSingleDelete(prog.Program_Code, prog.Program_Title)}
-                          className="py-2.5 px-3 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center justify-center shadow-2xs cursor-pointer disabled:opacity-50"
-                          title="Permanently Delete Programme"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button
-                          disabled={isLoading.action}
-                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleApprove")}
-                          className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-bold border transition disabled:opacity-50 cursor-pointer text-center ${
-                            prog.IsApproved
-                              ? "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                              : "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
-                          }`}
-                        >
-                          {prog.IsApproved ? "Mark Pending" : "Approve Now"}
-                        </button>
-                        <button
-                          disabled={isLoading.action}
-                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleReg")}
-                          className={`flex-1 py-2 px-2 rounded-xl text-[11px] font-bold transition disabled:opacity-50 cursor-pointer text-center ${
-                            prog.IsOpenRegistration
-                              ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
-                              : "bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100"
-                          }`}
-                        >
-                          {prog.IsOpenRegistration ? "Close Reg" : "Open Reg"}
-                        </button>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          disabled={isLoading.action}
-                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleContent")}
-                          className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold border transition disabled:opacity-50 cursor-pointer text-center ${
-                            (prog as any).isContentRequired
-                              ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
-                              : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                          }`}
-                          title={(prog as any).isContentRequired ? "Content Submission ON (Click to turn OFF)" : "Content Submission OFF (Click to turn ON)"}
-                        >
-                          Content: {(prog as any).isContentRequired ? "ON" : "OFF"}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isLoading.action}
-                          onClick={() => handleSingleAction(prog.Program_Code, "ToggleTopic")}
-                          className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold border transition disabled:opacity-50 cursor-pointer text-center ${
-                            prog.is_topic_required
-                              ? "bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100"
-                              : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                          }`}
-                          title={prog.is_topic_required ? "Topic Registration ON (Click to turn OFF)" : "Topic Registration OFF (Click to turn ON)"}
-                        >
-                          Topic: {prog.is_topic_required ? "ON" : "OFF"}
-                        </button>
-                      </div>
+                    {/* EDIT & SHEET ACTION BUTTONS (CLEAN 2-BUTTON ROW) */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-auto">
+                      <button
+                        type="button"
+                        onClick={() => setEditingProgram(prog)}
+                        className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                      >
+                        <Edit3 size={13} /> Edit Details
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPrintSheetProgram(prog)}
+                        className="py-2 px-3 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                        title="Print Official A4 Candidate Attendance & Evaluation Sheet"
+                      >
+                        <Printer size={13} /> Sheet (A4)
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -895,11 +927,6 @@ export default function AdminProgrammesList() {
             </div>
           </div>
         )}
-        {/* Excel UUID Reference Helper Modal */}
-        <ExcelUuidReferenceModal
-          isOpen={isUuidModalOpen}
-          onClose={() => setIsUuidModalOpen(false)}
-        />
 
         {/* Admin Topics Registry Manager Modal (Topics_Box) */}
         <AdminTopicsManagerModal

@@ -46,6 +46,11 @@ interface ProgramData {
   ContentSubmition_deadLine?: string | null;
 }
 
+const isUuid = (val: string | null | undefined): boolean => {
+  if (!val) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+};
+
 export default function ProgrammesRegistrationCard() {
   const { actStn } = useParams<{ actStn: string }>();
   const navigate = useNavigate();
@@ -532,11 +537,14 @@ export default function ProgrammesRegistrationCard() {
                         {isGroup ? "Group / Squad Event" : "Individual Event"}
                       </span>
 
-                      {program.Group && (
-                        <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-md backdrop-blur-xs self-start">
-                          {program.Group}
-                        </span>
-                      )}
+                      {(() => {
+                        const grpName = program.Group ? (meta.groupMap[program.Group] || (!isUuid(program.Group) ? program.Group : "")) : "";
+                        return grpName && !isUuid(grpName) ? (
+                          <span className="bg-slate-900/80 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-md backdrop-blur-xs self-start">
+                            {grpName}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
 
                     {/* Registration Status Pill */}
@@ -566,11 +574,14 @@ export default function ProgrammesRegistrationCard() {
                             {meta.wingMap[program.WingCode] || program.WingCode}
                           </span>
                         )}
-                        {program.Category && (
-                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-md border border-purple-200">
-                            {meta.categoryMap[program.Category] || program.Category}
-                          </span>
-                        )}
+                        {(() => {
+                          const catName = program.Category ? (meta.categoryMap[program.Category] || (!isUuid(program.Category) ? program.Category : "")) : "";
+                          return catName && !isUuid(catName) ? (
+                            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-md border border-purple-200">
+                              {catName}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
 
                       <h3 className="text-lg font-bold text-slate-900 leading-snug line-clamp-2">

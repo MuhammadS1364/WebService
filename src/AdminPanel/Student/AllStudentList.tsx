@@ -2,12 +2,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useNavigate, useParams } from "react-router-dom";
-import { exportToExcel, parseSpreadsheet, downloadSampleTemplate } from "../../lib/excelService";
+import { exportToExcel, parseSpreadsheet } from "../../lib/excelService";
 import { importStudentsBatch } from "./ImportStudent";
-import { Download, Upload, FileSpreadsheet, PlusCircle, Key } from "lucide-react";
+import { Download, Upload, PlusCircle } from "lucide-react";
 import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
-import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 
 interface StudentRecord {
@@ -41,7 +40,6 @@ export default function OurStudentsList() {
   const [filterState, setFilterState] = useState("All");
   const [filterDistrict, setFilterDistrict] = useState("All");
   const [filterClass, setFilterClass] = useState("All");
-  const [isUuidModalOpen, setIsUuidModalOpen] = useState(false);
 
   const fetchStudents = async () => {
     try {
@@ -194,22 +192,16 @@ export default function OurStudentsList() {
 
           <button
             type="button"
-            onClick={() => setIsUuidModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 transition cursor-pointer"
-            title="View copyable UUIDs for Classes & Categories for Excel import"
-          >
-            <Key size={14} className="text-purple-600" /> Reference UUIDs
-          </button>
-
-          <button
             onClick={handleExportAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-[#CBD5E1] text-[#334155] hover:bg-slate-50 transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs transition cursor-pointer"
+            title="Export all student records to Excel spreadsheet"
           >
-            <Download size={14} /> Export All
+            <Download size={14} /> Export Directory ({students.length})
           </button>
 
           {selectedStudents.length > 0 && (
             <button
+              type="button"
               onClick={handleExportSelected}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 transition cursor-pointer"
             >
@@ -218,15 +210,8 @@ export default function OurStudentsList() {
           )}
 
           <button
-            onClick={() => downloadSampleTemplate("students")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 transition cursor-pointer"
-          >
-            <FileSpreadsheet size={14} /> Template
-          </button>
-
-          <button
             onClick={() => navigate(`/admin-panel/${actUser}/new-student`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#047857] text-white hover:bg-[#065f46] transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[#047857] text-white hover:bg-[#065f46] transition cursor-pointer shadow-xs"
           >
             <PlusCircle size={14} /> Add Student
           </button>
@@ -262,7 +247,7 @@ export default function OurStudentsList() {
                 </div>
                 <div className="p-5 space-y-4">
                   <div className="flex items-start gap-3.5 pr-8">
-                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center relative">
+                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-[#F1F5F9] border border-[#E2E8F0] flex items-center justify-center relative shadow-2xs">
                       <SafeImage
                         src={student.Student_Photo_Urls}
                         alt={student.StudentName}
@@ -273,9 +258,17 @@ export default function OurStudentsList() {
                       {student.IsActive !== undefined && <div className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white ${student.IsActive ? 'bg-green-500' : 'bg-gray-400'}`} />}
                     </div>
                     <div className="space-y-0.5 min-w-0">
-                      <span className="inline-flex items-center rounded-full bg-[#E6F4EA] px-2 py-0.5 text-[10px] font-bold text-[#059669] uppercase tracking-wide">ID: {student.AddNo}</span>
-                      <h3 className="truncate text-sm font-bold text-[#0F172A] tracking-tight">{student.StudentName}</h3>
-                      <p className="truncate text-xs text-[#64748B] font-medium">{student.StudentEmail}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center rounded-full bg-[#E6F4EA] px-2 py-0.5 text-[10px] font-bold text-[#059669] uppercase tracking-wide">#{student.AddNo}</span>
+                      </div>
+                      <h3 className="truncate text-sm font-black text-[#0F172A] tracking-tight">{student.StudentName}</h3>
+                      {student.FatherName ? (
+                        <p className="truncate text-[11px] text-slate-500 font-semibold">
+                          Father: <span className="text-slate-800 font-bold">{student.FatherName}</span>
+                        </p>
+                      ) : (
+                        <p className="truncate text-xs text-[#64748B] font-medium">{student.StudentEmail}</p>
+                      )}
                     </div>
                   </div>
                   <div className="space-y-1.5 border-t border-[#F1F5F9] pt-3 text-xs text-[#334155]">
@@ -309,12 +302,6 @@ export default function OurStudentsList() {
           );
         })}
       </div>
-
-      {/* Excel Import UUID Reference Helper */}
-      <ExcelUuidReferenceModal
-        isOpen={isUuidModalOpen}
-        onClose={() => setIsUuidModalOpen(false)}
-      />
 
       {/* Delete Confirmation Modal */}
       <ConfirmDeleteModal

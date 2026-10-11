@@ -555,32 +555,32 @@ export default function PrintCandidateSheetModal({
               </div>
 
               {/* --- CANDIDATES TABLE --- */}
-              <div className="w-full overflow-hidden">
-                <table className="w-full border-collapse border border-slate-800 text-left text-xs table-fixed">
+              <div className="w-full overflow-x-auto print:overflow-visible my-2">
+                <table className="w-full border-collapse border border-slate-900 text-left text-xs table-fixed">
                   <thead>
-                    <tr className="bg-slate-100 border-b-2 border-slate-800 text-slate-900 font-black">
-                      <th className={`border border-slate-800 ${headerPadding} text-center w-[7%]`}>
+                    <tr className="bg-slate-100 border-b-2 border-slate-900 text-slate-950 font-black">
+                      <th className={`border border-slate-900 ${headerPadding} text-center w-10 shrink-0`}>
                         Sr.
                       </th>
-                      <th className={`border border-slate-800 ${headerPadding} text-center w-[15%]`}>
-                        Add No / ID
+                      <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0 font-mono`}>
+                        Add No
                       </th>
-                      <th className={`border border-slate-800 ${headerPadding} w-[30%]`}>
+                      <th className={`border border-slate-900 ${headerPadding} w-[36%]`}>
                         Candidate Full Name
                       </th>
-                      <th className={`border border-slate-800 ${headerPadding} text-center w-[14%]`}>
-                        Class / Grade
+                      <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0`}>
+                        Class
                       </th>
                       
                       {sheetType === "evaluation" && (
                         <>
-                          <th className={`border border-slate-800 ${headerPadding} text-center w-[10%]`}>
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-20 shrink-0`}>
                             Attendance
                           </th>
-                          <th className={`border border-slate-800 ${headerPadding} text-center w-[12%]`}>
-                            Score / Marks
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-20 shrink-0`}>
+                            Score
                           </th>
-                          <th className={`border border-slate-800 ${headerPadding} text-center w-[12%]`}>
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0`}>
                             Signature
                           </th>
                         </>
@@ -588,34 +588,34 @@ export default function PrintCandidateSheetModal({
 
                       {sheetType === "attendance" && (
                         <>
-                          <th className={`border border-slate-800 ${headerPadding} text-center w-[14%]`}>
-                            District / Place
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-28`}>
+                            Place
                           </th>
-                          <th className={`border border-slate-800 ${headerPadding} text-center w-[10%]`}>
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-20`}>
                             Status
                           </th>
-                          <th className={`border border-slate-800 ${headerPadding} text-center w-[14%]`}>
-                            Candidate Sign
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-24`}>
+                            Sign
                           </th>
                         </>
                       )}
 
                       {sheetType === "contestant" && (
                         <>
-                          <th className={`border border-slate-800 ${headerPadding} text-center w-[14%]`}>
-                            District / Place
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-28`}>
+                            District
                           </th>
-                          <th className={`border border-slate-800 ${headerPadding} w-[20%]`}>
+                          <th className={`border border-slate-900 ${headerPadding} w-[32%]`}>
                             Content / Topic
                           </th>
                         </>
                       )}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-800">
                     {candidates.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="border border-slate-800 py-6 text-center font-bold text-slate-500">
+                        <td colSpan={sheetType === "evaluation" || sheetType === "attendance" ? 7 : 6} className="border border-slate-900 py-8 text-center font-bold text-slate-500">
                           No candidates registered yet for this programme ({programCode}).
                         </td>
                       </tr>
@@ -623,61 +623,66 @@ export default function PrintCandidateSheetModal({
                       candidates.map((cand, idx) => (
                         <tr 
                           key={cand.candidateCode || idx}
-                          className="border-b border-slate-700 hover:bg-slate-50 print:hover:bg-transparent"
+                          className="border-b border-slate-800 hover:bg-slate-50 print:hover:bg-transparent"
                         >
-                          <td className={`border border-slate-800 ${cellPadding} text-center font-bold text-slate-700`}>
+                          <td className={`border border-slate-900 ${cellPadding} text-center font-bold text-slate-700`}>
                             {idx + 1}
                           </td>
-                          <td className={`border border-slate-800 ${cellPadding} text-center font-mono font-bold text-slate-900`}>
+                          <td className={`border border-slate-900 ${cellPadding} text-center font-mono font-bold text-slate-950 whitespace-nowrap`}>
                             {cand.candidateCode}
                           </td>
-                          <td className={`border border-slate-800 ${cellPadding} font-bold text-slate-950 truncate`}>
-                            {cand.studentName}
+                          <td className={`border border-slate-900 ${cellPadding} font-bold text-slate-950 break-words leading-snug`}>
+                            <div className="truncate font-extrabold text-slate-950" title={cand.studentName}>
+                              {cand.studentName}
+                            </div>
+                            {cand.fatherName && (
+                              <div className="text-[10px] text-slate-500 font-normal truncate">
+                                S/O {cand.fatherName}
+                              </div>
+                            )}
                           </td>
-                          <td className={`border border-slate-800 ${cellPadding} text-center text-slate-700 truncate`}>
+                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-800 font-semibold truncate`}>
                             {cand.studentClass}
                           </td>
 
                           {sheetType === "evaluation" && (
                             <>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-[10px]`}>
-                                <div className="flex items-center justify-center gap-1 font-mono text-slate-600">
-                                  <span>[ ] P</span>
-                                  <span>[ ] A</span>
-                                </div>
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-[10px]`}>
+                                <span className="font-mono text-slate-700 font-bold tracking-wider">
+                                  [ ] P &nbsp; [ ] A
+                                </span>
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                ________
+                              <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
+                                &nbsp;
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                ________
+                              <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
+                                &nbsp;
                               </td>
                             </>
                           )}
 
                           {sheetType === "attendance" && (
                             <>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-600 truncate`}>
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-700 truncate`}>
                                 {cand.district || cand.state || "-"}
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-[10px]`}>
-                                <div className="flex items-center justify-center gap-1 font-mono text-slate-600">
-                                  <span>[ ] P</span>
-                                  <span>[ ] A</span>
-                                </div>
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-[10px]`}>
+                                <span className="font-mono text-slate-700 font-bold">
+                                  [ ] P &nbsp; [ ] A
+                                </span>
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                ________
+                              <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
+                                &nbsp;
                               </td>
                             </>
                           )}
 
                           {sheetType === "contestant" && (
                             <>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-600 truncate`}>
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-700 truncate`}>
                                 {cand.district || cand.state || "-"}
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-slate-700 truncate`}>
+                              <td className={`border border-slate-900 ${cellPadding} text-slate-900 font-medium truncate`} title={cand.contentTitle || ""}>
                                 {cand.contentTitle || "-"}
                               </td>
                             </>
@@ -689,52 +694,52 @@ export default function PrintCandidateSheetModal({
                     {/* Optional Blank Extra Rows for on-the-spot registrations or manual judge additions */}
                     {includeBlankRows &&
                       Array.from({ length: blankRowsCount }).map((_, bIdx) => (
-                        <tr key={`blank-row-${bIdx}`} className="border-b border-slate-700">
-                          <td className={`border border-slate-800 ${cellPadding} text-center text-slate-400 font-mono`}>
+                        <tr key={`blank-row-${bIdx}`} className="border-b border-slate-800">
+                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-400 font-mono`}>
                             {candidates.length + bIdx + 1}
                           </td>
-                          <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300`}>
-                            _______
+                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
+                            &nbsp;
                           </td>
-                          <td className={`border border-slate-800 ${cellPadding} text-slate-300`}>
-                            _________________________
+                          <td className={`border border-slate-900 ${cellPadding} text-slate-300`}>
+                            &nbsp;
                           </td>
-                          <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300`}>
-                            _______
+                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
+                            &nbsp;
                           </td>
                           {sheetType === "evaluation" && (
                             <>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-[10px] text-slate-400 font-mono`}>
-                                [ ] P  [ ] A
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-[10px] text-slate-500 font-mono`}>
+                                [ ] P &nbsp; [ ] A
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                ________
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
+                                &nbsp;
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                ________
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
+                                &nbsp;
                               </td>
                             </>
                           )}
                           {sheetType === "attendance" && (
                             <>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300`}>
-                                _______
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
+                                &nbsp;
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-[10px] text-slate-400 font-mono`}>
-                                [ ] P  [ ] A
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-[10px] text-slate-500 font-mono`}>
+                                [ ] P &nbsp; [ ] A
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                ________
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
+                                &nbsp;
                               </td>
                             </>
                           )}
                           {sheetType === "contestant" && (
                             <>
-                              <td className={`border border-slate-800 ${cellPadding} text-center text-slate-300`}>
-                                _______
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
+                                &nbsp;
                               </td>
-                              <td className={`border border-slate-800 ${cellPadding} text-slate-300`}>
-                                _______
+                              <td className={`border border-slate-900 ${cellPadding} text-slate-300`}>
+                                &nbsp;
                               </td>
                             </>
                           )}

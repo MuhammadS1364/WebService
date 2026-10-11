@@ -18,6 +18,7 @@ export interface Student {
   StudentName: string;
   Grand_Total_Points: number;
   Student_Photo_Urls?: string;
+  FatherName?: string;
 }
 
 export interface Program {
@@ -227,6 +228,8 @@ export default function StudentDashboard() {
         Panel="Student Dashboard"
         UserName={student.StudentName || "Student"}
         userPhoto={student.Student_Photo_Urls}
+        addNo={student.AddNo}
+        fatherName={student.FatherName}
       />
 
       {/* Analytics Overview Grid */}

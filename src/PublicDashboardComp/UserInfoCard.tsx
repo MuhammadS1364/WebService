@@ -6,9 +6,11 @@ interface ActiveUserCardProps {
   UserName: string;
   userPhoto?: string;
   roleType?: "student" | "wing" | "treasurer" | "outreach";
+  addNo?: string;
+  fatherName?: string;
 }
 
-export default function ActiveUserCard({ Panel, UserName, userPhoto, roleType = "student" }: ActiveUserCardProps) {
+export default function ActiveUserCard({ Panel, UserName, userPhoto, roleType = "student", addNo, fatherName }: ActiveUserCardProps) {
   const greeting = useMemo(() => {
     const hours = new Date().getHours();
     if (hours < 12) return "☀️ Good Morning";
@@ -42,6 +44,22 @@ export default function ActiveUserCard({ Panel, UserName, userPhoto, roleType = 
               {UserName}
             </span>
           </h2>
+
+          {/* Student Father & Roll/Admission Badge if provided */}
+          {(fatherName || addNo) && (
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              {fatherName && (
+                <span className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded-md">
+                  Father: <strong className="text-slate-800 font-bold ml-1">{fatherName}</strong>
+                </span>
+              )}
+              {addNo && (
+                <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                  #{addNo}
+                </span>
+              )}
+            </div>
+          )}
 
           <p className="mt-1 sm:mt-1.5 text-xs text-slate-500 font-medium line-clamp-1">
             Darul Huda Islamic University — National Institute of Islamic & Contemporary Studies
