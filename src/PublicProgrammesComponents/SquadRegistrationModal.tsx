@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import type { SquadMateRecord } from "../lib/types";
-import { Shield, CheckCircle, AlertCircle, X, Plus } from "lucide-react";
+import { Shield, CheckCircle, AlertCircle, X, Plus, Lock, LogIn } from "lucide-react";
 
 interface SquadRegistrationModalProps {
   programCode: string;
@@ -24,6 +25,26 @@ export default function SquadRegistrationModal({
   const [loadingSquads, setLoadingSquads] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error" | ""; text: string }>({ type: "", text: "" });
+
+  // Check if current user is logged in
+  const checkAuth = () => {
+    try {
+      const hasToken = Boolean(localStorage.getItem("userToken") || localStorage.getItem("token"));
+      const storedUser = localStorage.getItem("user");
+      const cachedStudent = localStorage.getItem("cached_student_profile");
+      const cachedWing = localStorage.getItem("cached_wing_profile");
+      if (hasToken || cachedStudent || cachedWing) return true;
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed && (parsed.IsAuthenticated || parsed.UserEmail || parsed.role || parsed.AddNo)) return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  };
+
+  const isAuthenticated = checkAuth();
 
   // Create Squad Form State
   const [squadTitle, setSquadTitle] = useState("");
@@ -76,6 +97,14 @@ export default function SquadRegistrationModal({
   const handleCreateSquad = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus({ type: "", text: "" });
+
+    if (!isAuthenticated) {
+      setStatus({
+        type: "error",
+        text: "Assigning or forming a squad is not permitted for unauthenticated persons. Please log in first.",
+      });
+      return;
+    }
 
     const trimmedTitle = squadTitle.trim();
     if (!trimmedTitle) {
@@ -172,6 +201,14 @@ export default function SquadRegistrationModal({
 
   const handleRegisterExistingSquad = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      setStatus({
+        type: "error",
+        text: "Assigning a squad to an event is not possible for unauthenticated persons. Please log in first.",
+      });
+      return;
+    }
+
     if (!selectedSquadId) {
       setStatus({ type: "error", text: "Please select a squad from the list." });
       return;
@@ -259,155 +296,186 @@ export default function SquadRegistrationModal({
           </div>
         )}
 
-        <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
-          <button
-            type="button"
-            onClick={() => setTab("select")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              tab === "select" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600"
-            }`}
-          >
-            Select Existing Squad
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("create")}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              tab === "create" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600"
-            }`}
-          >
-            Create New Squad
-          </button>
-        </div>
-
-        {tab === "select" ? (
-          <form onSubmit={handleRegisterExistingSquad} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-2">Available Squads ({existingSquads.length})</label>
-              {loadingSquads ? (
-                <p className="text-xs text-slate-400 py-4 text-center">Loading squads...</p>
-              ) : existingSquads.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center">
-                  <p className="text-xs text-slate-500 mb-2">No active squads found.</p>
-                  <button
-                    type="button"
-                    onClick={() => setTab("create")}
-                    className="text-xs font-bold text-indigo-600 hover:underline"
-                  >
-                    Build the first Squad now →
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                  {existingSquads.map((sq) => {
-                    const memberCount = [
-                      sq.member1_uuid, sq.member2_uuid, sq.member3_uuid,
-                      sq.member4_uuid, sq.member5_uuid, sq.member6_uuid, sq.member7_uuid
-                    ].filter(Boolean).length;
-
-                    return (
-                      <label
-                        key={sq.squad_id}
-                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${
-                          selectedSquadId === sq.squad_id ? "border-indigo-600 bg-indigo-50/50" : "border-slate-200 hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="radio"
-                            name="squadSelection"
-                            value={sq.squad_id}
-                            checked={selectedSquadId === sq.squad_id}
-                            onChange={(e) => setSelectedSquadId(e.target.value)}
-                            className="text-indigo-600"
-                          />
-                          <div>
-                            <span className="text-sm font-bold text-slate-900 block">{sq.squad_title}</span>
-                            <span className="text-[11px] text-slate-500">{memberCount} squad members</span>
-                          </div>
-                        </div>
-                        <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                          {sq.total_points || 0} pts
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
+        {!isAuthenticated ? (
+          <div className="py-8 px-4 text-center rounded-2xl bg-amber-50/70 border border-amber-200">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3.5 shadow-2xs">
+              <Lock size={26} />
             </div>
-
-            {existingSquads.length > 0 && (
+            <h4 className="text-base font-extrabold text-slate-900 mb-1.5">
+              Authentication Required to Assign Squad
+            </h4>
+            <p className="text-xs text-slate-600 max-w-sm mx-auto mb-5 leading-relaxed">
+              Assigning a squad or creating a group for an institutional event is not possible for unauthenticated persons. You must be logged in to assign or register a squad.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
-                type="submit"
-                disabled={submitting || !selectedSquadId}
-                className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                type="button"
+                onClick={onClose}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
               >
-                {submitting ? "Registering Squad..." : "Register Selected Squad to Event"}
+                Cancel
               </button>
-            )}
-          </form>
+              <Link
+                to="/login"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <LogIn size={14} /> Log In to Assign Squad
+              </Link>
+            </div>
+          </div>
         ) : (
-          <form onSubmit={handleCreateSquad} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Squad Name / Title *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Al-Fursan Falcon Squad"
-                value={squadTitle}
-                onChange={(e) => setSquadTitle(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-hidden"
-              />
+          <>
+            <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
+              <button
+                type="button"
+                onClick={() => setTab("select")}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+                  tab === "select" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600"
+                }`}
+              >
+                Select Existing Squad
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("create")}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
+                  tab === "create" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600"
+                }`}
+              >
+                Create New Squad
+              </button>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-bold text-slate-700">Squad Members (Student Admission No) *</label>
-                {members.length < 7 && (
-                  <button
-                    type="button"
-                    onClick={addMemberField}
-                    className="flex items-center gap-1 text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
-                  >
-                    <Plus size={14} /> Add Member (Max 7)
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                {members.map((memberId, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-400 w-16">Member {idx + 1}:</span>
-                    <input
-                      type="text"
-                      required={idx < 2}
-                      placeholder={idx === 0 ? "Squad Leader AddNo (e.g. STN101)" : `Member ${idx + 1} AddNo`}
-                      value={memberId}
-                      onChange={(e) => handleMemberChange(idx, e.target.value)}
-                      className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:border-indigo-500 focus:outline-hidden font-mono"
-                    />
-                    {idx >= 2 && (
+            {tab === "select" ? (
+              <form onSubmit={handleRegisterExistingSquad} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">Available Squads ({existingSquads.length})</label>
+                  {loadingSquads ? (
+                    <p className="text-xs text-slate-400 py-4 text-center">Loading squads...</p>
+                  ) : existingSquads.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center">
+                      <p className="text-xs text-slate-500 mb-2">No active squads found.</p>
                       <button
                         type="button"
-                        onClick={() => removeMemberField(idx)}
-                        className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
+                        onClick={() => setTab("create")}
+                        className="text-xs font-bold text-indigo-600 hover:underline"
                       >
-                        <X size={14} />
+                        Build the first Squad now →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {existingSquads.map((sq) => {
+                        const memberCount = [
+                          sq.member1_uuid, sq.member2_uuid, sq.member3_uuid,
+                          sq.member4_uuid, sq.member5_uuid, sq.member6_uuid, sq.member7_uuid
+                        ].filter(Boolean).length;
+
+                        return (
+                          <label
+                            key={sq.squad_id}
+                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${
+                              selectedSquadId === sq.squad_id ? "border-indigo-600 bg-indigo-50/50" : "border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="radio"
+                                name="squadSelection"
+                                value={sq.squad_id}
+                                checked={selectedSquadId === sq.squad_id}
+                                onChange={(e) => setSelectedSquadId(e.target.value)}
+                                className="text-indigo-600"
+                              />
+                              <div>
+                                <span className="text-sm font-bold text-slate-900 block">{sq.squad_title}</span>
+                                <span className="text-[11px] text-slate-500">{memberCount} squad members</span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                              {sq.total_points || 0} pts
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {existingSquads.length > 0 && (
+                  <button
+                    type="submit"
+                    disabled={submitting || !selectedSquadId}
+                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                  >
+                    {submitting ? "Registering Squad..." : "Register Selected Squad to Event"}
+                  </button>
+                )}
+              </form>
+            ) : (
+              <form onSubmit={handleCreateSquad} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Squad Name / Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Al-Fursan Falcon Squad"
+                    value={squadTitle}
+                    onChange={(e) => setSquadTitle(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-slate-700">Squad Members (Student Admission No) *</label>
+                    {members.length < 7 && (
+                      <button
+                        type="button"
+                        onClick={addMemberField}
+                        className="flex items-center gap-1 text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
+                      >
+                        <Plus size={14} /> Add Member (Max 7)
                       </button>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
-            >
-              {submitting ? "Forming Squad..." : "Create Squad & Register to Event"}
-            </button>
-          </form>
+                  <div className="space-y-2">
+                    {members.map((memberId, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400 w-16">Member {idx + 1}:</span>
+                        <input
+                          type="text"
+                          required={idx < 2}
+                          placeholder={idx === 0 ? "Squad Leader AddNo (e.g. STN101)" : `Member ${idx + 1} AddNo`}
+                          value={memberId}
+                          onChange={(e) => handleMemberChange(idx, e.target.value)}
+                          className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs focus:border-indigo-500 focus:outline-hidden font-mono"
+                        />
+                        {idx >= 2 && (
+                          <button
+                            type="button"
+                            onClick={() => removeMemberField(idx)}
+                            className="text-red-400 hover:text-red-600 p-1 cursor-pointer"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                >
+                  {submitting ? "Forming Squad..." : "Create Squad & Register to Event"}
+                </button>
+              </form>
+            )}
+          </>
         )}
       </div>
     </div>

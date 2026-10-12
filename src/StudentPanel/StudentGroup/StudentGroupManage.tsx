@@ -290,27 +290,73 @@ export default function StudentGroupManage() {
     }
   };
 
-  // FEATURE: Any member of the group can leave the group
+  // FEATURE: Any member of the group (teammate or leader) can leave the squad
   const handleLeaveGroup = async (squad: SquadItem) => {
     if (!student) return;
 
-    const confirmLeave = window.confirm(`Are you sure you want to leave squad "${squad.squad_title}"?`);
+    const isLeader = squad.member1_uuid === student.AddNo;
+    const confirmMessage = isLeader
+      ? `You are the Leader of squad "${squad.squad_title}". Leaving will transfer leadership to the next teammate or disband the squad if you are the last member. Do you want to leave?`
+      : `Are you sure you want to leave squad "${squad.squad_title}"?`;
+
+    const confirmLeave = window.confirm(confirmMessage);
     if (!confirmLeave) return;
 
     try {
       setSubmitting(true);
       setStatusMsg({ type: "", text: "" });
 
-      // Determine which member slot the current student occupies (from member2 to member7)
       const slotUpdates: any = {};
-      if (squad.member2_uuid === student.AddNo) slotUpdates.member2_uuid = null;
+      if (isLeader) {
+        // Collect all remaining teammates
+        const remainingTeammates = [
+          squad.member2_uuid,
+          squad.member3_uuid,
+          squad.member4_uuid,
+          squad.member5_uuid,
+          squad.member6_uuid,
+          squad.member7_uuid,
+        ].filter(Boolean) as string[];
+
+        if (remainingTeammates.length === 0) {
+          // If no other members remain, delete/disband squad
+          const { error: delErr } = await SupaBaseFunction
+            .from("SquadMate")
+            .delete()
+            .eq("squad_id", squad.squad_id);
+
+          if (delErr) throw delErr;
+
+          // Delete candidate registration
+          await SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .delete()
+            .eq("squad_uuid", squad.squad_id);
+
+          setStatusMsg({
+            type: "success",
+            text: `You have left squad "${squad.squad_title}". As you were the only member, the squad has been disbanded.`,
+          });
+          await loadSquadsData();
+          return;
+        }
+
+        // Promote first teammate to Leader and shift the rest
+        slotUpdates.member1_uuid = remainingTeammates[0];
+        slotUpdates.member2_uuid = remainingTeammates[1] || null;
+        slotUpdates.member3_uuid = remainingTeammates[2] || null;
+        slotUpdates.member4_uuid = remainingTeammates[3] || null;
+        slotUpdates.member5_uuid = remainingTeammates[4] || null;
+        slotUpdates.member6_uuid = remainingTeammates[5] || null;
+        slotUpdates.member7_uuid = null;
+      } else if (squad.member2_uuid === student.AddNo) slotUpdates.member2_uuid = null;
       else if (squad.member3_uuid === student.AddNo) slotUpdates.member3_uuid = null;
       else if (squad.member4_uuid === student.AddNo) slotUpdates.member4_uuid = null;
       else if (squad.member5_uuid === student.AddNo) slotUpdates.member5_uuid = null;
       else if (squad.member6_uuid === student.AddNo) slotUpdates.member6_uuid = null;
       else if (squad.member7_uuid === student.AddNo) slotUpdates.member7_uuid = null;
       else {
-        throw new Error("You are the Group Creator/Leader. The creator cannot leave; you may disband the squad instead.");
+        throw new Error("You are not registered as an active member of this squad.");
       }
 
       const { error } = await SupaBaseFunction
@@ -320,7 +366,21 @@ export default function StudentGroupManage() {
 
       if (error) throw error;
 
-      setStatusMsg({ type: "success", text: `You have successfully left the squad "${squad.squad_title}".` });
+      // Clean up event candidate registrations for this student under this squad
+      try {
+        await SupaBaseFunction
+          .from("CandidateRegistrationTable")
+          .delete()
+          .eq("squad_uuid", squad.squad_id)
+          .eq("Candidate_Code", student.AddNo);
+      } catch (candErr) {
+        console.warn("Notice: could not clear squad candidate registration:", candErr);
+      }
+
+      setStatusMsg({
+        type: "success",
+        text: `You have successfully left the squad "${squad.squad_title}".`,
+      });
       await loadSquadsData();
     } catch (err: any) {
       console.error("Error leaving squad:", err);
@@ -626,29 +686,31 @@ export default function StudentGroupManage() {
                         </div>
 
                         {/* Action buttons for Squad header */}
-                        {isCreator ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDisbandSquad(squad.squad_id, squad.squad_title)}
-                            disabled={submitting}
-                            className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition cursor-pointer"
-                            title="Disband Squad"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        ) : (
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleLeaveGroup(squad)}
                             disabled={submitting}
-                            className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                            className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                            title="Leave this squad"
                           >
-                            <LogOut size={13} /> Leave Group
+                            <LogOut size={13} /> Leave Squad
                           </button>
-                        )}
+                          {isCreator && (
+                            <button
+                              type="button"
+                              onClick={() => handleDisbandSquad(squad.squad_id, squad.squad_title)}
+                              disabled={submitting}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition cursor-pointer"
+                              title="Disband Entire Squad"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Teammates List with One-by-One Removal for Creator */}
+                      {/* Teammates List with One-by-One Removal for Creator & Leave option */}
                       <div className="mb-5">
                         <label className="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2">
                           Squad Members ({members.length}/7)
@@ -680,18 +742,33 @@ export default function StudentGroupManage() {
                                   </span>
                                 </div>
 
-                                {/* One-by-One Removal: Creator can remove individual non-leader teammates */}
-                                {isCreator && !m.isLeader && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveMemberByCreator(squad, m.key, m.addNo!)}
-                                    disabled={submitting}
-                                    className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer shrink-0"
-                                    title={`Remove ${displayName} from squad`}
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                )}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {/* Direct Leave button for the current user */}
+                                  {isCurrentStudent && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLeaveGroup(squad)}
+                                      disabled={submitting}
+                                      className="px-2.5 py-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                      title="Leave this squad"
+                                    >
+                                      <LogOut size={11} /> Leave
+                                    </button>
+                                  )}
+
+                                  {/* One-by-One Removal: Creator can remove individual non-leader teammates */}
+                                  {isCreator && !m.isLeader && !isCurrentStudent && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveMemberByCreator(squad, m.key, m.addNo!)}
+                                      disabled={submitting}
+                                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                                      title={`Remove ${displayName} from squad`}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}
@@ -852,10 +929,32 @@ export default function StudentGroupManage() {
                           {m.isLeader ? <Crown size={12} className="text-amber-500" /> : <span className="w-1.5 h-1.5 bg-slate-300 rounded-full" />}
                           <span className="font-mono font-semibold">{m.addNo}</span>
                           <span className="truncate">{studentNames[m.addNo!] || ""}</span>
+                          {m.addNo === student?.AddNo && (
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded ml-auto">
+                              You
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* Allow leaving if current student is a member of this squad */}
+                  {members.some((m) => m.addNo === student?.AddNo) && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                        ✓ Your Squad
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleLeaveGroup(s)}
+                        disabled={submitting}
+                        className="px-2.5 py-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <LogOut size={12} /> Leave Squad
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

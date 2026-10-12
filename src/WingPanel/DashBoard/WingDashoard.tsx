@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import OverViewClipBox from "../../PublicDashboardComp/OverViewBox";
 import ProgrammesCalendar from "../../PublicProgrammesComponents/ProgramCelender";
 import ActiveUserCard from "../../PublicDashboardComp/UserInfoCard";
@@ -156,6 +156,30 @@ export default function WingDashboard() {
             </svg>
           }
         />
+      </div>
+
+      {/* Quick Access Banner to Registrations Hub */}
+      <div className="bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
+          </div>
+          <div>
+            <h3 className="font-extrabold text-sm text-slate-900">
+              Registrations & Submissions Central Hub
+            </h3>
+            <p className="text-xs text-slate-500">
+              Review candidates, squads, topic approvals, and content submissions strictly for {wingData?.WingTitle || "this wing"}.
+            </p>
+          </div>
+        </div>
+        <Link
+          to={`/wing-panel/${actWing}/wing-registrations`}
+          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-xs flex items-center justify-center gap-1.5 shrink-0"
+        >
+          <span>Open Registrations</span>
+          <span>→</span>
+        </Link>
       </div>
 
       <div className="w-full">

@@ -8,7 +8,6 @@ import {
   Medal,
   Search,
   Download,
-  Eye,
   X,
   Crown,
   AlertCircle,
@@ -797,7 +796,6 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                       ? "Outreach & Achieve"
                       : "Grand Total"}
                   </th>
-                  <th className="py-3.5 px-4 text-center w-20">Breakdown</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -834,9 +832,16 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                       </td>
 
                       {/* Candidate */}
-                      <td className="py-3.5 px-4">
+                      <td
+                        className="py-3.5 px-4 cursor-pointer group/cand"
+                        onClick={() => {
+                          setSelectedStudentForModal(student);
+                          setModalActiveTab(pointStream === "outreach_achievements" ? "outreach" : "programmes");
+                        }}
+                        title="Click to view candidate performance details"
+                      >
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200 group-hover/cand:ring-2 group-hover/cand:ring-indigo-400 transition-all">
                             <SafeImage
                               src={student.photoUrl}
                               alt={student.name}
@@ -844,7 +849,7 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                             />
                           </div>
                           <div className="min-w-0">
-                            <div className="font-bold text-slate-900 truncate flex items-center gap-1.5">
+                            <div className="font-bold text-slate-900 group-hover/cand:text-indigo-600 truncate flex items-center gap-1.5 transition-colors">
                               <span>{student.name}</span>
                               {isTop1 && <Crown size={13} className="text-amber-500 shrink-0" />}
                             </div>
@@ -934,21 +939,6 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
                           {student.displayPoints}
                         </span>
                         <span className="text-[10px] text-slate-400 font-bold ml-1 uppercase">pts</span>
-                      </td>
-
-                      {/* Inspect Breakdown Button */}
-                      <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedStudentForModal(student);
-                            setModalActiveTab(pointStream === "outreach_achievements" ? "outreach" : "programmes");
-                          }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition cursor-pointer"
-                          title="View Complete Point Breakdown"
-                        >
-                          <Eye size={16} />
-                        </button>
                       </td>
                     </tr>
                   );

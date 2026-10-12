@@ -36,6 +36,7 @@ import CreateResult from './PublicProgrammesComponents/CreateResult';
 import WingAnylatics from './WingPanel/WingAnylatics/WingAnylatics';
 import WingProgrammes from './WingPanel/WingProgrammes/WingProgrammes';
 import WingResults from './WingPanel/WingResults/WingResults';
+import WingRegistrations from './WingPanel/WingRegistrations/WingRegistrations';
 import CandidateRegistration from './PublicDashboardComp/CandidateRegistration';
 
 // Outreach Components
@@ -177,6 +178,8 @@ export default function App() {
           <Route path='create-program' element={<ProgrammeRegistration />} />
           <Route path='wing-anylatics' element={<WingAnylatics />} />
           <Route path='wing-programmes' element={<WingProgrammes />} />
+          <Route path='wing-registrations' element={<WingRegistrations />} />
+          <Route path='registrations' element={<WingRegistrations />} />
           <Route path='wing-results' element={<WingResults />} />
           <Route path='profile' element={<UpdateProfile />} />
           <Route path='wing-profile' element={<UpdateProfile />} />

@@ -13,7 +13,8 @@ import {
   LogOut,
   User,
   PlusCircle,
-  Trophy
+  Trophy,
+  UserCheck
 } from 'lucide-react';
 
 export default function WingPanel() {
@@ -126,6 +127,11 @@ export default function WingPanel() {
           <NavLink to={`/wing-panel/${actWing}/wing-programmes`} className={navLinkClasses}>
             <Calendar size={16} className="text-emerald-600" />
             <span>My Programmes</span>
+          </NavLink>
+
+          <NavLink to={`/wing-panel/${actWing}/wing-registrations`} className={navLinkClasses}>
+            <UserCheck size={16} className="text-teal-600" />
+            <span>Registrations Hub</span>
           </NavLink>
 
           <NavLink to={`/wing-panel/${actWing}/wing-results`} className={navLinkClasses}>
@@ -300,6 +306,14 @@ export default function WingPanel() {
           >
             <Calendar size={17} className="mb-0.5 text-emerald-600" />
             <span>Events</span>
+          </NavLink>
+
+          <NavLink
+            to={`/wing-panel/${actWing}/wing-registrations`}
+            className={bottomBarLinkClasses}
+          >
+            <UserCheck size={17} className="mb-0.5 text-teal-600" />
+            <span>Registers</span>
           </NavLink>
 
           <NavLink

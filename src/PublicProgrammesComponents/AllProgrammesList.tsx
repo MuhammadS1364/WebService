@@ -6,8 +6,9 @@ import { exportToExcel } from "../lib/excelService";
 import SafeImage from "../lib/SafeImage";
 import ProgrammeFeedbackModal from "./ProgrammeFeedbackModal";
 import SquadRegistrationModal from "./SquadRegistrationModal";
+import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
-import { Download, MessageSquare, Shield, Users, Search, X, Maximize2 } from "lucide-react";
+import { Download, MessageSquare, Shield, Users, Search, X, Maximize2, Trophy } from "lucide-react";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -24,6 +25,7 @@ interface ProgramData {
   Venue: string | null;
   IsApproved: boolean;
   IsResulted: boolean;
+  IsResultPublished?: boolean;
   IsOpenRegistration: boolean;
   IsConducted?: boolean;
   is_group_program?: boolean;
@@ -72,6 +74,14 @@ export default function PublicProgrammesList() {
     isOpen: false,
     code: "",
     title: "",
+  });
+
+  const [resultModal, setResultModal] = useState<{
+    isOpen: boolean;
+    program: ProgramData | null;
+  }>({
+    isOpen: false,
+    program: null,
   });
 
   // Fullscreen Image Preview & Download State
@@ -314,15 +324,30 @@ export default function PublicProgrammesList() {
                       <span>View & Download</span>
                     </div>
                   </div>
+                  {/* Result Published Badge */}
+                  {(program.IsResulted || program.IsResultPublished) && (
+                    <div 
+                      className="absolute top-3 left-3 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1 z-10 cursor-pointer transition"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setResultModal({ isOpen: true, program });
+                      }}
+                      title="Official results published. Click to view."
+                    >
+                      <Trophy size={12} className="text-yellow-200" /> Result Published
+                    </div>
+                  )}
+
                   {(() => {
                     const isUuid = (val: string | null | undefined): boolean => {
                       if (!val) return false;
                       return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
                     };
                     const grpName = program.Group ? (meta.groupMap[program.Group] || (!isUuid(program.Group) ? program.Group : "")) : "";
+                    const hasResultBadge = Boolean(program.IsResulted || program.IsResultPublished);
                     return grpName && !isUuid(grpName) ? (
                       <div 
-                        className="absolute top-3 left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm"
+                        className={`absolute ${hasResultBadge ? "top-11" : "top-3"} left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {grpName}
@@ -401,6 +426,17 @@ export default function PublicProgrammesList() {
 
                 {/* --- Footer Buttons --- */}
                 <div className="p-4 pt-0 mt-auto flex flex-col gap-2">
+                  {/* If result is published, show the requested Show Result button */}
+                  {(program.IsResulted || program.IsResultPublished) && (
+                    <button
+                      type="button"
+                      onClick={() => setResultModal({ isOpen: true, program })}
+                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20 active:scale-[0.99]"
+                    >
+                      <Trophy size={14} className="text-yellow-200" /> Show Result
+                    </button>
+                  )}
+
                   {program.is_group_program && program.IsOpenRegistration && (
                     <button
                       type="button"
@@ -438,6 +474,20 @@ export default function PublicProgrammesList() {
           programTitle={squadModal.title}
           onClose={() => setSquadModal({ isOpen: false, code: "", title: "" })}
         />
+
+        {/* Programme Result Modal (Shows published results & winners podium) */}
+        {resultModal.isOpen && resultModal.program && (
+          <ProgrammeResultModal
+            isOpen={resultModal.isOpen}
+            onClose={() => setResultModal({ isOpen: false, program: null })}
+            programCode={resultModal.program.Program_Code}
+            programTitle={resultModal.program.Program_Title}
+            programDate={resultModal.program.Date}
+            programVenue={resultModal.program.Venue}
+            programPoster={resultModal.program.Program_Poster}
+            wingCode={resultModal.program.WingCode}
+          />
+        )}
 
         {/* Fullscreen Image Preview & Download Modal */}
         {fullscreenImage && (

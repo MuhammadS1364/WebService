@@ -6,6 +6,7 @@ import SafeImage from "../lib/SafeImage";
 import SquadRegistrationModal from "./SquadRegistrationModal";
 import SubmitContentModal from "./SubmitContentModal";
 import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
+import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { resolveStudentProfile } from "../lib/accountResolver";
 import {
@@ -24,6 +25,7 @@ import {
   GraduationCap,
   Layers,
   Printer,
+  Trophy,
 } from "lucide-react";
 
 interface ProgramData {
@@ -72,6 +74,14 @@ export default function ProgrammesRegistrationCard() {
     isOpen: false,
     programCode: "",
     programTitle: "",
+  });
+
+  const [resultModal, setResultModal] = useState<{
+    isOpen: boolean;
+    program: ProgramData | null;
+  }>({
+    isOpen: false,
+    program: null,
   });
 
   // Dedicated Content Submission Modal State
@@ -681,6 +691,17 @@ export default function ProgrammesRegistrationCard() {
                       )}
                     </button>
 
+                    {/* Show Result Button if result is published */}
+                    {(program.IsResulted || (program as any).IsResultPublished) && (
+                      <button
+                        type="button"
+                        onClick={() => setResultModal({ isOpen: true, program })}
+                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm active:scale-[0.99]"
+                      >
+                        <Trophy size={14} className="text-yellow-200" /> Show Result
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setPrintCandidateProgram(program)}
@@ -707,6 +728,20 @@ export default function ProgrammesRegistrationCard() {
             onSuccess={() => {
               fetchProgrammes();
             }}
+          />
+        )}
+
+        {/* Programme Result Modal */}
+        {resultModal.isOpen && resultModal.program && (
+          <ProgrammeResultModal
+            isOpen={resultModal.isOpen}
+            onClose={() => setResultModal({ isOpen: false, program: null })}
+            programCode={resultModal.program.Program_Code}
+            programTitle={resultModal.program.Program_Title}
+            programDate={resultModal.program.Date}
+            programVenue={resultModal.program.Venue}
+            programPoster={resultModal.program.Program_Poster}
+            wingCode={resultModal.program.WingCode}
           />
         )}
 
