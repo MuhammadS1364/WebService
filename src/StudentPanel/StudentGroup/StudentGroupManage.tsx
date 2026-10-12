@@ -12,7 +12,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Crown,
-  Award
+  Award,
+  AlertTriangle,
+  X
 } from "lucide-react";
 
 interface StudentProfile {
@@ -47,6 +49,17 @@ interface OpenProgramItem {
   is_group_program?: boolean;
 }
 
+interface ConfirmDialogState {
+  type: "disband" | "leave" | "remove_member";
+  badge: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  isDestructive: boolean;
+  onConfirm: () => Promise<void>;
+}
+
 export default function StudentGroupManage() {
   const { actStn } = useParams<{ actStn: string }>();
   const meta = useProgrammeMeta();
@@ -61,6 +74,9 @@ export default function StudentGroupManage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | ""; text: string }>({ type: "", text: "" });
+
+  // In-app Caution Confirmation Modal state
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
   // Create Form State
   const [newSquadTitle, setNewSquadTitle] = useState("");
@@ -318,22 +334,37 @@ export default function StudentGroupManage() {
   };
 
   // FEATURE: Any member of the group (teammate or leader) can leave the squad
-  const handleLeaveGroup = async (squad: SquadItem) => {
+  const promptLeaveGroup = (squad: SquadItem) => {
     if (!student) return;
-
     const isLeader = squad.member1_uuid === student.AddNo;
-    const confirmMessage = isLeader
-      ? `You are the Leader of squad "${squad.squad_title}". Leaving will transfer leadership to the next teammate or disband the squad if you are the last member. Do you want to leave?`
-      : `Are you sure you want to leave squad "${squad.squad_title}"?`;
+    setConfirmDialog({
+      type: "leave",
+      badge: isLeader ? "CAUTION: LEAVING AS LEADER" : "CAUTION: LEAVE SQUAD",
+      title: isLeader
+        ? `Leave & Transfer Leadership of "${squad.squad_title}"?`
+        : `Leave Squad "${squad.squad_title}"?`,
+      description: isLeader
+        ? `You are the Leader and Creator of group "${squad.squad_title}". Leaving will promote the first teammate to Leader, or permanently disband the group if you are the last member. Are you sure you want to proceed? If yes, you will leave; otherwise no action will be taken.`
+        : `Are you sure you want to leave group "${squad.squad_title}"? You will be removed from team participation in upcoming group events for this squad. If yes, you will leave; otherwise no action will be taken.`,
+      confirmLabel: isLeader ? "Yes, Leave & Transfer" : "Yes, Leave Group",
+      cancelLabel: "No, Stay in Group",
+      isDestructive: true,
+      onConfirm: async () => {
+        await executeLeaveGroup(squad);
+      },
+    });
+  };
 
-    const confirmLeave = window.confirm(confirmMessage);
-    if (!confirmLeave) return;
+  const executeLeaveGroup = async (squad: SquadItem) => {
+    if (!student) return;
 
     try {
       setSubmitting(true);
       setStatusMsg({ type: "", text: "" });
 
-      const slotUpdates: any = {};
+      const isLeader = squad.member1_uuid === student.AddNo;
+      const userUpper = student.AddNo.trim().toUpperCase();
+
       if (isLeader) {
         // Collect all remaining teammates
         const remainingTeammates = [
@@ -347,6 +378,17 @@ export default function StudentGroupManage() {
 
         if (remainingTeammates.length === 0) {
           // If no other members remain, delete/disband squad
+          if (squad.squad_id) {
+            try {
+              await SupaBaseFunction
+                .from("CandidateRegistrationTable")
+                .delete()
+                .eq("squad_uuid", squad.squad_id);
+            } catch (candErr) {
+              console.warn("Could not clear candidate registrations:", candErr);
+            }
+          }
+
           const { error: delErr } = await SupaBaseFunction
             .from("SquadMate")
             .delete()
@@ -354,59 +396,67 @@ export default function StudentGroupManage() {
 
           if (delErr) throw delErr;
 
-          // Delete candidate registration
-          await SupaBaseFunction
-            .from("CandidateRegistrationTable")
-            .delete()
-            .eq("squad_uuid", squad.squad_id);
-
           setStatusMsg({
             type: "success",
-            text: `You have left squad "${squad.squad_title}". As you were the only member, the squad has been disbanded.`,
+            text: `You have left group "${squad.squad_title}". As you were the only member, the group has been deleted.`,
           });
           await loadSquadsData();
           return;
         }
 
         // Promote first teammate to Leader and shift the rest
-        slotUpdates.member1_uuid = remainingTeammates[0];
-        slotUpdates.member2_uuid = remainingTeammates[1] || null;
-        slotUpdates.member3_uuid = remainingTeammates[2] || null;
-        slotUpdates.member4_uuid = remainingTeammates[3] || null;
-        slotUpdates.member5_uuid = remainingTeammates[4] || null;
-        slotUpdates.member6_uuid = remainingTeammates[5] || null;
-        slotUpdates.member7_uuid = null;
-      } else if (squad.member2_uuid === student.AddNo) slotUpdates.member2_uuid = null;
-      else if (squad.member3_uuid === student.AddNo) slotUpdates.member3_uuid = null;
-      else if (squad.member4_uuid === student.AddNo) slotUpdates.member4_uuid = null;
-      else if (squad.member5_uuid === student.AddNo) slotUpdates.member5_uuid = null;
-      else if (squad.member6_uuid === student.AddNo) slotUpdates.member6_uuid = null;
-      else if (squad.member7_uuid === student.AddNo) slotUpdates.member7_uuid = null;
-      else {
-        throw new Error("You are not registered as an active member of this squad.");
+        const slotUpdates: any = {
+          member1_uuid: remainingTeammates[0],
+          member2_uuid: remainingTeammates[1] || null,
+          member3_uuid: remainingTeammates[2] || null,
+          member4_uuid: remainingTeammates[3] || null,
+          member5_uuid: remainingTeammates[4] || null,
+          member6_uuid: remainingTeammates[5] || null,
+          member7_uuid: null,
+        };
+
+        const { error } = await SupaBaseFunction
+          .from("SquadMate")
+          .update(slotUpdates)
+          .eq("squad_id", squad.squad_id);
+
+        if (error) throw error;
+      } else {
+        const slotUpdates: any = {};
+        if (squad.member2_uuid && squad.member2_uuid.trim().toUpperCase() === userUpper) slotUpdates.member2_uuid = null;
+        else if (squad.member3_uuid && squad.member3_uuid.trim().toUpperCase() === userUpper) slotUpdates.member3_uuid = null;
+        else if (squad.member4_uuid && squad.member4_uuid.trim().toUpperCase() === userUpper) slotUpdates.member4_uuid = null;
+        else if (squad.member5_uuid && squad.member5_uuid.trim().toUpperCase() === userUpper) slotUpdates.member5_uuid = null;
+        else if (squad.member6_uuid && squad.member6_uuid.trim().toUpperCase() === userUpper) slotUpdates.member6_uuid = null;
+        else if (squad.member7_uuid && squad.member7_uuid.trim().toUpperCase() === userUpper) slotUpdates.member7_uuid = null;
+        else {
+          throw new Error("You are not registered as an active member of this group.");
+        }
+
+        const { error } = await SupaBaseFunction
+          .from("SquadMate")
+          .update(slotUpdates)
+          .eq("squad_id", squad.squad_id);
+
+        if (error) throw error;
       }
 
-      const { error } = await SupaBaseFunction
-        .from("SquadMate")
-        .update(slotUpdates)
-        .eq("squad_id", squad.squad_id);
-
-      if (error) throw error;
-
       // Clean up event candidate registrations for this student under this squad
-      try {
-        await SupaBaseFunction
-          .from("CandidateRegistrationTable")
-          .delete()
-          .eq("squad_uuid", squad.squad_id)
-          .eq("Candidate_Code", student.AddNo);
-      } catch (candErr) {
-        console.warn("Notice: could not clear squad candidate registration:", candErr);
+      if (squad.squad_id) {
+        try {
+          await SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .delete()
+            .eq("squad_uuid", squad.squad_id)
+            .eq("Candidate_Code", student.AddNo);
+        } catch (candErr) {
+          console.warn("Notice: could not clear squad candidate registration:", candErr);
+        }
       }
 
       setStatusMsg({
         type: "success",
-        text: `You have successfully left the squad "${squad.squad_title}".`,
+        text: `You have successfully left the group "${squad.squad_title}".`,
       });
       await loadSquadsData();
     } catch (err: any) {
@@ -418,16 +468,39 @@ export default function StudentGroupManage() {
   };
 
   // FEATURE: Group creator can remove members one by one
-  const handleRemoveMemberByCreator = async (squad: SquadItem, memberSlotKey: string, memberAddNo: string) => {
+  const promptRemoveMember = (squad: SquadItem, memberSlotKey: string, memberAddNo: string) => {
     const memberName = studentNames[memberAddNo] || memberAddNo;
-    const confirmRemove = window.confirm(
-      `Remove teammate ${memberName} (${memberAddNo}) from "${squad.squad_title}"?`
-    );
-    if (!confirmRemove) return;
+    setConfirmDialog({
+      type: "remove_member",
+      badge: "CAUTION: REMOVE TEAMMATE",
+      title: `Remove ${memberName} from "${squad.squad_title}"?`,
+      description: `Are you sure you want to remove teammate ${memberName} (${memberAddNo}) from this group? They will no longer participate with this group in upcoming events. If yes, they will be removed; otherwise no changes will be made.`,
+      confirmLabel: "Yes, Remove Member",
+      cancelLabel: "No, Keep Member",
+      isDestructive: true,
+      onConfirm: async () => {
+        await executeRemoveMember(squad, memberSlotKey, memberAddNo);
+      },
+    });
+  };
 
+  const executeRemoveMember = async (squad: SquadItem, memberSlotKey: string, memberAddNo: string) => {
+    const memberName = studentNames[memberAddNo] || memberAddNo;
     try {
       setSubmitting(true);
       setStatusMsg({ type: "", text: "" });
+
+      if (squad.squad_id && memberAddNo) {
+        try {
+          await SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .delete()
+            .eq("squad_uuid", squad.squad_id)
+            .eq("Candidate_Code", memberAddNo);
+        } catch (regDelErr) {
+          console.warn("Could not delete candidate registration:", regDelErr);
+        }
+      }
 
       const { error } = await SupaBaseFunction
         .from("SquadMate")
@@ -450,14 +523,37 @@ export default function StudentGroupManage() {
   };
 
   // Disband / Delete squad (Only Creator)
-  const handleDisbandSquad = async (squadId: string, squadTitle: string) => {
-    const confirmDisband = window.confirm(
-      `Are you sure you want to permanently disband and delete the squad "${squadTitle}"?`
-    );
-    if (!confirmDisband) return;
+  const promptDisbandSquad = (squad: SquadItem) => {
+    setConfirmDialog({
+      type: "disband",
+      badge: "CAUTION: PERMANENT DELETION",
+      title: `Delete Group "${squad.squad_title}"?`,
+      description: `CAUTION: Are you sure you want to permanently delete and disband "${squad.squad_title}"? All group information, member affiliations, and registrations for group programmes under this squad will be permanently deleted. This action cannot be undone. If yes, the group will be deleted; otherwise no action will be taken.`,
+      confirmLabel: "Yes, Delete Group",
+      cancelLabel: "No, Keep Group",
+      isDestructive: true,
+      onConfirm: async () => {
+        await executeDisbandSquad(squad.squad_id, squad.squad_title);
+      },
+    });
+  };
 
+  const executeDisbandSquad = async (squadId: string, squadTitle: string) => {
     try {
       setSubmitting(true);
+      setStatusMsg({ type: "", text: "" });
+
+      if (squadId) {
+        try {
+          await SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .delete()
+            .eq("squad_uuid", squadId);
+        } catch (delCandErr) {
+          console.warn("Could not delete candidate registrations for squad:", delCandErr);
+        }
+      }
+
       const { error } = await SupaBaseFunction
         .from("SquadMate")
         .delete()
@@ -465,11 +561,14 @@ export default function StudentGroupManage() {
 
       if (error) throw error;
 
-      setStatusMsg({ type: "success", text: `Squad "${squadTitle}" was disbanded.` });
+      setStatusMsg({
+        type: "success",
+        text: `Group "${squadTitle}" has been permanently deleted.`,
+      });
       await loadSquadsData();
     } catch (err: any) {
       console.error("Error disbanding squad:", err);
-      setStatusMsg({ type: "error", text: err.message || "Could not disband squad." });
+      setStatusMsg({ type: "error", text: err.message || "Could not delete group." });
     } finally {
       setSubmitting(false);
     }
@@ -704,22 +803,22 @@ export default function StudentGroupManage() {
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => handleLeaveGroup(squad)}
+                            onClick={() => promptLeaveGroup(squad)}
                             disabled={submitting}
-                            className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
-                            title="Leave this squad"
+                            className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                            title="Leave this group"
                           >
-                            <LogOut size={13} /> Leave Squad
+                            <LogOut size={13} /> Leave Group
                           </button>
                           {isCreator && (
                             <button
                               type="button"
-                              onClick={() => handleDisbandSquad(squad.squad_id, squad.squad_title)}
+                              onClick={() => promptDisbandSquad(squad)}
                               disabled={submitting}
-                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition cursor-pointer"
-                              title="Disband Entire Squad"
+                              className="flex items-center gap-1.5 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-xl transition cursor-pointer"
+                              title="Delete this group"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={13} /> Delete Group
                             </button>
                           )}
                         </div>
@@ -762,10 +861,10 @@ export default function StudentGroupManage() {
                                   {isCurrentStudent && (
                                     <button
                                       type="button"
-                                      onClick={() => handleLeaveGroup(squad)}
+                                      onClick={() => promptLeaveGroup(squad)}
                                       disabled={submitting}
-                                      className="px-2.5 py-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition flex items-center gap-1 cursor-pointer"
-                                      title="Leave this squad"
+                                      className="px-2.5 py-1 text-[11px] font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                      title="Leave this group"
                                     >
                                       <LogOut size={11} /> Leave
                                     </button>
@@ -775,12 +874,12 @@ export default function StudentGroupManage() {
                                   {isCreator && !m.isLeader && !isCurrentStudent && (
                                     <button
                                       type="button"
-                                      onClick={() => handleRemoveMemberByCreator(squad, m.key, m.addNo!)}
+                                      onClick={() => promptRemoveMember(squad, m.key, m.addNo!)}
                                       disabled={submitting}
-                                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
-                                      title={`Remove ${displayName} from squad`}
+                                      className="px-2 py-1 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition flex items-center gap-1 cursor-pointer"
+                                      title={`Remove ${displayName} from group`}
                                     >
-                                      <Trash2 size={13} />
+                                      <Trash2 size={12} /> Remove
                                     </button>
                                   )}
                                 </div>
@@ -798,12 +897,12 @@ export default function StudentGroupManage() {
                           Registered Programmes ({squadRegistrations[squad.squad_id].length})
                         </span>
                         <div className="flex flex-wrap gap-1.5">
-                          {squadRegistrations[squad.squad_id].map((code) => {
+                          {squadRegistrations[squad.squad_id].map((code, cIdx) => {
                             const prog = openGroupPrograms.find((p) => p.Program_Code === code);
                             const catName = prog?.Category ? (meta.categoryMap[prog.Category] || prog.Category) : "General";
                             return (
                               <span
-                                key={code}
+                                key={`${squad.squad_id}_${code}_${cIdx}`}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold"
                               >
                                 <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
@@ -907,7 +1006,7 @@ export default function StudentGroupManage() {
 
               <div className="space-y-2.5">
                 {teammateAddNos.map((addNo, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
+                  <div key={`teammate-slot-${idx}`} className="flex items-center gap-2">
                     <span className="w-14 text-xs font-bold text-slate-400">Slot {idx + 2}:</span>
                     <input
                       type="text"
@@ -959,6 +1058,76 @@ export default function StudentGroupManage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Caution Confirmation Modal */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden transform transition-all">
+            {/* Caution Banner */}
+            <div className={`p-5 ${confirmDialog.isDestructive ? "bg-red-50/80" : "bg-amber-50/80"} border-b border-slate-100`}>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`p-2 rounded-xl ${confirmDialog.isDestructive ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                    <AlertTriangle className="w-5 h-5" />
+                  </span>
+                  <span className={`text-[11px] font-black uppercase tracking-wider ${confirmDialog.isDestructive ? "text-red-700" : "text-amber-800"}`}>
+                    {confirmDialog.badge}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDialog(null)}
+                  disabled={submitting}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white/80 transition cursor-pointer"
+                  title="Close modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <h3 className="text-lg font-extrabold text-slate-900 leading-snug">
+                {confirmDialog.title}
+              </h3>
+            </div>
+
+            {/* Content & Options */}
+            <div className="p-6 space-y-4">
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                {confirmDialog.description}
+              </p>
+
+              {/* Action Buttons: Yes / No */}
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setConfirmDialog(null)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
+                >
+                  {confirmDialog.cancelLabel || "No, Cancel"}
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={async () => {
+                    const action = confirmDialog.onConfirm;
+                    setConfirmDialog(null);
+                    if (action) {
+                      await action();
+                    }
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5 ${
+                    confirmDialog.isDestructive
+                      ? "bg-red-600 hover:bg-red-700 shadow-red-600/20"
+                      : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20"
+                  }`}
+                >
+                  {submitting ? "Processing..." : confirmDialog.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

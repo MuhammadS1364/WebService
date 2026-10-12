@@ -352,9 +352,9 @@ export default function StudentProgrammes() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredPrograms.map((prog) => (
+            {filteredPrograms.map((prog, pIdx) => (
               <div 
-                key={prog.Program_Code} 
+                key={`${prog.Program_Code}_${pIdx}`} 
                 className="group flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
               >
                 <div 

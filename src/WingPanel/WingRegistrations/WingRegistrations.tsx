@@ -1156,7 +1156,7 @@ export default function WingRegistrations() {
                           const stn = studentsMap[m];
                           return (
                             <div
-                              key={m + mIdx}
+                              key={`${item.squad.squad_id}_${item.programCode}_${m}_${mIdx}`}
                               className={`p-2 rounded-xl text-xs flex items-center justify-between border ${
                                 isLeader
                                   ? "bg-amber-50/70 border-amber-200 font-semibold"
