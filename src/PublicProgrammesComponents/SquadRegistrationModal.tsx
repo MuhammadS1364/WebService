@@ -56,7 +56,9 @@ export default function SquadRegistrationModal({
 
   useEffect(() => {
     if (isOpen) {
-      loadSquads();
+      void (async () => {
+        await loadSquads();
+      })();
     }
   }, [isOpen, programCode]);
 

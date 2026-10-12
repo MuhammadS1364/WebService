@@ -4,7 +4,8 @@ import {
   X, 
   FileSpreadsheet,
   Users,
-  CheckCircle2
+  CheckCircle2,
+  ExternalLink
 } from "lucide-react";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
@@ -356,17 +357,24 @@ export default function PrintCandidateSheetModal({
   // Reliable Native Print Mechanism via Isolated Iframe (with window.print() fallback)
   const handlePrint = () => {
     try {
+      // Gather all stylesheets and inline CSS from the main document to preserve Tailwind styling
+      const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+        .map((el) => el.outerHTML)
+        .join("\n");
+
       let iframe = document.getElementById("print-candidate-sheet-iframe") as HTMLIFrameElement;
       if (!iframe) {
         iframe = document.createElement("iframe");
         iframe.id = "print-candidate-sheet-iframe";
         iframe.style.position = "fixed";
-        iframe.style.right = "0";
-        iframe.style.bottom = "0";
-        iframe.style.width = "0";
-        iframe.style.height = "0";
-        iframe.style.border = "0";
-        iframe.style.visibility = "hidden";
+        iframe.style.top = "0";
+        iframe.style.left = "0";
+        iframe.style.width = "100%";
+        iframe.style.height = "100%";
+        iframe.style.border = "none";
+        iframe.style.zIndex = "-9999";
+        iframe.style.opacity = "0";
+        iframe.style.pointerEvents = "none";
         document.body.appendChild(iframe);
       }
 
@@ -378,7 +386,9 @@ export default function PrintCandidateSheetModal({
           <!DOCTYPE html>
           <html>
             <head>
+              <meta charset="utf-8" />
               <title>${programInfo?.Program_Title || programCode} - Candidate Sheet</title>
+              ${styles}
               <style>
                 @page {
                   size: A4 portrait;
@@ -389,50 +399,51 @@ export default function PrintCandidateSheetModal({
                   -webkit-print-color-adjust: exact !important;
                   print-color-adjust: exact !important;
                 }
-                body {
-                  margin: 0;
-                  padding: 0;
-                  font-family: Arial, Helvetica, sans-serif;
-                  color: #000;
-                  background: #fff;
-                  font-size: 11px;
+                html, body {
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  font-family: Arial, Helvetica, sans-serif !important;
+                  color: #000 !important;
+                  background: #fff !important;
+                  font-size: 11px !important;
+                  width: 100% !important;
+                  height: auto !important;
+                }
+                #candidate-sheet-a4-container {
+                  box-shadow: none !important;
+                  border: none !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  width: 100% !important;
+                  max-width: none !important;
+                  min-height: auto !important;
+                  background: #fff !important;
                 }
                 table {
-                  width: 100%;
-                  border-collapse: collapse;
-                  border: 1.5px solid #0f172a;
-                  table-layout: fixed;
+                  width: 100% !important;
+                  border-collapse: collapse !important;
+                  border: 1.5px solid #0f172a !important;
+                  table-layout: fixed !important;
+                  page-break-inside: auto !important;
                 }
                 th, td {
-                  border: 1px solid #0f172a;
-                  padding: 6px 8px;
-                  vertical-align: middle;
+                  border: 1px solid #0f172a !important;
+                  padding: 6px 8px !important;
+                  vertical-align: middle !important;
                 }
                 th {
                   background-color: #f1f5f9 !important;
-                  font-weight: 800;
-                  text-align: center;
+                  font-weight: 800 !important;
+                  text-align: center !important;
                 }
                 tr {
-                  page-break-inside: avoid;
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
                 }
-                .font-mono { font-family: monospace; }
-                .text-center { text-align: center; }
-                .font-bold { font-weight: bold; }
-                .font-extrabold { font-weight: 800; }
-                .text-xs { font-size: 11px; }
-                .text-sm { font-size: 12px; }
-                .border { border: 1px solid #cbd5e1; }
-                .rounded { border-radius: 4px; }
-                .p-2 { padding: 6px; }
-                .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-                .header-box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 6px; border-radius: 4px; }
-                .meta-label { font-size: 8px; font-weight: 800; text-transform: uppercase; color: #64748b; }
-                .meta-value { font-size: 11px; font-weight: bold; color: #0f172a; }
               </style>
             </head>
             <body>
-              ${printableElement.innerHTML}
+              ${printableElement.outerHTML}
             </body>
           </html>
         `);
@@ -447,26 +458,95 @@ export default function PrintCandidateSheetModal({
             window.focus();
             window.print();
           }
-        }, 250);
+        }, 300);
         return;
       }
     } catch (err) {
       console.warn("Could not use iframe print, falling back to window.print():", err);
     }
 
-    // Fallback: standard window.print()
+    // Direct fallback: standard window.print()
     window.focus();
     window.print();
   };
 
-  // Export to Excel / CSV (No attendance column)
+  // Open clean printable view in new tab (guaranteed to work across all iframes and pop-up blockers)
+  const handleOpenPrintWindow = () => {
+    const printableElement = document.getElementById("candidate-sheet-a4-container");
+    if (!printableElement) return;
+
+    const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+      .map((el) => el.outerHTML)
+      .join("\n");
+
+    const printWin = window.open("", "_blank");
+    if (!printWin) {
+      handlePrint();
+      return;
+    }
+
+    printWin.document.open();
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${programInfo?.Program_Title || programCode} - Official Candidate Sheet</title>
+          ${styles}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm 8mm 10mm;
+            }
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            body {
+              margin: 0;
+              padding: 20px;
+              background: #fff;
+              font-family: Arial, Helvetica, sans-serif;
+            }
+            #candidate-sheet-a4-container {
+              border: none !important;
+              box-shadow: none !important;
+              max-width: 100% !important;
+              padding: 0 !important;
+            }
+            @media print {
+              body { padding: 0 !important; }
+              .no-print-bar { display: none !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="no-print-bar" style="margin-bottom: 16px; display: flex; gap: 8px;">
+            <button onclick="window.print()" style="padding: 8px 16px; font-weight: bold; background: #7c3aed; color: #fff; border: none; border-radius: 8px; cursor: pointer;">Print / Save PDF</button>
+            <button onclick="window.close()" style="padding: 8px 16px; font-weight: bold; background: #e2e8f0; color: #334155; border: none; border-radius: 8px; cursor: pointer;">Close</button>
+          </div>
+          ${printableElement.outerHTML}
+          <script>
+            setTimeout(() => {
+              window.focus();
+              window.print();
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  };
+
+  // Export to Excel / CSV (No attendance column, no teammate addno for group)
   const handleExportExcel = () => {
     if (sheetEntries.length === 0) return;
     const isGroup = Boolean(programInfo?.is_group_program);
 
     const rows = sheetEntries.map((c, i) => ({
       "Sr No": i + 1,
-      [isGroup ? "Member Add Nos" : "Add No"]: c.addNo,
+      ...(isGroup ? {} : { "Add No": c.addNo }),
       [isGroup ? "Group Name" : "Candidate Name"]: c.name,
       [isGroup ? "Teammates" : "Father Name"]: c.subText || "",
       "Class Nickname": c.classNickName,
@@ -508,26 +588,38 @@ export default function PrintCandidateSheetModal({
             size: A4 portrait;
             margin: 8mm 10mm 8mm 10mm;
           }
-          body * {
-            visibility: hidden !important;
+          html, body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
           }
-          #candidate-sheet-a4-container, #candidate-sheet-a4-container * {
-            visibility: visible !important;
+          .no-print {
+            display: none !important;
+          }
+          .fixed {
+            position: static !important;
+            background: transparent !important;
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            padding: 0 !important;
           }
           #candidate-sheet-a4-container {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
             width: 100% !important;
+            max-width: 100% !important;
+            min-height: auto !important;
             margin: 0 !important;
             padding: 0 !important;
             box-shadow: none !important;
             border: none !important;
             background: white !important;
             color: black !important;
-          }
-          .no-print {
-            display: none !important;
           }
           table {
             page-break-inside: auto !important;
@@ -540,7 +632,7 @@ export default function PrintCandidateSheetModal({
           }
           th, td {
             color: #000000 !important;
-            border-color: #334155 !important;
+            border-color: #0f172a !important;
           }
         }
       `}</style>
@@ -579,6 +671,14 @@ export default function PrintCandidateSheetModal({
               title="Download Excel / CSV format"
             >
               <FileSpreadsheet size={14} /> Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenPrintWindow}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5 cursor-pointer"
+              title="Open sheet in dedicated printable tab (avoids iframe blocking)"
+            >
+              <ExternalLink size={14} /> Open Print Tab
             </button>
             <button
               type="button"
@@ -707,7 +807,7 @@ export default function PrintCandidateSheetModal({
         {/* ============================================================ */}
         {/* DOCUMENT PREVIEW & PRINT AREA                                */}
         {/* ============================================================ */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70 flex justify-center print:p-0 print:bg-white print:overflow-visible">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 bg-slate-100/70 flex justify-center print:p-0 print:bg-white print:overflow-visible">
           {loading ? (
             <div className="py-24 text-center">
               <div className="animate-spin rounded-full h-9 w-9 border-b-2 border-violet-600 mx-auto mb-3"></div>
@@ -720,7 +820,7 @@ export default function PrintCandidateSheetModal({
             <div 
               id="candidate-sheet-a4-container"
               ref={printableRef}
-              className="w-full max-w-[210mm] bg-white text-slate-900 border border-slate-300 shadow-xl p-6 sm:p-8 rounded-sm print:max-w-none print:w-full print:border-none print:shadow-none print:p-0"
+              className="w-full max-w-[210mm] min-h-[297mm] h-auto bg-white text-slate-900 border border-slate-300 shadow-xl p-6 sm:p-8 rounded-sm flex flex-col justify-between print:max-w-none print:w-full print:border-none print:shadow-none print:p-0 print:min-h-0"
               style={{
                 fontFamily: "Arial, Helvetica, sans-serif",
                 boxSizing: "border-box"
@@ -755,9 +855,9 @@ export default function PrintCandidateSheetModal({
                     <div className="font-bold text-slate-900 truncate">{wingName}</div>
                   </div>
                   <div className="bg-slate-50 p-2 rounded border border-slate-200">
-                    <div className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Format & Category</div>
+                    <div className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Category</div>
                     <div className="font-bold text-slate-900 truncate">
-                      {isGroupProg ? "Group Event" : "Individual"} • {categoryName}
+                      {categoryName}
                     </div>
                   </div>
                   <div className="bg-slate-50 p-2 rounded border border-slate-200">
@@ -767,26 +867,28 @@ export default function PrintCandidateSheetModal({
                     </div>
                   </div>
                   <div className="bg-slate-50 p-2 rounded border border-slate-200">
-                    <div className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Venue & Enrolled</div>
+                    <div className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Venue</div>
                     <div className="font-bold text-slate-900 truncate">
-                      {venueName} • <span className="font-black text-violet-700">{sheetEntries.length} {isGroupProg ? "Groups" : "Candidates"}</span>
+                      {venueName}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* --- CANDIDATES TABLE (NO ATTENDANCE COLUMN) --- */}
-              <div className="w-full overflow-x-auto print:overflow-visible my-2">
+              {/* --- CANDIDATES TABLE (NO ATTENDANCE COLUMN, NO TEAMMATE ADDNO COLUMN FOR GROUPS) --- */}
+              <div className="w-full my-2 overflow-visible print:overflow-visible">
                 <table className="w-full border-collapse border border-slate-900 text-left text-xs table-fixed">
                   <thead>
                     <tr className="bg-slate-100 border-b-2 border-slate-900 text-slate-950 font-black">
                       <th className={`border border-slate-900 ${headerPadding} text-center w-10 shrink-0`}>
                         Sr.
                       </th>
-                      <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0 font-mono`}>
-                        {isGroupProg ? "Teammate AddNos" : "Add No"}
-                      </th>
-                      <th className={`border border-slate-900 ${headerPadding} w-[42%]`}>
+                      {!isGroupProg && (
+                        <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0 font-mono`}>
+                          Add No
+                        </th>
+                      )}
+                      <th className={`border border-slate-900 ${headerPadding} ${isGroupProg ? "w-[54%]" : "w-[42%]"}`}>
                         {isGroupProg ? "Group Name & Teammates" : "Candidate Full Name"}
                       </th>
                       <th className={`border border-slate-900 ${headerPadding} text-center w-20 shrink-0`}>
@@ -819,7 +921,7 @@ export default function PrintCandidateSheetModal({
                   <tbody className="divide-y divide-slate-800">
                     {sheetEntries.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="border border-slate-900 py-8 text-center font-bold text-slate-500">
+                        <td colSpan={isGroupProg ? 5 : 6} className="border border-slate-900 py-8 text-center font-bold text-slate-500">
                           No {isGroupProg ? "groups" : "candidates"} registered yet for this programme ({programCode}).
                         </td>
                       </tr>
@@ -832,9 +934,11 @@ export default function PrintCandidateSheetModal({
                           <td className={`border border-slate-900 ${cellPadding} text-center font-bold text-slate-700`}>
                             {idx + 1}
                           </td>
-                          <td className={`border border-slate-900 ${cellPadding} text-center font-mono font-bold text-slate-950 break-words leading-tight`}>
-                            {item.addNo}
-                          </td>
+                          {!isGroupProg && (
+                            <td className={`border border-slate-900 ${cellPadding} text-center font-mono font-bold text-slate-950 break-words leading-tight`}>
+                              {item.addNo}
+                            </td>
+                          )}
                           <td className={`border border-slate-900 ${cellPadding} font-bold text-slate-950 break-words leading-snug`}>
                             {/* Display GroupName or Student Name */}
                             <div className="font-extrabold text-slate-950 text-[12px] sm:text-xs">
@@ -876,16 +980,18 @@ export default function PrintCandidateSheetModal({
                       ))
                     )}
 
-                    {/* Optional Blank Extra Rows (NO ATTENDANCE COLUMN) */}
+                    {/* Optional Blank Extra Rows (NO ATTENDANCE COLUMN, NO TEAMMATE ADDNO FOR GROUPS) */}
                     {includeBlankRows &&
                       Array.from({ length: blankRowsCount }).map((_, bIdx) => (
                         <tr key={`blank-row-${bIdx}`} className="border-b border-slate-800">
                           <td className={`border border-slate-900 ${cellPadding} text-center text-slate-400 font-mono`}>
                             {sheetEntries.length + bIdx + 1}
                           </td>
-                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
-                            &nbsp;
-                          </td>
+                          {!isGroupProg && (
+                            <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
+                              &nbsp;
+                            </td>
+                          )}
                           <td className={`border border-slate-900 ${cellPadding} text-slate-300`}>
                             &nbsp;
                           </td>
