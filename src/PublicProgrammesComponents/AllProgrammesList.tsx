@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import formatResultDate from "./DateFormatConvertor";
 import { exportToExcel } from "../lib/excelService";
@@ -8,7 +9,8 @@ import ProgrammeFeedbackModal from "./ProgrammeFeedbackModal";
 import SquadRegistrationModal from "./SquadRegistrationModal";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
-import { Download, MessageSquare, Shield, Users, Search, X, Maximize2, Trophy } from "lucide-react";
+import { resolveStudentProfile } from "../lib/accountResolver";
+import { Download, MessageSquare, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User } from "lucide-react";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -33,7 +35,9 @@ interface ProgramData {
 
 export default function PublicProgrammesList() {
   const meta = useProgrammeMeta();
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [programmes, setProgrammes] = useState<ProgramData[]>([]);
+  const [registeredMap, setRegisteredMap] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,6 +122,48 @@ export default function PublicProgrammesList() {
 
         if (fetchError) throw fetchError;
         setProgrammes((data as ProgramData[]) || []);
+
+        const student = await resolveStudentProfile();
+        if (student?.AddNo) {
+          setCurrentUser(student);
+          const userAddNo = student.AddNo.trim().toUpperCase();
+          const [candRegs, userSquadsRes] = await Promise.all([
+            SupaBaseFunction
+              .from("CandidateRegistrationTable")
+              .select("Program_Code")
+              .in("Candidate_Code", [student.AddNo, userAddNo, student.AddNo.trim().toLowerCase()]),
+            SupaBaseFunction
+              .from("SquadMate")
+              .select("squad_id, member1_uuid, member2_uuid, member3_uuid, member4_uuid, member5_uuid, member6_uuid, member7_uuid")
+              .eq("is_active", true),
+          ]);
+
+          const map: Record<string, boolean> = {};
+          (candRegs.data || []).forEach((row: any) => {
+            if (row.Program_Code) map[row.Program_Code] = true;
+          });
+
+          const mySquads = (userSquadsRes.data || []).filter((sq: any) => {
+            return [
+              sq.member1_uuid, sq.member2_uuid, sq.member3_uuid,
+              sq.member4_uuid, sq.member5_uuid, sq.member6_uuid, sq.member7_uuid,
+            ].some((m) => m && m.trim().toUpperCase() === userAddNo);
+          });
+
+          if (mySquads.length > 0) {
+            const squadIds = mySquads.map((s: any) => s.squad_id);
+            const { data: squadRegs } = await SupaBaseFunction
+              .from("CandidateRegistrationTable")
+              .select("Program_Code")
+              .in("squad_uuid", squadIds);
+
+            (squadRegs || []).forEach((r: any) => {
+              if (r.Program_Code) map[r.Program_Code] = true;
+            });
+          }
+
+          setRegisteredMap(map);
+        }
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : "An unexpected data fetching anomaly occurred.";
         console.error("Fetch Error:", errorMessage);
@@ -437,15 +483,29 @@ export default function PublicProgrammesList() {
                     </button>
                   )}
 
-                  {program.is_group_program && program.IsOpenRegistration && (
-                    <button
-                      type="button"
-                      onClick={() => setSquadModal({ isOpen: true, code: program.Program_Code, title: program.Program_Title || "Program" })}
-                      className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Shield size={14} /> Join / Form Squad
-                    </button>
-                  )}
+                  {registeredMap[program.Program_Code] ? (
+                    <div className="w-full py-2.5 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs">
+                      <CheckCircle2 size={14} className="text-emerald-600" />
+                      <span>Already Registered</span>
+                    </div>
+                  ) : program.IsOpenRegistration ? (
+                    program.is_group_program ? (
+                      <button
+                        type="button"
+                        onClick={() => setSquadModal({ isOpen: true, code: program.Program_Code, title: program.Program_Title || "Program" })}
+                        className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <Shield size={14} /> Join / Form Squad
+                      </button>
+                    ) : (
+                      <Link
+                        to={currentUser ? `/student-panel/${currentUser.AddNo}/candidate-registration/${program.Program_Code}` : `/login`}
+                        className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs text-center"
+                      >
+                        <User size={14} /> Register Candidate
+                      </Link>
+                    )
+                  ) : null}
 
                   <button
                     type="button"

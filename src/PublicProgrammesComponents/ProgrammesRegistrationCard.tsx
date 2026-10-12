@@ -64,6 +64,7 @@ export default function ProgrammesRegistrationCard() {
   const [studentProfile, setStudentProfile] = useState<any>(null);
   const [studentAddNo, setStudentAddNo] = useState<string | null>(null);
   const [submittedContents, setSubmittedContents] = useState<Record<string, { content_title: string; like_count?: number }>>({});
+  const [registeredPrograms, setRegisteredPrograms] = useState<Record<string, { isRegistered: boolean; squadTitle?: string }>>({});
 
   // Group squad modal state
   const [squadModal, setSquadModal] = useState<{
@@ -181,20 +182,32 @@ export default function ProgrammesRegistrationCard() {
       if (fetchError) throw fetchError;
       setProgrammes((data as ProgramData[]) || []);
 
-      // If student is logged in, fetch student profile and existing submissions
+      // If student is logged in, fetch student profile, registered events, and existing submissions
       if (actStn) {
         const profile = await resolveStudentProfile(actStn);
         if (profile?.AddNo) {
           setStudentProfile(profile);
           setStudentAddNo(profile.AddNo);
-          const { data: cData } = await SupaBaseFunction
-            .from("Content_Table")
-            .select("programe_code, content_title, like_count")
-            .eq("student_addNo", profile.AddNo);
 
-          if (cData) {
+          // 1. Check which programmes this student is directly registered for
+          const [cData, candRegs, userSquadsRes] = await Promise.all([
+            SupaBaseFunction
+              .from("Content_Table")
+              .select("programe_code, content_title, like_count")
+              .eq("student_addNo", profile.AddNo),
+            SupaBaseFunction
+              .from("CandidateRegistrationTable")
+              .select("Program_Code, squad_uuid")
+              .in("Candidate_Code", [profile.AddNo, profile.AddNo.trim().toUpperCase(), profile.AddNo.trim().toLowerCase()]),
+            SupaBaseFunction
+              .from("SquadMate")
+              .select("squad_id, squad_title, member1_uuid, member2_uuid, member3_uuid, member4_uuid, member5_uuid, member6_uuid, member7_uuid")
+              .eq("is_active", true),
+          ]);
+
+          if (cData.data) {
             const map: Record<string, { content_title: string; like_count?: number }> = {};
-            cData.forEach((row: any) => {
+            cData.data.forEach((row: any) => {
               if (row.programe_code) {
                 map[row.programe_code] = {
                   content_title: row.content_title,
@@ -204,6 +217,51 @@ export default function ProgrammesRegistrationCard() {
             });
             setSubmittedContents(map);
           }
+
+          const regMap: Record<string, { isRegistered: boolean; squadTitle?: string }> = {};
+          (candRegs.data || []).forEach((row: any) => {
+            if (row.Program_Code) {
+              regMap[row.Program_Code] = { isRegistered: true };
+            }
+          });
+
+          // 2. Check if any squads belonging to this student are registered
+          const userAddNoUpper = profile.AddNo.trim().toUpperCase();
+          const mySquads = (userSquadsRes.data || []).filter((sq: any) => {
+            return [
+              sq.member1_uuid,
+              sq.member2_uuid,
+              sq.member3_uuid,
+              sq.member4_uuid,
+              sq.member5_uuid,
+              sq.member6_uuid,
+              sq.member7_uuid,
+            ].some((m) => m && m.trim().toUpperCase() === userAddNoUpper);
+          });
+
+          if (mySquads.length > 0) {
+            const squadIds = mySquads.map((s: any) => s.squad_id);
+            const squadTitleById: Record<string, string> = {};
+            mySquads.forEach((s: any) => {
+              squadTitleById[s.squad_id] = s.squad_title;
+            });
+
+            const { data: squadRegRows } = await SupaBaseFunction
+              .from("CandidateRegistrationTable")
+              .select("Program_Code, squad_uuid")
+              .in("squad_uuid", squadIds);
+
+            (squadRegRows || []).forEach((row: any) => {
+              if (row.Program_Code && row.squad_uuid) {
+                regMap[row.Program_Code] = {
+                  isRegistered: true,
+                  squadTitle: squadTitleById[row.squad_uuid] || "Squad Team",
+                };
+              }
+            });
+          }
+
+          setRegisteredPrograms(regMap);
         }
       }
     } catch (err: unknown) {
@@ -666,30 +724,44 @@ export default function ProgrammesRegistrationCard() {
 
                   {/* --- Footer Action Buttons --- */}
                   <div className="px-5 pb-5 pt-1 flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleRegisterClick(program)}
-                      disabled={!program.IsOpenRegistration}
-                      className={`w-full py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
-                        !program.IsOpenRegistration
-                          ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                          : isGroup
-                          ? "bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 active:scale-[0.98]"
-                          : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 active:scale-[0.98]"
-                      }`}
-                    >
-                      {isGroup ? (
-                        <>
-                          <Users size={15} />
-                          {program.IsOpenRegistration ? "Register Group / Squad" : "Registration Closed"}
-                        </>
-                      ) : (
-                        <>
-                          <User size={15} />
-                          {program.IsOpenRegistration ? "Register Candidate" : "Registration Closed"}
-                        </>
-                      )}
-                    </button>
+                    {registeredPrograms[program.Program_Code]?.isRegistered ? (
+                      <div className="w-full py-3 px-3 rounded-2xl font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200/90 flex items-center justify-center gap-2 shadow-2xs">
+                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                        <span>
+                          Already Registered{" "}
+                          {registeredPrograms[program.Program_Code]?.squadTitle
+                            ? `(${registeredPrograms[program.Program_Code]?.squadTitle})`
+                            : isGroup
+                            ? "(Squad)"
+                            : ""}
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleRegisterClick(program)}
+                        disabled={!program.IsOpenRegistration}
+                        className={`w-full py-3 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
+                          !program.IsOpenRegistration
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                            : isGroup
+                            ? "bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-600/20 active:scale-[0.98]"
+                            : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 active:scale-[0.98]"
+                        }`}
+                      >
+                        {isGroup ? (
+                          <>
+                            <Users size={15} />
+                            {program.IsOpenRegistration ? "Register Group / Squad" : "Registration Closed"}
+                          </>
+                        ) : (
+                          <>
+                            <User size={15} />
+                            {program.IsOpenRegistration ? "Register Candidate" : "Registration Closed"}
+                          </>
+                        )}
+                      </button>
+                    )}
 
                     {/* Show Result Button if result is published */}
                     {(program.IsResulted || (program as any).IsResultPublished) && (

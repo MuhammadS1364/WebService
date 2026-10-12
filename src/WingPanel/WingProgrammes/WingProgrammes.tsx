@@ -605,12 +605,12 @@ export default function WingProgrammes() {
                                   </div>
                                 ) : candidates[p.Program_Code] && candidates[p.Program_Code].length > 0 ? (
                                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                    {candidates[p.Program_Code].map((c) => {
+                                    {candidates[p.Program_Code].map((c, cIdx) => {
                                       const stnContentTitle = contentMap[p.Program_Code]?.[c.AddNo];
 
                                       return (
                                         <div
-                                          key={c.AddNo}
+                                          key={`${c.AddNo}_${p.Program_Code}_${cIdx}`}
                                           className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-2"
                                         >
                                           <div className="flex items-center gap-3">

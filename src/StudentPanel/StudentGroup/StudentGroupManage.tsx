@@ -2,10 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveStudentProfile } from "../../lib/accountResolver";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
 import {
   Users,
   UserPlus,
-  Shield,
   Trash2,
   LogOut,
   Plus,
@@ -41,6 +41,7 @@ interface SquadItem {
 interface OpenProgramItem {
   Program_Code: string;
   Program_Title: string | null;
+  Category?: string | null;
   Date: string | null;
   Venue: string | null;
   is_group_program?: boolean;
@@ -48,14 +49,15 @@ interface OpenProgramItem {
 
 export default function StudentGroupManage() {
   const { actStn } = useParams<{ actStn: string }>();
+  const meta = useProgrammeMeta();
 
   const [student, setStudent] = useState<StudentProfile | null>(null);
   const [squads, setSquads] = useState<SquadItem[]>([]);
-  const [allSquads, setAllSquads] = useState<SquadItem[]>([]);
+  const [squadRegistrations, setSquadRegistrations] = useState<Record<string, string[]>>({});
   const [studentNames, setStudentNames] = useState<Record<string, string>>({});
   const [openGroupPrograms, setOpenGroupPrograms] = useState<OpenProgramItem[]>([]);
 
-  const [activeTab, setActiveTab] = useState<"my-squads" | "create-squad" | "all-squads">("my-squads");
+  const [activeTab, setActiveTab] = useState<"my-squads" | "create-squad">("my-squads");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error" | ""; text: string }>({ type: "", text: "" });
@@ -96,7 +98,6 @@ export default function StudentGroupManage() {
 
       if (squadsError) throw squadsError;
       const allList = (squadsData as SquadItem[]) || [];
-      setAllSquads(allList);
 
       // Collect all student AddNos mentioned in squads to look up their names
       const allAddNos = new Set<string>();
@@ -123,24 +124,50 @@ export default function StudentGroupManage() {
 
       // Filter squads where current student is a member or creator
       if (student?.AddNo) {
+        const userAddNo = student.AddNo.trim().toUpperCase();
         const my = allList.filter((s) => {
-          return (
-            s.member1_uuid === student.AddNo ||
-            s.member2_uuid === student.AddNo ||
-            s.member3_uuid === student.AddNo ||
-            s.member4_uuid === student.AddNo ||
-            s.member5_uuid === student.AddNo ||
-            s.member6_uuid === student.AddNo ||
-            s.member7_uuid === student.AddNo
-          );
+          return [
+            s.member1_uuid,
+            s.member2_uuid,
+            s.member3_uuid,
+            s.member4_uuid,
+            s.member5_uuid,
+            s.member6_uuid,
+            s.member7_uuid,
+          ].some((m) => m && m.trim().toUpperCase() === userAddNo);
         });
         setSquads(my);
+
+        // Fetch which events these squads are already registered for
+        const squadIds = my.map((s) => s.squad_id).filter(Boolean);
+        if (squadIds.length > 0) {
+          const { data: squadRegRows } = await SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .select("Program_Code, squad_uuid")
+            .in("squad_uuid", squadIds);
+
+          const regMap: Record<string, string[]> = {};
+          (squadRegRows || []).forEach((row: any) => {
+            if (row.squad_uuid && row.Program_Code) {
+              if (!regMap[row.squad_uuid]) regMap[row.squad_uuid] = [];
+              if (!regMap[row.squad_uuid].includes(row.Program_Code)) {
+                regMap[row.squad_uuid].push(row.Program_Code);
+              }
+            }
+          });
+          setSquadRegistrations(regMap);
+        } else {
+          setSquadRegistrations({});
+        }
+      } else {
+        setSquads([]);
+        setSquadRegistrations({});
       }
 
       // Fetch open group programmes
       const { data: progData } = await SupaBaseFunction
         .from("ProgrammesBox")
-        .select("Program_Code, Program_Title, Date, Venue, is_group_program")
+        .select("Program_Code, Program_Title, Category, Date, Venue, is_group_program")
         .eq("IsOpenRegistration", true)
         .eq("is_group_program", true)
         .eq("IsConducted", false);
@@ -616,18 +643,6 @@ export default function StudentGroupManage() {
         >
           <UserPlus size={14} /> Form New Group
         </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("all-squads")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 ${
-            activeTab === "all-squads"
-              ? "bg-white text-indigo-900 shadow-sm"
-              : "text-slate-600 hover:text-slate-900"
-          }`}
-        >
-          <Shield size={14} /> All Campus Squads ({allSquads.length})
-        </button>
       </div>
 
       {/* TAB 1: MY SQUADS */}
@@ -717,13 +732,13 @@ export default function StudentGroupManage() {
                         </label>
 
                         <div className="space-y-2">
-                          {members.map((m) => {
+                          {members.map((m, mIdx) => {
                             const isCurrentStudent = m.addNo === student?.AddNo;
                             const displayName = studentNames[m.addNo!] || m.addNo;
 
                             return (
                               <div
-                                key={m.key}
+                                key={`${squad.squad_id}_${m.key}_${m.addNo}_${mIdx}`}
                                 className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition ${
                                   m.isLeader
                                     ? "bg-amber-50/60 border-amber-200 font-semibold"
@@ -776,23 +791,60 @@ export default function StudentGroupManage() {
                       </div>
                     </div>
 
+                    {/* Registered Events Badges */}
+                    {squadRegistrations[squad.squad_id] && squadRegistrations[squad.squad_id].length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                          Registered Programmes ({squadRegistrations[squad.squad_id].length})
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {squadRegistrations[squad.squad_id].map((code) => {
+                            const prog = openGroupPrograms.find((p) => p.Program_Code === code);
+                            const catName = prog?.Category ? (meta.categoryMap[prog.Category] || prog.Category) : "General";
+                            return (
+                              <span
+                                key={code}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold"
+                              >
+                                <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                                <span>{prog?.Program_Title || code}, Category({catName})</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Register this Squad for an Open Group Event */}
-                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-                      <span className="text-[11px] text-slate-400">
-                        {openGroupPrograms.length} open group event(s) available
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRegisterSquadModal(squad);
-                          setSelectedProgramCode(openGroupPrograms[0]?.Program_Code || "");
-                        }}
-                        disabled={openGroupPrograms.length === 0}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer disabled:opacity-50"
-                      >
-                        <Award size={14} /> Register for Event
-                      </button>
-                    </div>
+                    {(() => {
+                      const regCodes = squadRegistrations[squad.squad_id] || [];
+                      const availableProgs = openGroupPrograms.filter((p) => !regCodes.includes(p.Program_Code));
+
+                      return (
+                        <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                          <span className="text-[11px] text-slate-400">
+                            {availableProgs.length} open group event(s) available
+                          </span>
+                          {availableProgs.length === 0 ? (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold shadow-2xs">
+                              <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
+                              <span>Registered for Open Events</span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRegisterSquadModal(squad);
+                                setSelectedProgramCode(availableProgs[0]?.Program_Code || "");
+                              }}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer"
+                            >
+                              <Award size={14} /> Register for Event
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -910,58 +962,6 @@ export default function StudentGroupManage() {
         </div>
       )}
 
-      {/* TAB 3: ALL SQUADS DIRECTORY */}
-      {activeTab === "all-squads" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {allSquads.map((s) => {
-              const members = getMemberList(s);
-              return (
-                <div key={s.squad_id} className="p-5 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base mb-1">{s.squad_title}</h3>
-                    <p className="text-xs text-slate-500 mb-3">
-                      {members.length} member(s) • {s.total_points || 0} pts
-                    </p>
-                    <div className="space-y-1">
-                      {members.map((m) => (
-                        <div key={m.key} className="text-[11px] text-slate-600 flex items-center gap-1.5">
-                          {m.isLeader ? <Crown size={12} className="text-amber-500" /> : <span className="w-1.5 h-1.5 bg-slate-300 rounded-full" />}
-                          <span className="font-mono font-semibold">{m.addNo}</span>
-                          <span className="truncate">{studentNames[m.addNo!] || ""}</span>
-                          {m.addNo === student?.AddNo && (
-                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded ml-auto">
-                              You
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Allow leaving if current student is a member of this squad */}
-                  {members.some((m) => m.addNo === student?.AddNo) && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                        ✓ Your Squad
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleLeaveGroup(s)}
-                        disabled={submitting}
-                        className="px-2.5 py-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <LogOut size={12} /> Leave Squad
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Quick Event Registration Modal for Squad */}
       {registerSquadModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -974,46 +974,63 @@ export default function StudentGroupManage() {
             </p>
 
             <form onSubmit={handleAssignSquadToProgram} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Select Open Group Programme
-                </label>
-                <select
-                  required
-                  value={selectedProgramCode}
-                  onChange={(e) => setSelectedProgramCode(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- Choose Programme --</option>
-                  {openGroupPrograms.map((p) => (
-                    <option key={p.Program_Code} value={p.Program_Code}>
-                      [{p.Program_Code}] {p.Program_Title} - {p.Date || "TBA"}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {(() => {
+                const modalRegCodes = registerSquadModal ? (squadRegistrations[registerSquadModal.squad_id] || []) : [];
+                const modalAvailableProgs = openGroupPrograms.filter((p) => !modalRegCodes.includes(p.Program_Code));
 
-              <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-900">
-                Squad members who will be registered:{" "}
-                <strong>{getMemberList(registerSquadModal).map((m) => m.addNo).join(", ")}</strong>
-              </div>
+                return (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Select Open Group Programme
+                      </label>
+                      <select
+                        required
+                        value={selectedProgramCode}
+                        onChange={(e) => setSelectedProgramCode(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">-- Choose Programme --</option>
+                        {modalAvailableProgs.map((p) => {
+                          const catName = p.Category ? (meta.categoryMap[p.Category] || p.Category) : "General";
+                          return (
+                            <option key={p.Program_Code} value={p.Program_Code}>
+                              {p.Program_Title || "Program"}, Category({catName})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {modalAvailableProgs.length === 0 && (
+                        <p className="text-[11px] text-amber-600 font-medium mt-1">
+                          All open group events are already registered for this squad.
+                        </p>
+                      )}
+                    </div>
 
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRegisterSquadModal(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
-                >
-                  {submitting ? "Assigning Squad..." : "Confirm Squad Registration"}
-                </button>
-              </div>
+                    <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-900">
+                      Squad members who will be registered:{" "}
+                      <strong>{getMemberList(registerSquadModal).map((m) => m.addNo).join(", ")}</strong>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setRegisterSquadModal(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submitting || modalAvailableProgs.length === 0 || !selectedProgramCode}
+                        className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
+                      >
+                        {submitting ? "Assigning Squad..." : "Confirm Squad Registration"}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </form>
           </div>
         </div>

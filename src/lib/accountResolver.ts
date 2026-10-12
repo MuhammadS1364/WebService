@@ -25,17 +25,43 @@ export async function resolveStudentProfile(paramIdentifier?: string): Promise<L
   try {
     let cleanParam = paramIdentifier ? decodeURIComponent(paramIdentifier).trim() : "";
 
-    // 1. Check in-memory cache first if identifier matches
+    // If param not passed directly, try extracting from current URL pathname (e.g. /student-panel/:actStn/...)
+    if (!cleanParam && typeof window !== "undefined" && window.location?.pathname) {
+      const match = window.location.pathname.match(/\/student-panel\/([^/]+)/);
+      if (match && match[1]) {
+        cleanParam = decodeURIComponent(match[1]).trim();
+      }
+    }
+
+    // 1. Check in-memory cache first if identifier matches or no param given
     if (
       inMemoryProfileCache &&
-      cleanParam &&
-      (inMemoryProfileCache.StudentEmail.toLowerCase() === cleanParam.toLowerCase() ||
+      (!cleanParam ||
+       inMemoryProfileCache.StudentEmail.toLowerCase() === cleanParam.toLowerCase() ||
        inMemoryProfileCache.AddNo.toLowerCase() === cleanParam.toLowerCase())
     ) {
       return inMemoryProfileCache;
     }
 
-    // 2. Try resolving using URL parameter
+    // 2. Check localStorage cached profile
+    try {
+      const cached = localStorage.getItem("cached_student_profile");
+      if (cached) {
+        const parsed = JSON.parse(cached) as LoggedInStudentProfile;
+        if (
+          !cleanParam ||
+          parsed.StudentEmail?.toLowerCase() === cleanParam.toLowerCase() ||
+          parsed.AddNo?.toLowerCase() === cleanParam.toLowerCase()
+        ) {
+          inMemoryProfileCache = parsed;
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore JSON parse error
+    }
+
+    // 3. Try resolving using URL parameter
     if (cleanParam) {
       if (cleanParam.includes("@")) {
         // Query by email (case-insensitive)
@@ -64,11 +90,12 @@ export async function resolveStudentProfile(paramIdentifier?: string): Promise<L
       }
     }
 
-    // 3. Fallback to localStorage logged in user
+    // 4. Fallback to localStorage logged in user
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       const parsed = JSON.parse(storedUser);
-      const userEmail = parsed.UserEmail?.trim();
+      const userEmail = (parsed.UserEmail || parsed.email)?.trim();
+      const userAddNo = parsed.AddNo?.trim();
 
       if (userEmail) {
         const { data } = await SupaBaseFunction
@@ -82,14 +109,19 @@ export async function resolveStudentProfile(paramIdentifier?: string): Promise<L
           return data as LoggedInStudentProfile;
         }
       }
-    }
 
-    // 4. Check if cached profile exists in localStorage
-    const cached = localStorage.getItem("cached_student_profile");
-    if (cached) {
-      const parsed = JSON.parse(cached) as LoggedInStudentProfile;
-      inMemoryProfileCache = parsed;
-      return parsed;
+      if (userAddNo) {
+        const { data } = await SupaBaseFunction
+          .from("StudentsBox")
+          .select("*")
+          .eq("AddNo", userAddNo)
+          .maybeSingle();
+
+        if (data) {
+          cacheStudentProfile(data, false);
+          return data as LoggedInStudentProfile;
+        }
+      }
     }
 
     return null;

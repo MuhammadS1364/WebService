@@ -238,10 +238,10 @@ export default function OurStudentsList() {
       </div>
 
       <div className="grid gap-5 sm:grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-        {filteredStudents.map((student) => {
+        {filteredStudents.map((student, idx) => {
           const isSelected = selectedStudents.includes(student.AddNo);
           return (
-            <div key={student.AddNo} className={`relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 ${isSelected ? 'border-[#047857] ring-1 ring-[#047857]' : 'border-[#E2E8F0] hover:shadow-md'}`}>
+            <div key={`${student.AddNo}_${idx}`} className={`relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-200 ${isSelected ? 'border-[#047857] ring-1 ring-[#047857]' : 'border-[#E2E8F0] hover:shadow-md'}`}>
                 <div className="absolute top-4 right-4 z-10">
                   <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5E1] text-[#047857] focus:ring-[#047857] cursor-pointer" checked={isSelected} onChange={() => toggleStudentSelection(student.AddNo)} />
                 </div>

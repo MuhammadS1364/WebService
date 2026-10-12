@@ -34,6 +34,7 @@ export interface ProgrammeMetaState {
   academicMap: Record<string, string>;
   templateMap: Record<string, string>;
   classMap: Record<string, string>;
+  classStandardNameMap: Record<string, string>;
   batchMap: Record<string, string>;
   wingMap: Record<string, string>;
 
@@ -228,10 +229,22 @@ export function useProgrammeMeta(): ProgrammeMetaState {
 
   const classMap = useMemo(() => {
     const map: Record<string, string> = {};
-    classes.forEach((cl) => {
+    classes.forEach((cl: any) => {
       if (cl.class_id) {
-        const name = cl.standard_name || cl.class_nick_name || `Class #${cl.class_serial_number || 1}`;
-        map[cl.class_id] = cl.class_nick_name ? `${name} (${cl.class_nick_name})` : name;
+        const stdName = cl.class_standrd_name || cl.standard_name;
+        const nick = cl.class_name || cl.class_nick_name;
+        const name = stdName || nick || `Class #${cl.class_serial_number || 1}`;
+        map[cl.class_id] = nick && stdName ? `${stdName} (${nick})` : name;
+      }
+    });
+    return map;
+  }, [classes]);
+
+  const classStandardNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    classes.forEach((cl: any) => {
+      if (cl.class_id) {
+        map[cl.class_id] = cl.class_standrd_name || cl.standard_name || cl.class_name || cl.class_nick_name || `Class #${cl.class_serial_number || 1}`;
       }
     });
     return map;
@@ -479,6 +492,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     academicMap,
     templateMap,
     classMap,
+    classStandardNameMap,
     batchMap,
     wingMap,
     activeAcademicYearId,

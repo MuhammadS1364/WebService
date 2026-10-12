@@ -40,8 +40,6 @@ export default function AdminTopicsManagerModal({
   programCode,
   programTitle,
 }: AdminTopicsManagerModalProps) {
-  if (!isOpen) return null;
-
   const [topics, setTopics] = useState<TopicItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,8 +48,10 @@ export default function AdminTopicsManagerModal({
   const [selectedTopicForPreview, setSelectedTopicForPreview] = useState<TopicItem | null>(null);
 
   useEffect(() => {
-    fetchTopics();
-  }, [programCode]);
+    if (isOpen) {
+      fetchTopics();
+    }
+  }, [isOpen, programCode]);
 
   const fetchTopics = async () => {
     try {
@@ -199,6 +199,8 @@ export default function AdminTopicsManagerModal({
       return matchesSearch && matchesStatus;
     });
   }, [topics, searchQuery, statusFilter]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">

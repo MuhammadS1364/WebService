@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingResolver";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
 import { exportToExcel } from "../../lib/excelService";
 import SafeImage from "../../lib/SafeImage";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
@@ -92,6 +93,7 @@ interface StudentInfo {
   AddNo: string;
   StudentName: string;
   Class?: string;
+  Stn_Class?: string | null;
   CollegeName?: string;
   Student_Photo_Urls?: string;
 }
@@ -100,6 +102,7 @@ type TabType = "all" | "candidates" | "squads" | "topics" | "content";
 
 export default function WingRegistrations() {
   const { actWing } = useParams<{ actWing: string }>();
+  const meta = useProgrammeMeta();
 
   // Wing Auth & State
   const [wingData, setWingData] = useState<LoggedInWingProfile | null>(() => {
@@ -252,10 +255,14 @@ export default function WingRegistrations() {
       const studentAddNosArray = Array.from(allStudentAddNos);
       let loadedStudentsMap: Record<string, StudentInfo> = {};
       if (studentAddNosArray.length > 0) {
-        const { data: stnRows } = await SupaBaseFunction
+        const { data: stnRows, error: stnError } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+          .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
           .in("AddNo", studentAddNosArray);
+
+        if (stnError) {
+          console.warn("StudentsBox batch query issue:", stnError);
+        }
 
         if (stnRows) {
           stnRows.forEach((stn: any) => {
@@ -796,9 +803,10 @@ export default function WingRegistrations() {
                 {(onlyWithRegistrations ? programmesWithActions : programmes).map((p) => {
                   const counts = programmeActionCounts[p.Program_Code];
                   const hasActions = counts && counts.total > 0;
+                  const catName = p.Category ? (meta.categoryMap[p.Category] || p.Category) : "General";
                   return (
                     <option key={p.Program_Code} value={p.Program_Code}>
-                      {hasActions ? "🟢" : "⚪"} [{p.Program_Code}] {p.Program_Title || "Untitled"} — (Cands: {counts?.candidates || 0}, Topics: {counts?.topics || 0}, Contents: {counts?.content || 0})
+                      {hasActions ? "🟢" : "⚪"} {p.Program_Title || "Untitled"}, Category({catName}) — (Cands: {counts?.candidates || 0}, Topics: {counts?.topics || 0}, Contents: {counts?.content || 0})
                     </option>
                   );
                 })}
@@ -994,8 +1002,19 @@ export default function WingRegistrations() {
                       const prog = progMap[c.Program_Code];
                       const squad = c.squad_uuid ? squadsMap[c.squad_uuid] : null;
 
+                      const standardName =
+                        (student?.Stn_Class && (meta.classStandardNameMap?.[student.Stn_Class] || meta.classMap[student.Stn_Class])) ||
+                        (student?.Class && (meta.classStandardNameMap?.[student.Class] || meta.classMap[student.Class])) ||
+                        student?.Class ||
+                        "Standard N/A";
+                      const campusName = student?.CollegeName || "DHIU Main Campus";
+                      const categoryName =
+                        (prog?.Category && meta.categoryMap[prog.Category]) ||
+                        prog?.Category ||
+                        "General / Open";
+
                       return (
-                        <tr key={c.CandidateUUiD || `${c.Program_Code}_${c.Candidate_Code}_${idx}`} className="hover:bg-slate-50/70 transition">
+                        <tr key={c.CandidateUUiD ? `${c.CandidateUUiD}_${idx}` : `${c.Program_Code}_${c.Candidate_Code}_${idx}`} className="hover:bg-slate-50/70 transition">
                           <td className="py-3 px-4 font-mono text-slate-400 text-[11px] font-bold">
                             {idx + 1}
                           </td>
@@ -1021,19 +1040,19 @@ export default function WingRegistrations() {
                             </div>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="font-bold text-slate-800 block">
-                              {student?.Class || "Standard N/A"}
+                            <span className="font-bold text-slate-800 block text-xs">
+                              {standardName}
                             </span>
-                            <span className="text-[11px] text-slate-400 block truncate max-w-[140px]">
-                              {student?.CollegeName || "DHIU"}
+                            <span className="text-[11px] text-slate-500 block truncate max-w-[150px]" title={campusName}>
+                              {campusName}
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            <span className="font-bold text-slate-900 block truncate max-w-[200px]">
+                            <span className="font-bold text-slate-900 block truncate max-w-[200px]" title={prog?.Program_Title || c.Program_Code}>
                               {prog?.Program_Title || c.Program_Code}
                             </span>
-                            <span className="text-[10px] font-mono text-slate-400">
-                              [{c.Program_Code}]
+                            <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                              {categoryName}
                             </span>
                           </td>
                           <td className="py-3 px-4">

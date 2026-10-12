@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import type { SquadMateRecord } from "../lib/types";
+import { resolveStudentProfile } from "../lib/accountResolver";
 import { Shield, CheckCircle, AlertCircle, X, Plus, Lock, LogIn } from "lucide-react";
 
 interface SquadRegistrationModalProps {
@@ -21,6 +22,9 @@ export default function SquadRegistrationModal({
 }: SquadRegistrationModalProps) {
   const [tab, setTab] = useState<"select" | "create">("select");
   const [existingSquads, setExistingSquads] = useState<SquadMateRecord[]>([]);
+  const [registeredSquadIds, setRegisteredSquadIds] = useState<Set<string>>(new Set());
+  const [isUserRegistered, setIsUserRegistered] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedSquadId, setSelectedSquadId] = useState("");
   const [loadingSquads, setLoadingSquads] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -54,19 +58,64 @@ export default function SquadRegistrationModal({
     if (isOpen) {
       loadSquads();
     }
-  }, [isOpen]);
+  }, [isOpen, programCode]);
 
   const loadSquads = async () => {
     try {
       setLoadingSquads(true);
-      const { data, error } = await SupaBaseFunction
-        .from("SquadMate")
-        .select("*")
-        .eq("is_active", true)
-        .order("total_points", { ascending: false });
+      const student = await resolveStudentProfile();
+      if (student) {
+        setCurrentUser(student);
+        setMembers([student.AddNo || "", ""]);
+      }
 
-      if (error) throw error;
-      setExistingSquads(data || []);
+      const [squadRes, regRes] = await Promise.all([
+        SupaBaseFunction
+          .from("SquadMate")
+          .select("*")
+          .eq("is_active", true)
+          .order("total_points", { ascending: false }),
+        SupaBaseFunction
+          .from("CandidateRegistrationTable")
+          .select("Candidate_Code, squad_uuid")
+          .eq("Program_Code", programCode),
+      ]);
+
+      if (squadRes.error) throw squadRes.error;
+
+      const registeredSet = new Set<string>(
+        (regRes.data || []).map((r: any) => r.squad_uuid).filter(Boolean)
+      );
+      setRegisteredSquadIds(registeredSet);
+
+      const allSquads = squadRes.data || [];
+      if (student?.AddNo) {
+        const userAddNo = student.AddNo.trim().toUpperCase();
+
+        // Check if student is already personally registered in this programme
+        const isPersonallyReg = (regRes.data || []).some(
+          (r: any) => r.Candidate_Code && r.Candidate_Code.trim().toUpperCase() === userAddNo
+        );
+        setIsUserRegistered(isPersonallyReg);
+
+        // Strictly ONLY show squads that belong to the logged-in student (Creator or Teammate)
+        const mySquads = allSquads.filter((sq) => {
+          return [
+            sq.member1_uuid,
+            sq.member2_uuid,
+            sq.member3_uuid,
+            sq.member4_uuid,
+            sq.member5_uuid,
+            sq.member6_uuid,
+            sq.member7_uuid,
+          ].some((m) => m && m.trim().toUpperCase() === userAddNo);
+        });
+        setExistingSquads(mySquads);
+      } else {
+        // Never show other users' squads to unauthenticated / unresolved profiles
+        setIsUserRegistered(false);
+        setExistingSquads([]);
+      }
     } catch (err: any) {
       console.warn("Could not load squads:", err.message);
     } finally {
@@ -217,6 +266,14 @@ export default function SquadRegistrationModal({
     const targetSquad = existingSquads.find((s) => s.squad_id === selectedSquadId);
     if (!targetSquad) return;
 
+    if (targetSquad.squad_id && registeredSquadIds.has(targetSquad.squad_id)) {
+      setStatus({
+        type: "error",
+        text: `⚠️ Squad "${targetSquad.squad_title}" is already registered for this programme.`,
+      });
+      return;
+    }
+
     try {
       setSubmitting(true);
       const squadMembers = [
@@ -325,6 +382,13 @@ export default function SquadRegistrationModal({
           </div>
         ) : (
           <>
+            {isUserRegistered && (
+              <div className="p-3 mb-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2.5 text-xs font-bold text-emerald-800">
+                <CheckCircle size={16} className="text-emerald-600 shrink-0" />
+                <span>You or your squad are already registered for this programme. Multiple registrations are disabled.</span>
+              </div>
+            )}
+
             <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
               <button
                 type="button"
@@ -349,18 +413,31 @@ export default function SquadRegistrationModal({
             {tab === "select" ? (
               <form onSubmit={handleRegisterExistingSquad} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-2">Available Squads ({existingSquads.length})</label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-slate-700">
+                      {currentUser ? "Your Squads" : "Available Squads"} ({existingSquads.length})
+                    </label>
+                    {existingSquads.length > 0 && registeredSquadIds.size > 0 && (
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        Squad already registered
+                      </span>
+                    )}
+                  </div>
                   {loadingSquads ? (
                     <p className="text-xs text-slate-400 py-4 text-center">Loading squads...</p>
                   ) : existingSquads.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center">
-                      <p className="text-xs text-slate-500 mb-2">No active squads found.</p>
+                      <p className="text-xs text-slate-500 mb-2">
+                        {currentUser
+                          ? `You (${currentUser.AddNo}) haven't created or joined any squads yet.`
+                          : "No active squads found."}
+                      </p>
                       <button
                         type="button"
                         onClick={() => setTab("create")}
-                        className="text-xs font-bold text-indigo-600 hover:underline"
+                        className="text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
                       >
-                        Build the first Squad now →
+                        Build your Squad now →
                       </button>
                     </div>
                   ) : (
@@ -370,12 +447,17 @@ export default function SquadRegistrationModal({
                           sq.member1_uuid, sq.member2_uuid, sq.member3_uuid,
                           sq.member4_uuid, sq.member5_uuid, sq.member6_uuid, sq.member7_uuid
                         ].filter(Boolean).length;
+                        const isAlreadyRegistered = Boolean(sq.squad_id && registeredSquadIds.has(sq.squad_id));
 
                         return (
                           <label
                             key={sq.squad_id}
-                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${
-                              selectedSquadId === sq.squad_id ? "border-indigo-600 bg-indigo-50/50" : "border-slate-200 hover:border-slate-300"
+                            className={`flex items-center justify-between p-3 rounded-xl border transition ${
+                              isAlreadyRegistered
+                                ? "border-emerald-200 bg-emerald-50/40 opacity-80 cursor-not-allowed"
+                                : selectedSquadId === sq.squad_id
+                                ? "border-indigo-600 bg-indigo-50/50 cursor-pointer"
+                                : "border-slate-200 hover:border-slate-300 cursor-pointer"
                             }`}
                           >
                             <div className="flex items-center gap-3">
@@ -383,6 +465,7 @@ export default function SquadRegistrationModal({
                                 type="radio"
                                 name="squadSelection"
                                 value={sq.squad_id}
+                                disabled={isAlreadyRegistered}
                                 checked={selectedSquadId === sq.squad_id}
                                 onChange={(e) => setSelectedSquadId(e.target.value)}
                                 className="text-indigo-600"
@@ -392,9 +475,17 @@ export default function SquadRegistrationModal({
                                 <span className="text-[11px] text-slate-500">{memberCount} squad members</span>
                               </div>
                             </div>
-                            <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                              {sq.total_points || 0} pts
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {isAlreadyRegistered ? (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded flex items-center gap-1">
+                                  <CheckCircle size={11} /> Registered
+                                </span>
+                              ) : (
+                                <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                                  {sq.total_points || 0} pts
+                                </span>
+                              )}
+                            </div>
                           </label>
                         );
                       })}
@@ -402,15 +493,24 @@ export default function SquadRegistrationModal({
                   )}
                 </div>
 
-                {existingSquads.length > 0 && (
+                {isUserRegistered ? (
+                  <div className="w-full py-3 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs">
+                    <CheckCircle size={15} className="text-emerald-600 shrink-0" />
+                    <span>Already Registered for this Event</span>
+                  </div>
+                ) : existingSquads.length > 0 ? (
                   <button
                     type="submit"
-                    disabled={submitting || !selectedSquadId}
+                    disabled={submitting || !selectedSquadId || registeredSquadIds.has(selectedSquadId)}
                     className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
                   >
-                    {submitting ? "Registering Squad..." : "Register Selected Squad to Event"}
+                    {submitting
+                      ? "Registering Squad..."
+                      : selectedSquadId && registeredSquadIds.has(selectedSquadId)
+                      ? "Selected Squad Already Registered"
+                      : "Register Selected Squad to Event"}
                   </button>
-                )}
+                ) : null}
               </form>
             ) : (
               <form onSubmit={handleCreateSquad} className="space-y-4">
@@ -466,13 +566,20 @@ export default function SquadRegistrationModal({
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
-                >
-                  {submitting ? "Forming Squad..." : "Create Squad & Register to Event"}
-                </button>
+                {isUserRegistered ? (
+                  <div className="w-full py-3 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs">
+                    <CheckCircle size={15} className="text-emerald-600 shrink-0" />
+                    <span>Already Registered for this Event</span>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50 cursor-pointer"
+                  >
+                    {submitting ? "Forming Squad..." : "Create Squad & Register to Event"}
+                  </button>
+                )}
               </form>
             )}
           </>

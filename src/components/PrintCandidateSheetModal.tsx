@@ -622,7 +622,7 @@ export default function PrintCandidateSheetModal({
                     ) : (
                       candidates.map((cand, idx) => (
                         <tr 
-                          key={cand.candidateCode || idx}
+                          key={cand.candidateUuid ? `${cand.candidateUuid}_${idx}` : `${cand.candidateCode}_${idx}`}
                           className="border-b border-slate-800 hover:bg-slate-50 print:hover:bg-transparent"
                         >
                           <td className={`border border-slate-900 ${cellPadding} text-center font-bold text-slate-700`}>

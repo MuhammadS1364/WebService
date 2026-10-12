@@ -807,7 +807,7 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
 
                   return (
                     <tr
-                      key={student.addNo}
+                      key={`${student.addNo}_${idx}`}
                       className={`hover:bg-slate-50/80 transition-colors ${
                         isTop1 ? "bg-amber-50/30" : isTop2 ? "bg-slate-50/50" : isTop3 ? "bg-amber-700/5" : ""
                       }`}

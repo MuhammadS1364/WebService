@@ -843,13 +843,13 @@ export default function CreateResult() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 scrollbar-thin">
-                {registeredCandidates.map((c) => {
+                {registeredCandidates.map((c, idx) => {
                   const assignedPosKey = assignedPositions[c.addNo];
                   const isAssigned = Boolean(assignedPosKey);
 
                   return (
                     <div
-                      key={c.addNo}
+                      key={`${c.addNo}_${idx}`}
                       className={`p-3 rounded-2xl border flex items-center justify-between text-xs transition ${
                         isAssigned
                           ? "bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400 font-semibold"
@@ -1127,13 +1127,13 @@ function PositionRow({
           }`}
         >
           <option value="">-- No Candidate Awarded --</option>
-          {registeredCandidates.map((c) => {
+          {registeredCandidates.map((c, idx) => {
             const isAssignedElsewhere =
               assignedPositions[c.addNo] && assignedPositions[c.addNo] !== posKey;
 
             return (
               <option
-                key={c.addNo}
+                key={`${c.addNo}_${idx}`}
                 value={c.addNo}
                 disabled={Boolean(isAssignedElsewhere)}
               >

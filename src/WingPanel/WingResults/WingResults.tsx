@@ -535,9 +535,9 @@ export default function WingResults() {
                                   </div>
                                 ) : candidates[p.Program_Code] && candidates[p.Program_Code].length > 0 ? (
                                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                                    {candidates[p.Program_Code].map((c) => (
+                                    {candidates[p.Program_Code].map((c, cIdx) => (
                                       <div
-                                        key={c.AddNo}
+                                        key={`${c.AddNo}_${p.Program_Code}_${cIdx}`}
                                         className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3"
                                       >
                                         <div className="w-8 h-8 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-50">

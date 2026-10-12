@@ -612,7 +612,7 @@ export default function StudentsAnalyticsGeneral() {
               <tbody className="divide-y divide-slate-100 text-sm">
                 {filteredData.map((student, idx) => (
                   <tr
-                    key={student.AddNo}
+                    key={`${student.AddNo}_${idx}`}
                     onClick={() => handleSelectStudent(student)}
                     className={`hover:bg-slate-50 transition-colors cursor-pointer group ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
                   >
