@@ -40,8 +40,31 @@ export default function CandidateRegistration() {
   const [categoryMismatch, setCategoryMismatch] = useState<boolean>(false);
   const [status, setStatus] = useState<StatusState>({ type: "", text: "" });
   const [isPrintSheetOpen, setIsPrintSheetOpen] = useState<boolean>(false);
+  const [canPrintSheet, setCanPrintSheet] = useState<boolean>(false);
   const [isTopicModalOpen, setIsTopicModalOpen] = useState<boolean>(false);
   const [lastRegisteredStudent, setLastRegisteredStudent] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      const cachedWing = localStorage.getItem("cached_wing_profile");
+      if (cachedWing) {
+        setCanPrintSheet(true);
+        return;
+      }
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const role = (parsed.role || parsed.UserRole || "").toLowerCase();
+        if (role === "admin" || role === "wing" || role === "manager" || role === "program manager") {
+          setCanPrintSheet(true);
+          return;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setCanPrintSheet(false);
+  }, []);
 
   // ----------------------------------------
   // 1. Fetch current program info 
@@ -284,7 +307,7 @@ export default function CandidateRegistration() {
             <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">Candidate Entry</h2>
             <p className="text-sm text-slate-500 mt-1 font-medium">Assign records to active programs seamlessly.</p>
           </div>
-          {programDetails && (
+          {programDetails && canPrintSheet && (
             <button
               type="button"
               onClick={() => setIsPrintSheetOpen(true)}
@@ -336,13 +359,15 @@ export default function CandidateRegistration() {
               >
                 + Register Another
               </button>
-              <button
-                type="button"
-                onClick={() => setIsPrintSheetOpen(true)}
-                className="w-full py-3.5 bg-violet-50 text-violet-700 border border-violet-200 font-bold rounded-xl hover:bg-violet-100 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-              >
-                <Printer size={16} /> Print Sheet (A4)
-              </button>
+              {canPrintSheet && (
+                <button
+                  type="button"
+                  onClick={() => setIsPrintSheetOpen(true)}
+                  className="w-full py-3.5 bg-violet-50 text-violet-700 border border-violet-200 font-bold rounded-xl hover:bg-violet-100 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                >
+                  <Printer size={16} /> Print Sheet (A4)
+                </button>
+              )}
             </div>
           </div>
         ) : (

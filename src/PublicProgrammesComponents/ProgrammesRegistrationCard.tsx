@@ -88,8 +88,49 @@ export default function ProgrammesRegistrationCard() {
   // Dedicated Content Submission Modal State
   const [contentModalProgram, setContentModalProgram] = useState<ProgramData | null>(null);
 
-  // Dedicated Print Candidate Sheet State
+  // Dedicated Print Candidate Sheet State (Only Admin and Wing programme manager authorized)
   const [printCandidateProgram, setPrintCandidateProgram] = useState<ProgramData | null>(null);
+  const [canPrintSheet, setCanPrintSheet] = useState<boolean>(false);
+
+  useEffect(() => {
+    const checkRole = async () => {
+      if (actStn) {
+        setCanPrintSheet(false);
+        return;
+      }
+      try {
+        const cachedWing = localStorage.getItem("cached_wing_profile");
+        if (cachedWing) {
+          setCanPrintSheet(true);
+          return;
+        }
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          const role = (parsed.role || parsed.UserRole || "").toLowerCase();
+          if (role === "admin" || role === "wing" || role === "manager" || role === "program manager") {
+            setCanPrintSheet(true);
+            return;
+          }
+          if (parsed.UserEmail) {
+            const { data: u } = await SupaBaseFunction
+              .from("UserTable")
+              .select("UserRole")
+              .ilike("UserEmail", parsed.UserEmail)
+              .maybeSingle();
+            if (u?.UserRole === "Admin" || u?.UserRole === "Wing") {
+              setCanPrintSheet(true);
+              return;
+            }
+          }
+        }
+        setCanPrintSheet(false);
+      } catch {
+        setCanPrintSheet(false);
+      }
+    };
+    checkRole();
+  }, [actStn]);
 
   // Fullscreen Image Preview & Download State
   const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
@@ -774,14 +815,16 @@ export default function ProgrammesRegistrationCard() {
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => setPrintCandidateProgram(program)}
-                      className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-50 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-300 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
-                      title="Print Official A4 Registered Candidate Sheet"
-                    >
-                      <Printer size={13} /> Print Candidate Sheet (A4)
-                    </button>
+                    {canPrintSheet && (
+                      <button
+                        type="button"
+                        onClick={() => setPrintCandidateProgram(program)}
+                        className="w-full py-2.5 rounded-xl font-bold text-xs bg-slate-50 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-slate-200 hover:border-violet-300 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs"
+                        title="Print Official A4 Registered Candidate Sheet"
+                      >
+                        <Printer size={13} /> Print Candidate Sheet (A4)
+                      </button>
+                    )}
                   </div>
 
                 </div>
