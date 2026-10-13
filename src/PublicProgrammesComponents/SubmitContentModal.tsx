@@ -33,8 +33,6 @@ export default function SubmitContentModal({
   program,
   studentAddNo,
 }: SubmitContentModalProps) {
-  if (!isOpen || !program) return null;
-
   const [contentTitle, setContentTitle] = useState("");
   const [contentText, setContentText] = useState("");
   const [contentFileUrl, setContentFileUrl] = useState<string | null>(null);
@@ -51,14 +49,14 @@ export default function SubmitContentModal({
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Check deadline
-  const isPastDeadline = program.ContentSubmition_deadLine
+  const isPastDeadline = program?.ContentSubmition_deadLine
     ? new Date().toISOString().split("T")[0] > program.ContentSubmition_deadLine
     : false;
 
   // Handle file selection (docx, tsx, pdf, txt, etc.)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !program) return;
 
     setFileUploadError(null);
     setUploadingFile(true);
@@ -125,6 +123,7 @@ export default function SubmitContentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!program) return;
     if (!contentTitle.trim()) {
       setErrorMessage("Please enter a title for your submission.");
       return;
@@ -192,6 +191,8 @@ export default function SubmitContentModal({
       setSubmitting(false);
     }
   };
+
+  if (!isOpen || !program) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">

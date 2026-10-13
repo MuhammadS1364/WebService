@@ -817,7 +817,7 @@ export default function StudentsAnalyticsGeneral() {
                           )}
                           {p.Venue && (
                             <span className="flex items-center gap-1 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
-                              <Building2 size={11} /> {p.Venue}
+                              <Building2 size={11} /> {meta.getVenueName(p.Venue)}
                             </span>
                           )}
                         </div>
@@ -870,11 +870,11 @@ export default function StudentsAnalyticsGeneral() {
                           </td>
                           <td className="py-3 px-3 text-slate-700">
                             <span className="font-semibold block">{p.WingCode || "General"}</span>
-                            <span className="text-[11px] text-slate-400 block">{p.Group || "Assembly"}</span>
+                            <span className="text-[11px] text-slate-400 block">{meta.getGroupName(p.Group, "Assembly")}</span>
                           </td>
                           <td className="py-3 px-3 text-slate-600">
                             <span className="block font-medium">{p.Date || "TBA"}</span>
-                            <span className="text-[11px] text-slate-400 block">{p.Venue || "Campus Venue"}</span>
+                            <span className="text-[11px] text-slate-400 block">{meta.getVenueName(p.Venue)}</span>
                           </td>
                           <td className="py-3 px-3">
                             {p.positionWon ? (

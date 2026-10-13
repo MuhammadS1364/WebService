@@ -2,16 +2,21 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingResolver";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
 import SafeImage from "../../lib/SafeImage";
 import {
   Trophy,
   Search,
-  Filter,
   CheckCircle2,
   Clock,
   Users,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Calendar,
+  MapPin,
+  LayoutGrid,
+  List,
+  Award
 } from "lucide-react";
 
 interface Programme {
@@ -26,6 +31,8 @@ interface Programme {
   IsResultPublished: boolean;
   Total_Registration: number;
   is_group_program: boolean;
+  IsOpenRegistration?: boolean;
+  Program_Poster?: string | null;
 }
 
 interface Candidate {
@@ -39,6 +46,7 @@ interface Candidate {
 
 export default function WingResults() {
   const { actWing } = useParams<{ actWing: string }>();
+  const meta = useProgrammeMeta();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [wingData, setWingData] = useState<LoggedInWingProfile | null>(() => {
@@ -51,13 +59,17 @@ export default function WingResults() {
   });
 
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [candidates, setCandidates] = useState<Record<string, Candidate[]>>({});
   const [expandedProgrammes, setExpandedProgrammes] = useState<Set<string>>(new Set());
   const [loadingCands, setLoadingCands] = useState<Record<string, boolean>>({});
   const [resultFilter, setResultFilter] = useState<"all" | "published" | "pending">("all");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [resultsMap, setResultsMap] = useState<Record<string, any>>({});
   const [studentsMap, setStudentsMap] = useState<Record<string, any>>({});
+  const [squadsMap, setSquadsMap] = useState<Record<string, string>>({});
+  const [togglingReg, setTogglingReg] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -71,10 +83,10 @@ export default function WingResults() {
           setWingData(wing);
         }
 
-        // Fetch programmes for this wing
+        // Fetch programmes for this wing including IsOpenRegistration and Program_Poster
         const { data: progData, error: progError } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program")
+          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program, IsOpenRegistration, Program_Poster")
           .eq("WingCode", wing.WingCode)
           .order("Date", { ascending: false });
 
@@ -95,14 +107,22 @@ export default function WingResults() {
             const rMap: Record<string, any> = {};
             const winnerAddNos = new Set<string>();
 
+            const addHolderCodes = (val?: string | null) => {
+              if (!val || val === "No Grade" || val === "none") return;
+              val.split(",").forEach((c) => {
+                const trimmed = c.trim();
+                if (trimmed) winnerAddNos.add(trimmed);
+              });
+            };
+
             rData.forEach((r: any) => {
               if (r.Program_Id) {
                 rMap[r.Program_Id] = r;
-                if (r.First_Holder) winnerAddNos.add(r.First_Holder);
-                if (r.Second_Holder) winnerAddNos.add(r.Second_Holder);
-                if (r.Third_Holder) winnerAddNos.add(r.Third_Holder);
-                if (r.AGrade && r.AGrade !== "No Grade") winnerAddNos.add(r.AGrade);
-                if (r.BGrade) winnerAddNos.add(r.BGrade);
+                addHolderCodes(r.First_Holder);
+                addHolderCodes(r.Second_Holder);
+                addHolderCodes(r.Third_Holder);
+                addHolderCodes(r.AGrade);
+                addHolderCodes(r.BGrade);
               }
             });
             setResultsMap(rMap);
@@ -110,15 +130,54 @@ export default function WingResults() {
             if (winnerAddNos.size > 0) {
               const { data: sData } = await SupaBaseFunction
                 .from("StudentsBox")
-                .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+                .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
                 .in("AddNo", Array.from(winnerAddNos));
 
               if (sData && isMounted) {
                 const sMap: Record<string, any> = {};
                 sData.forEach((s: any) => {
-                  sMap[s.AddNo] = s;
+                  const matchedClass = meta.classes.find(
+                    (c: any) =>
+                      c.class_id === s.Stn_Class ||
+                      c.standard_name === s.Stn_Class ||
+                      c.class_nick_name === s.Stn_Class
+                  );
+                  sMap[s.AddNo] = {
+                    ...s,
+                    Class:
+                      matchedClass?.class_nick_name ||
+                      matchedClass?.standard_name ||
+                      s.Stn_Class ||
+                      "",
+                  };
                 });
                 setStudentsMap(sMap);
+              }
+
+              // Also fetch squads to map group titles
+              const { data: sqData } = await SupaBaseFunction
+                .from("SquadMate")
+                .select("squad_id, squad_title, member1_uuid, member2_uuid, member3_uuid, member4_uuid, member5_uuid, member6_uuid, member7_uuid");
+
+              if (sqData && isMounted) {
+                const sqMap: Record<string, string> = {};
+                sqData.forEach((sq: any) => {
+                  if (sq.squad_id) sqMap[sq.squad_id] = sq.squad_title;
+                  [
+                    sq.member1_uuid,
+                    sq.member2_uuid,
+                    sq.member3_uuid,
+                    sq.member4_uuid,
+                    sq.member5_uuid,
+                    sq.member6_uuid,
+                    sq.member7_uuid,
+                  ]
+                    .filter(Boolean)
+                    .forEach((m) => {
+                      sqMap[(m as string).trim()] = sq.squad_title;
+                    });
+                });
+                setSquadsMap(sqMap);
               }
             }
           }
@@ -134,6 +193,38 @@ export default function WingResults() {
 
     fetchWingResults();
   }, [actWing]);
+
+  // Toggle Registration ON / OFF directly with Supabase sync
+  const toggleRegistration = async (programCode: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    setTogglingReg(prev => ({ ...prev, [programCode]: true }));
+
+    // Optimistic UI update
+    setProgrammes(prev =>
+      prev.map(p =>
+        p.Program_Code === programCode ? { ...p, IsOpenRegistration: newStatus } : p
+      )
+    );
+
+    try {
+      const { error } = await SupaBaseFunction
+        .from("ProgrammesBox")
+        .update({ IsOpenRegistration: newStatus })
+        .eq("Program_Code", programCode);
+
+      if (error) throw error;
+    } catch (err) {
+      console.error("Failed to toggle registration:", err);
+      // Revert optimistic update on failure
+      setProgrammes(prev =>
+        prev.map(p =>
+          p.Program_Code === programCode ? { ...p, IsOpenRegistration: currentStatus } : p
+        )
+      );
+    } finally {
+      setTogglingReg(prev => ({ ...prev, [programCode]: false }));
+    }
+  };
 
   const toggleCandidates = async (code: string) => {
     const newExpanded = new Set(expandedProgrammes);
@@ -156,13 +247,26 @@ export default function WingResults() {
           const codes = regs.map(r => r.Candidate_Code).filter(Boolean);
           const { data: studentList } = await SupaBaseFunction
             .from("StudentsBox")
-            .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+            .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
             .in("AddNo", codes);
 
-          const mapped: Candidate[] = (studentList || []).map((s: any) => ({
-            ...s,
-            Program_Code: code,
-          }));
+          const mapped: Candidate[] = (studentList || []).map((s: any) => {
+            const matchedClass = meta.classes.find(
+              (c: any) =>
+                c.class_id === s.Stn_Class ||
+                c.standard_name === s.Stn_Class ||
+                c.class_nick_name === s.Stn_Class
+            );
+            return {
+              ...s,
+              Class:
+                matchedClass?.class_nick_name ||
+                matchedClass?.standard_name ||
+                s.Stn_Class ||
+                "-",
+              Program_Code: code,
+            };
+          });
 
           setCandidates(prev => ({ ...prev, [code]: mapped }));
         } else {
@@ -176,26 +280,55 @@ export default function WingResults() {
     }
   };
 
+  // Filter programmes
   const filteredProgrammes = useMemo(() => {
     return programmes.filter((p) => {
+      const catName = meta.getCategoryName(p.Category);
+      const grpName = meta.getGroupName(p.Group);
+      const venName = meta.getVenueName(p.Venue);
+
       const matchSearch =
         (p.Program_Title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.Program_Code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.Category || "").toLowerCase().includes(searchQuery.toLowerCase());
+        catName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        grpName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        venName.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchSearch) return false;
+
+      if (selectedCategory !== "All" && catName !== selectedCategory) {
+        return false;
+      }
 
       const isPub = p.IsResultPublished === true || p.IsResulted === true;
       if (resultFilter === "published") return isPub;
       if (resultFilter === "pending") return !isPub;
       return true;
     });
-  }, [programmes, searchQuery, resultFilter]);
+  }, [programmes, searchQuery, selectedCategory, resultFilter, meta]);
+
+  // Extract unique category names for filtering
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    programmes.forEach(p => {
+      const name = meta.getCategoryName(p.Category);
+      if (name) set.add(name);
+    });
+    return ["All", ...Array.from(set)];
+  }, [programmes, meta]);
+
+  const publishedCount = useMemo(() => {
+    return programmes.filter(p => p.IsResultPublished || p.IsResulted).length;
+  }, [programmes]);
+
+  const pendingCount = useMemo(() => {
+    return programmes.filter(p => !p.IsResultPublished && !p.IsResulted).length;
+  }, [programmes]);
 
   if (loading && !wingData) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="h-10 w-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+        <div className="h-10 w-10 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -204,22 +337,23 @@ export default function WingResults() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 font-sans text-slate-800 space-y-6">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* Clean Light Hero Card */}
+        {/* Hero Header Card */}
         <div className="relative bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6 overflow-hidden">
           <div className="relative z-10 space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                Official Results Portal
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                <Trophy size={11} className="text-amber-600" />
+                Official Results & Standing Portal
               </span>
               <span className="text-xs text-slate-500 font-medium">
-                {wingData?.WingCode} • Examination & Standing Records
+                {wingData?.WingCode} • {wingData?.WingTitle}
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {wingData?.WingTitle || "Wing Space"} — Results
+              Published Results & Standings
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-xl">
-              Publish and monitor official performance results, rank standings, and score allocations for your wing's programmes.
+              Monitor concluded events, toggle registration access live, and generate official position allocations.
             </p>
           </div>
 
@@ -229,81 +363,453 @@ export default function WingResults() {
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-amber-200 transition-all cursor-pointer"
             >
               <Trophy size={16} />
-              <span>Publish Result</span>
+              <span>Publish New Result</span>
             </Link>
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search results by programme title or code..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-            />
+        {/* Search & Filter Toolbar */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto flex-1">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search by title, code, category, venue..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+              />
+            </div>
+
+            {/* Category Dropdown Filter */}
+            <div className="w-full sm:w-auto">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-amber-500 cursor-pointer"
+              >
+                {availableCategories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat === "All" ? "All Categories" : cat}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
-              <Filter size={12} /> Status:
-            </span>
-            <button
-              onClick={() => setResultFilter("all")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                resultFilter === "all"
-                  ? "bg-slate-900 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              All ({programmes.length})
-            </button>
-            <button
-              onClick={() => setResultFilter("published")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                resultFilter === "published"
-                  ? "bg-emerald-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Published ({programmes.filter(p => p.IsResultPublished || p.IsResulted).length})
-            </button>
-            <button
-              onClick={() => setResultFilter("pending")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                resultFilter === "pending"
-                  ? "bg-amber-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Pending ({programmes.filter(p => !p.IsResultPublished && !p.IsResulted).length})
-            </button>
+          <div className="flex items-center justify-between sm:justify-end gap-3 w-full lg:w-auto">
+            {/* Status Tabs */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setResultFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  resultFilter === "all"
+                    ? "bg-white text-slate-900 shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                All ({programmes.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setResultFilter("published")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  resultFilter === "published"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Published ({publishedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setResultFilter("pending")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  resultFilter === "pending"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Pending ({pendingCount})
+              </button>
+            </div>
+
+            {/* View Mode Toggle: Cards vs Table */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "cards"
+                    ? "bg-white text-amber-600 shadow-xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                title="Card Grid View"
+              >
+                <LayoutGrid size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-white text-amber-600 shadow-xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                title="Table List View"
+              >
+                <List size={16} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Results / Programmes Table */}
-        <div className="bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden">
-          {filteredProgrammes.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
-                <Trophy size={24} />
-              </div>
-              <h3 className="font-bold text-slate-800 text-base">No Result Records Found</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                No programmes match your current filter. Choose "Publish Result" to announce standings for completed events.
-              </p>
+        {/* Empty State */}
+        {filteredProgrammes.length === 0 && (
+          <div className="bg-white rounded-3xl p-12 text-center space-y-3 border border-slate-200/90 shadow-xs">
+            <div className="w-14 h-14 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto">
+              <Trophy size={28} />
             </div>
-          ) : (
+            <h3 className="font-bold text-slate-800 text-base">No Matching Programmes Found</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              Try adjusting your search criteria or filter options to discover programmes.
+            </p>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VIEW 1: MODERN CARD GRID VIEW (Default as requested)       */}
+        {/* ========================================================= */}
+        {viewMode === "cards" && filteredProgrammes.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProgrammes.map((p) => {
+              const isPub = p.IsResultPublished === true || p.IsResulted === true;
+              const isExp = expandedProgrammes.has(p.Program_Code);
+              const categoryName = meta.getCategoryName(p.Category);
+              const groupName = meta.getGroupName(p.Group);
+              const venueName = meta.getVenueName(p.Venue);
+
+              return (
+                <div
+                  key={p.Program_Code}
+                  className="bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
+                >
+                  {/* Card Content Top */}
+                  <div className="p-5 sm:p-6 space-y-4">
+                    {/* Header: Code + Squad Badge + Result Status */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-lg">
+                          #{p.Program_Code}
+                        </span>
+                        {p.is_group_program && (
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                            Squad
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Result Status Badge */}
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          isPub
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}
+                      >
+                        {isPub ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                        {isPub ? "Published" : "Pending"}
+                      </span>
+                    </div>
+
+                    {/* Programme Title */}
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2">
+                        {p.Program_Title || "Untitled Programme"}
+                      </h3>
+
+                      {/* Category & Group Tags (Guaranteed Value, Never UUID) */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        {categoryName && (
+                          <span className="inline-flex items-center text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md">
+                            {categoryName}
+                          </span>
+                        )}
+                        {groupName && (
+                          <span className="inline-flex items-center text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                            {groupName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Date, Venue & Registrations Matrix */}
+                    <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                          <Calendar size={13} className="text-indigo-500 shrink-0" />
+                          <span>Date:</span>
+                        </span>
+                        <span className="font-semibold text-slate-800">
+                          {p.Date || "TBA"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                          <MapPin size={13} className="text-emerald-500 shrink-0" />
+                          <span>Venue:</span>
+                        </span>
+                        <span className="font-semibold text-slate-800 truncate max-w-44 text-right" title={venueName}>
+                          {venueName}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/50">
+                        <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                          <Users size={13} className="text-blue-500 shrink-0" />
+                          <span>Candidates:</span>
+                        </span>
+                        <span className="font-bold text-slate-900">
+                          {p.Total_Registration || 0} Registered
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Concluded Podium Preview (if Result is already published) */}
+                    {isPub && resultsMap[p.Program_Code] && (
+                      <div className="p-3 rounded-2xl bg-amber-50/50 border border-amber-200/70 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-black text-amber-900 uppercase tracking-wide">
+                          <span className="flex items-center gap-1">
+                            <Trophy size={12} className="text-amber-500" /> Standings Preview
+                          </span>
+                          <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                            Recorded
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-700 font-medium space-y-0.5">
+                          {(() => {
+                            const formatHolder = (val?: string | null) => {
+                              if (!val || val === "No Grade" || val === "none") return null;
+                              const codes = val.split(",").map((c) => c.trim()).filter(Boolean);
+                              if (codes.length === 0) return null;
+                              const groupTitle = codes.map((c) => squadsMap[c]).find(Boolean);
+                              if (groupTitle) {
+                                const names = codes.map((c) => studentsMap[c]?.StudentName || c).join(", ");
+                                return `👥 ${groupTitle} (${names})`;
+                              }
+                              if (codes.length > 1) {
+                                return codes.map((c) => studentsMap[c]?.StudentName || c).join(", ");
+                              }
+                              return studentsMap[codes[0]]?.StudentName || codes[0];
+                            };
+
+                            const firstText = formatHolder(resultsMap[p.Program_Code]?.First_Holder);
+                            const secondText = formatHolder(resultsMap[p.Program_Code]?.Second_Holder);
+
+                            return (
+                              <>
+                                {firstText && (
+                                  <p className="truncate flex items-center gap-1 text-[11px]">
+                                    <span>🥇</span>
+                                    <span className="font-bold truncate">{firstText}</span>
+                                  </p>
+                                )}
+                                {secondText && (
+                                  <p className="truncate flex items-center gap-1 text-[11px] text-slate-600">
+                                    <span>🥈</span>
+                                    <span className="truncate">{secondText}</span>
+                                  </p>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Card Bottom: Action Buttons */}
+                  <div className="px-5 py-4 bg-slate-50/60 border-t border-slate-100 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      {/* BUTTON 1: Registration Toggle (ON / OFF) */}
+                      <button
+                        type="button"
+                        onClick={() => toggleRegistration(p.Program_Code, !!p.IsOpenRegistration)}
+                        disabled={togglingReg[p.Program_Code]}
+                        className={`px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide transition-all cursor-pointer shadow-2xs active:scale-95 inline-flex items-center gap-1.5 ${
+                          p.IsOpenRegistration
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100"
+                            : "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"
+                        }`}
+                        title={p.IsOpenRegistration ? "Click to Turn Registration OFF" : "Click to Turn Registration ON"}
+                      >
+                        {p.IsOpenRegistration ? (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span>Reg: ON</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                            <span>Reg: OFF</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* BUTTON 2: Publish / Edit Result Button ("btn to pulic") */}
+                      <div className="flex items-center gap-1.5">
+                        <Link
+                          to={`/wing-panel/${actWing || wingData?.WingEmail || ""}/create-result?program=${p.Program_Code}`}
+                          className={`px-3 py-1.5 rounded-xl font-bold text-xs inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                            isPub
+                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                              : "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200"
+                          }`}
+                          title={isPub ? "Edit / Re-publish Results" : "Publish Official Results"}
+                        >
+                          <Trophy size={13} />
+                          <span>{isPub ? "Edit Result" : "Publish Result"}</span>
+                        </Link>
+
+                        {/* Details / Candidates Expand Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleCandidates(p.Program_Code)}
+                          className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer"
+                          title={isExp ? "Hide Candidates & Full Details" : "Show Candidates & Full Details"}
+                        >
+                          {isExp ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expandable Details Drawer inside Card */}
+                    {isExp && (
+                      <div className="pt-3 border-t border-slate-200/60 space-y-3">
+                        {/* Position Holders Full Display */}
+                        {resultsMap[p.Program_Code] && (
+                          <div className="p-3 bg-white rounded-xl border border-amber-200 shadow-2xs space-y-2">
+                            <h4 className="text-[10px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                              <Award size={12} className="text-amber-500" />
+                              Official Award Winners
+                            </h4>
+
+                            <div className="space-y-1.5">
+                              {resultsMap[p.Program_Code].First_Holder && (
+                                <div className="flex items-center gap-2 p-1.5 rounded-lg bg-amber-50 border border-amber-200/80">
+                                  <span className="text-sm">🥇</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-slate-900 truncate">
+                                      {studentsMap[resultsMap[p.Program_Code].First_Holder]?.StudentName || resultsMap[p.Program_Code].First_Holder}
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {resultsMap[p.Program_Code].First_Holder}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {resultsMap[p.Program_Code].Second_Holder && (
+                                <div className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                                  <span className="text-sm">🥈</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-slate-900 truncate">
+                                      {studentsMap[resultsMap[p.Program_Code].Second_Holder]?.StudentName || resultsMap[p.Program_Code].Second_Holder}
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {resultsMap[p.Program_Code].Second_Holder}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {resultsMap[p.Program_Code].Third_Holder && (
+                                <div className="flex items-center gap-2 p-1.5 rounded-lg bg-orange-50/60 border border-orange-200">
+                                  <span className="text-sm">🥉</span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-bold text-slate-900 truncate">
+                                      {studentsMap[resultsMap[p.Program_Code].Third_Holder]?.StudentName || resultsMap[p.Program_Code].Third_Holder}
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {resultsMap[p.Program_Code].Third_Holder}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Registered Candidates List */}
+                        <div className="space-y-2">
+                          <h4 className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1">
+                            <Users size={12} className="text-blue-500" />
+                            Registered Candidates ({candidates[p.Program_Code]?.length || p.Total_Registration || 0})
+                          </h4>
+
+                          {loadingCands[p.Program_Code] ? (
+                            <div className="text-center py-2 text-[11px] text-slate-400 italic">
+                              Loading candidates...
+                            </div>
+                          ) : candidates[p.Program_Code] && candidates[p.Program_Code].length > 0 ? (
+                            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                              {candidates[p.Program_Code].map((c) => (
+                                <div
+                                  key={c.AddNo}
+                                  className="p-2 bg-white rounded-xl border border-slate-200 shadow-2xs flex items-center gap-2 text-xs"
+                                >
+                                  <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-50">
+                                    <SafeImage
+                                      src={c.Student_Photo_Urls}
+                                      alt={c.StudentName}
+                                      fallbackCategory="student"
+                                      fallbackText={c.StudentName}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-bold text-slate-900 text-[11px] truncate">
+                                      {c.StudentName}
+                                    </p>
+                                    <p className="text-[9px] text-slate-400 font-mono truncate">
+                                      {c.AddNo} • {meta.getClassName(c.Class)}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-2 text-[11px] text-slate-400">
+                              No candidates enrolled yet.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VIEW 2: TABLE LIST VIEW (Alternate view with full powers)   */}
+        {/* ========================================================= */}
+        {viewMode === "table" && filteredProgrammes.length > 0 && (
+          <div className="bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    <th className="px-6 py-4">Programme</th>
+                    <th className="px-6 py-4">Programme Details</th>
+                    <th className="px-4 py-4">Category & Group</th>
                     <th className="px-4 py-4">Date & Venue</th>
                     <th className="px-4 py-4 text-center">Registrations</th>
+                    <th className="px-4 py-4 text-center">Registration Control</th>
                     <th className="px-4 py-4 text-center">Result Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
@@ -312,6 +818,9 @@ export default function WingResults() {
                   {filteredProgrammes.map((p) => {
                     const isPub = p.IsResultPublished || p.IsResulted;
                     const isExp = expandedProgrammes.has(p.Program_Code);
+                    const categoryName = meta.getCategoryName(p.Category);
+                    const groupName = meta.getGroupName(p.Group);
+                    const venueName = meta.getVenueName(p.Venue);
 
                     return (
                       <React.Fragment key={p.Program_Code}>
@@ -319,7 +828,7 @@ export default function WingResults() {
                           <td className="px-6 py-4">
                             <div>
                               <div className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                                {p.Program_Title || "Untitled Programme"}
+                                <span>{p.Program_Title || "Untitled Programme"}</span>
                                 {p.is_group_program && (
                                   <span className="text-[10px] font-extrabold uppercase bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md border border-purple-200">
                                     Squad
@@ -327,20 +836,40 @@ export default function WingResults() {
                                 )}
                               </div>
                               <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                                {p.Program_Code} {p.Category ? `• ${p.Category}` : ""}
+                                #{p.Program_Code}
                               </div>
                             </div>
                           </td>
 
+                          {/* Category & Group (Human readable, never UUID) */}
                           <td className="px-4 py-4">
-                            <div className="font-semibold text-slate-800">
-                              {p.Date || "Date TBD"}
-                            </div>
-                            <div className="text-[11px] text-slate-500 truncate">
-                              {p.Venue || "Venue not provided"}
+                            <div className="space-y-1">
+                              {categoryName && (
+                                <span className="inline-block text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                                  {categoryName}
+                                </span>
+                              )}
+                              {groupName && (
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                  {groupName}
+                                </p>
+                              )}
                             </div>
                           </td>
 
+                          {/* Date & Venue (Human readable, never UUID) */}
+                          <td className="px-4 py-4">
+                            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                              <Calendar size={13} className="text-indigo-500 shrink-0" />
+                              <span>{p.Date || "Date TBD"}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                              <MapPin size={12} className="text-emerald-500 shrink-0" />
+                              <span className="truncate max-w-40">{venueName}</span>
+                            </div>
+                          </td>
+
+                          {/* Total Registrations */}
                           <td className="px-4 py-4 text-center">
                             <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg">
                               <Users size={12} className="text-blue-600" />
@@ -348,6 +877,34 @@ export default function WingResults() {
                             </span>
                           </td>
 
+                          {/* Registration Control (ON / OFF Toggle) */}
+                          <td className="px-4 py-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggleRegistration(p.Program_Code, !!p.IsOpenRegistration)}
+                              disabled={togglingReg[p.Program_Code]}
+                              className={`px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide transition-all cursor-pointer shadow-2xs active:scale-95 inline-flex items-center gap-1.5 ${
+                                p.IsOpenRegistration
+                                  ? "bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100"
+                                  : "bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200"
+                              }`}
+                              title={p.IsOpenRegistration ? "Click to Turn Registration OFF" : "Click to Turn Registration ON"}
+                            >
+                              {p.IsOpenRegistration ? (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  <span>Reg: ON</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                                  <span>Reg: OFF</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
+
+                          {/* Result Status */}
                           <td className="px-4 py-4 text-center">
                             <span
                               className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -361,21 +918,23 @@ export default function WingResults() {
                             </span>
                           </td>
 
+                          {/* Actions: Publish button & Toggle */}
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              {!isPub ? (
-                                <Link
-                                  to={`/wing-panel/${actWing || wingData?.WingEmail || ""}/create-result`}
-                                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition-all"
-                                >
-                                  Publish Result
-                                </Link>
-                              ) : (
-                                <span className="text-xs font-semibold text-emerald-600 px-2 py-1 bg-emerald-50 rounded-lg">
-                                  ✓ Concluded
-                                </span>
-                              )}
+                              <Link
+                                to={`/wing-panel/${actWing || wingData?.WingEmail || ""}/create-result?program=${p.Program_Code}`}
+                                className={`px-3 py-1.5 rounded-xl font-bold text-xs inline-flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
+                                  isPub
+                                    ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    : "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200"
+                                }`}
+                              >
+                                <Trophy size={13} />
+                                <span>{isPub ? "Edit Result" : "Publish Result"}</span>
+                              </Link>
+
                               <button
+                                type="button"
                                 onClick={() => toggleCandidates(p.Program_Code)}
                                 className="p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all cursor-pointer"
                                 title="Toggle Candidates"
@@ -386,9 +945,10 @@ export default function WingResults() {
                           </td>
                         </tr>
 
+                        {/* Expanded details row */}
                         {isExp && (
                           <tr>
-                            <td colSpan={5} className="bg-slate-50/70 p-5 border-y border-slate-100 space-y-4">
+                            <td colSpan={7} className="bg-slate-50/70 p-5 border-y border-slate-100 space-y-4">
                               {/* Official Results Showcase with Position Holder Photos */}
                               {resultsMap[p.Program_Code] && (
                                 <div className="p-4 bg-white rounded-2xl border border-amber-200/80 shadow-xs space-y-3">
@@ -484,42 +1044,6 @@ export default function WingResults() {
                                       </div>
                                     )}
                                   </div>
-
-                                  {/* Special Grades */}
-                                  {(resultsMap[p.Program_Code].AGrade && resultsMap[p.Program_Code].AGrade !== "No Grade") || resultsMap[p.Program_Code].BGrade ? (
-                                    <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
-                                      {resultsMap[p.Program_Code].AGrade && resultsMap[p.Program_Code].AGrade !== "No Grade" && (
-                                        <div className="flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
-                                          <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 border border-emerald-300">
-                                            <SafeImage
-                                              src={studentsMap[resultsMap[p.Program_Code].AGrade]?.Student_Photo_Urls}
-                                              alt="Grade A"
-                                              fallbackCategory="student"
-                                              fallbackText={resultsMap[p.Program_Code].AGrade}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          </div>
-                                          <span className="font-bold">Grade A:</span>
-                                          <span className="font-medium truncate">{studentsMap[resultsMap[p.Program_Code].AGrade]?.StudentName || resultsMap[p.Program_Code].AGrade}</span>
-                                        </div>
-                                      )}
-                                      {resultsMap[p.Program_Code].BGrade && (
-                                        <div className="flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-900">
-                                          <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 border border-blue-300">
-                                            <SafeImage
-                                              src={studentsMap[resultsMap[p.Program_Code].BGrade]?.Student_Photo_Urls}
-                                              alt="Grade B"
-                                              fallbackCategory="student"
-                                              fallbackText={resultsMap[p.Program_Code].BGrade}
-                                              className="w-full h-full object-cover"
-                                            />
-                                          </div>
-                                          <span className="font-bold">Grade B:</span>
-                                          <span className="font-medium truncate">{studentsMap[resultsMap[p.Program_Code].BGrade]?.StudentName || resultsMap[p.Program_Code].BGrade}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : null}
                                 </div>
                               )}
 
@@ -554,7 +1078,7 @@ export default function WingResults() {
                                             {c.StudentName}
                                           </p>
                                           <p className="text-[10px] text-slate-500 font-mono truncate">
-                                            {c.AddNo} • {c.Class}
+                                            {c.AddNo} • {meta.getClassName(c.Class)}
                                           </p>
                                         </div>
                                       </div>
@@ -575,8 +1099,8 @@ export default function WingResults() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
       </div>
     </div>

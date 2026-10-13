@@ -38,6 +38,12 @@ export interface ProgrammeMetaState {
   batchMap: Record<string, string>;
   wingMap: Record<string, string>;
 
+  // Safe resolver helpers (guarantee no raw UUIDs shown)
+  getCategoryName: (idOrVal?: string | null, fallback?: string) => string;
+  getGroupName: (idOrVal?: string | null, fallback?: string) => string;
+  getVenueName: (idOrVal?: string | null, fallback?: string) => string;
+  getClassName: (idOrVal?: string | null, fallback?: string) => string;
+
   // Defaults
   activeAcademicYearId: string;
   defaultTemplateId: string;
@@ -65,6 +71,56 @@ export interface ProgrammeMetaState {
   ) => Promise<PointsTemplateRecord | null>;
   refetch: () => Promise<void>;
 }
+
+// Standalone UUID safety and value resolution utilities
+export const isUuid = (val: string | null | undefined): boolean => {
+  if (!val) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+};
+
+export const resolveCategoryName = (
+  val: string | null | undefined,
+  categoryMap: Record<string, string>,
+  fallback = "General"
+): string => {
+  if (!val) return fallback;
+  if (categoryMap[val]) return categoryMap[val];
+  if (isUuid(val)) return fallback;
+  return val;
+};
+
+export const resolveGroupName = (
+  val: string | null | undefined,
+  groupMap: Record<string, string>,
+  fallback = ""
+): string => {
+  if (!val) return fallback;
+  if (groupMap[val]) return groupMap[val];
+  if (isUuid(val)) return fallback;
+  return val;
+};
+
+export const resolveVenueName = (
+  val: string | null | undefined,
+  venueMap: Record<string, string>,
+  fallback = "Campus Venue"
+): string => {
+  if (!val) return fallback;
+  if (venueMap[val]) return venueMap[val];
+  if (isUuid(val)) return fallback;
+  return val;
+};
+
+export const resolveClassName = (
+  val: string | null | undefined,
+  classMap: Record<string, string>,
+  fallback = "Class"
+): string => {
+  if (!val) return fallback;
+  if (classMap[val]) return classMap[val];
+  if (isUuid(val)) return fallback;
+  return val;
+};
 
 // In-memory cache to make lookups instantaneous across components
 let inMemoryMetaCache: {
@@ -475,6 +531,30 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     return null;
   };
 
+  const getCategoryName = useCallback(
+    (idOrVal?: string | null, fallback = "General") =>
+      resolveCategoryName(idOrVal, categoryMap, fallback),
+    [categoryMap]
+  );
+
+  const getGroupName = useCallback(
+    (idOrVal?: string | null, fallback = "") =>
+      resolveGroupName(idOrVal, groupMap, fallback),
+    [groupMap]
+  );
+
+  const getVenueName = useCallback(
+    (idOrVal?: string | null, fallback = "Campus Venue") =>
+      resolveVenueName(idOrVal, venueMap, fallback),
+    [venueMap]
+  );
+
+  const getClassName = useCallback(
+    (idOrVal?: string | null, fallback = "Class") =>
+      resolveClassName(idOrVal, classMap, fallback),
+    [classMap]
+  );
+
   return {
     categories,
     venues,
@@ -495,6 +575,10 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     classStandardNameMap,
     batchMap,
     wingMap,
+    getCategoryName,
+    getGroupName,
+    getVenueName,
+    getClassName,
     activeAcademicYearId,
     defaultTemplateId,
     addCategory,

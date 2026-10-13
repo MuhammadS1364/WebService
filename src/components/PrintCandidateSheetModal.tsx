@@ -831,7 +831,10 @@ export default function PrintCandidateSheetModal({
               <div className="border-b-2 border-slate-900 pb-3 mb-3">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="text-[11px] uppercase tracking-widest font-black text-slate-600">
+                    <div className="text-base font-black text-slate-900 tracking-wider uppercase">
+                      Anjuman e Huda (chs)
+                    </div>
+                    <div className="text-[10px] uppercase tracking-widest font-bold text-slate-600">
                       OFFICIAL EVENT DOCUMENTATION • REGISTERED CANDIDATE SHEET
                     </div>
                     <h1 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight leading-tight mt-0.5">

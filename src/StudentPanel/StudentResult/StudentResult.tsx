@@ -75,10 +75,16 @@ export default function StudentResult() {
         }
 
         const formatted: StudentResultEntry[] = [];
+        const matchesHolder = (holderStr?: string | null) => {
+          if (!holderStr) return false;
+          if (holderStr === addNo) return true;
+          return holderStr.split(",").map((s) => s.trim()).includes(addNo);
+        };
+
         rawResults.forEach((r) => {
           const pInfo = progMap[r.Program_Id] || { title: r.Program_Id, wing: "", date: null };
 
-          if (r.First_Holder === addNo) {
+          if (matchesHolder(r.First_Holder)) {
             formatted.push({
               Result_id: r.Result_id + "-1",
               Program_Id: r.Program_Id,
@@ -89,7 +95,7 @@ export default function StudentResult() {
               pointsAwarded: 10,
             });
           }
-          if (r.Second_Holder === addNo) {
+          if (matchesHolder(r.Second_Holder)) {
             formatted.push({
               Result_id: r.Result_id + "-2",
               Program_Id: r.Program_Id,
@@ -100,7 +106,7 @@ export default function StudentResult() {
               pointsAwarded: 7,
             });
           }
-          if (r.Third_Holder === addNo) {
+          if (matchesHolder(r.Third_Holder)) {
             formatted.push({
               Result_id: r.Result_id + "-3",
               Program_Id: r.Program_Id,
@@ -111,7 +117,7 @@ export default function StudentResult() {
               pointsAwarded: 5,
             });
           }
-          if (r.AGrade === addNo) {
+          if (matchesHolder(r.AGrade)) {
             formatted.push({
               Result_id: r.Result_id + "-A",
               Program_Id: r.Program_Id,
@@ -122,7 +128,7 @@ export default function StudentResult() {
               pointsAwarded: 5,
             });
           }
-          if (r.BGrade === addNo) {
+          if (matchesHolder(r.BGrade)) {
             formatted.push({
               Result_id: r.Result_id + "-B",
               Program_Id: r.Program_Id,

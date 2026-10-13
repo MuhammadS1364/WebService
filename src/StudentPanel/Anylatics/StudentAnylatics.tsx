@@ -556,7 +556,7 @@ export default function StudentAnalytics() {
                     </div>
                     <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
                       <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full shadow-xs">
-                        {prog.Group || "General"}
+                        {meta.getGroupName(prog.Group) || "General"}
                       </span>
                     </div>
                     <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
@@ -576,7 +576,7 @@ export default function StudentAnalytics() {
                         )}
                         {prog.Category && (
                           <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-md border border-purple-200">
-                            {meta.categoryMap[prog.Category] || prog.Category}
+                            {meta.getCategoryName(prog.Category)}
                           </span>
                         )}
                       </div>
@@ -730,7 +730,7 @@ export default function StudentAnalytics() {
                       {/* Group & Wing */}
                       <td className="py-3.5 px-3">
                         <span className="font-semibold text-slate-800 block">
-                          {prog.Group || "General"}
+                          {meta.getGroupName(prog.Group) || "General"}
                         </span>
                         <span className="text-[11px] text-slate-400 block">
                           {prog.WingCode ? meta.wingMap[prog.WingCode] || prog.WingCode : "General"}
@@ -743,14 +743,14 @@ export default function StudentAnalytics() {
                           {prog.Date || "TBA"}
                         </span>
                         <span className="text-[11px] text-slate-400 block">
-                          {prog.Venue ? meta.venueMap[prog.Venue] || prog.Venue : "Campus Venue"}
+                          {meta.getVenueName(prog.Venue)}
                         </span>
                       </td>
 
                       {/* Category */}
                       <td className="py-3.5 px-3">
                         <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">
-                          {prog.Category ? meta.categoryMap[prog.Category] || prog.Category : "Standard"}
+                          {meta.getCategoryName(prog.Category)}
                         </span>
                       </td>
 

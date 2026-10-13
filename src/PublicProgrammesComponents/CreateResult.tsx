@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../src/lib/SupaBase";
 import { useProgrammeMeta } from "../../src/lib/programmeMeta";
 import SafeImage from "../lib/SafeImage";
@@ -20,14 +20,30 @@ interface RegisteredCandidate {
   addNo: string;
   name: string;
   photoUrl?: string | null;
+  className?: string | null;
+}
+
+export interface TeammateInfo {
+  addNo: string;
+  name: string;
+  photoUrl?: string | null;
+  className?: string | null;
+}
+
+export interface RegisteredSquad {
+  squad_id: string;
+  squad_title: string; // Group Name
+  members: TeammateInfo[];
+  isRegisteredForProgram: boolean;
 }
 
 type GradeSelection = "none" | "A" | "B";
 
 interface HolderEntry {
-  addNo: string;
-  name: string;
+  addNo: string; // AddNo if individual, or squad_id if group
+  name: string; // Student name if individual, or Group Name if group
   grade: GradeSelection;
+  squadMembers?: TeammateInfo[];
 }
 
 interface HoldersState {
@@ -88,8 +104,9 @@ export default function CreateResult() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [activeTemplate, setActiveTemplate] = useState<PointsTemplateRecord>(DEFAULT_POINTS_FALLBACK);
 
-  // Registered candidates
+  // Registered candidates & squads
   const [registeredCandidates, setRegisteredCandidates] = useState<RegisteredCandidate[]>([]);
+  const [registeredSquads, setRegisteredSquads] = useState<RegisteredSquad[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState<boolean>(false);
   const [isPrintSheetOpen, setIsPrintSheetOpen] = useState<boolean>(false);
 
@@ -143,14 +160,16 @@ export default function CreateResult() {
     fetchTemplates();
   }, []);
 
-  // 3. Fetch unresulted programmes
+  const [searchParams] = useSearchParams();
+  const urlProgramCode = searchParams.get("program") || searchParams.get("code");
+
+  // 3. Fetch unresulted programmes (and include urlProgramCode if requested)
   useEffect(() => {
     async function fetchProgrammes() {
       try {
         let query = SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Date, Venue, WingCode, is_group_program, points_template, AccademicYear")
-          .eq("IsResulted", false)
+          .select("Program_Code, Program_Title, Date, Venue, WingCode, is_group_program, points_template, AccademicYear, IsResulted")
           .order("Date", { ascending: false });
 
         if (wingCode) {
@@ -159,25 +178,36 @@ export default function CreateResult() {
 
         const { data, error } = await query;
         if (!error && data) {
-          setProgrammes(data as ProgrammeDetails[]);
+          // If a specific programme code was passed in the URL, make sure it is available
+          let progs = data as ProgrammeDetails[];
+          setProgrammes(progs);
+
+          if (urlProgramCode && progs.some((p) => p.Program_Code === urlProgramCode)) {
+            setSelectedProgram(urlProgramCode);
+          } else if (progs.length > 0 && !selectedProgram) {
+            // keep existing or leave empty
+          }
         }
       } catch (err) {
         console.error("Error fetching programmes:", err);
       }
     }
     fetchProgrammes();
-  }, [wingCode]);
+  }, [wingCode, urlProgramCode]);
 
-  // 4. When a programme is chosen: load template and load registered candidates
+  // 4. When a programme is chosen: load template and load registered candidates / squads
   useEffect(() => {
     async function onProgramChange() {
       if (!selectedProgram) {
         setRegisteredCandidates([]);
+        setRegisteredSquads([]);
         setHolders(INITIAL_HOLDERS);
         return;
       }
 
       const prog = programmes.find((p) => p.Program_Code === selectedProgram);
+      const isGroup = Boolean(prog?.is_group_program);
+
       if (prog?.points_template) {
         setSelectedTemplateId(prog.points_template);
         const match = allTemplates.find((t) => t.p_template_id === prog.points_template);
@@ -193,54 +223,211 @@ export default function CreateResult() {
 
       setLoadingCandidates(true);
       setStatusMsg({ type: "", text: "" });
+      setHolders(INITIAL_HOLDERS);
 
       try {
-        // Query candidate registrations
-        const { data: regRows, error: regError } = await SupaBaseFunction
-          .from("CandidateRegistrationTable")
-          .select("Candidate_Code")
-          .eq("Program_Code", selectedProgram);
+        if (isGroup) {
+          // GROUP PROGRAMME: Fetch CandidateRegistrationTable with squad_uuids
+          const { data: regRows, error: regError } = await SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .select("Candidate_Code, squad_uuid")
+            .eq("Program_Code", selectedProgram);
 
-        if (regError) throw regError;
+          if (regError) throw regError;
 
-        const candidateCodes = Array.from(
-          new Set(
-            (regRows || [])
-              .map((r) => r.Candidate_Code)
-              .filter((c): c is string => Boolean(c && c.trim()))
-          )
-        );
+          const squadIds = Array.from(
+            new Set(
+              (regRows || [])
+                .map((r) => r.squad_uuid)
+                .filter((id): id is string => Boolean(id && id.trim()))
+            )
+          );
 
-        if (candidateCodes.length === 0) {
-          setRegisteredCandidates([]);
-          return;
-        }
+          const directCandidateCodes = Array.from(
+            new Set(
+              (regRows || [])
+                .map((r) => r.Candidate_Code)
+                .filter((c): c is string => Boolean(c && c.trim()))
+            )
+          );
 
-        // Query StudentsBox
-        const { data: studentRows, error: stnError } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("AddNo, StudentName, Student_Photo_Urls")
-          .in("AddNo", candidateCodes);
-
-        if (stnError) throw stnError;
-
-        const mapped: RegisteredCandidate[] = (studentRows || []).map((s) => ({
-          addNo: s.AddNo,
-          name: s.StudentName || "Unnamed Student",
-          photoUrl: s.Student_Photo_Urls || null,
-        }));
-
-        const foundAddNos = new Set(mapped.map((m) => m.addNo));
-        candidateCodes.forEach((code) => {
-          if (!foundAddNos.has(code)) {
-            mapped.push({ addNo: code, name: `Candidate (${code})` });
+          // Fetch Squads referenced, and also fetch all active squads so user can declare any competing group
+          let fetchedSquads: any[] = [];
+          if (squadIds.length > 0) {
+            const { data: sqData } = await SupaBaseFunction
+              .from("SquadMate")
+              .select("*")
+              .in("squad_id", squadIds);
+            if (sqData) fetchedSquads = [...sqData];
           }
-        });
 
-        mapped.sort((a, b) => a.name.localeCompare(b.name));
-        setRegisteredCandidates(mapped);
+          const { data: allActiveSquads } = await SupaBaseFunction
+            .from("SquadMate")
+            .select("*")
+            .eq("is_active", true)
+            .order("squad_title", { ascending: true });
+
+          if (allActiveSquads) {
+            const existingIds = new Set(fetchedSquads.map((s) => s.squad_id));
+            allActiveSquads.forEach((sq) => {
+              if (!existingIds.has(sq.squad_id)) {
+                fetchedSquads.push(sq);
+              }
+            });
+          }
+
+          // Collect all teammate member AddNos across squads and direct registrations
+          const allMemberAddNos = new Set<string>();
+          fetchedSquads.forEach((sq) => {
+            [
+              sq.member1_uuid,
+              sq.member2_uuid,
+              sq.member3_uuid,
+              sq.member4_uuid,
+              sq.member5_uuid,
+              sq.member6_uuid,
+              sq.member7_uuid,
+            ]
+              .filter((m): m is string => Boolean(m && m.trim()))
+              .forEach((m) => allMemberAddNos.add(m.trim()));
+          });
+          directCandidateCodes.forEach((c) => allMemberAddNos.add(c));
+
+          // Fetch student details from StudentsBox
+          const studentMap: Record<
+            string,
+            { name: string; photoUrl: string | null; className: string | null }
+          > = {};
+
+          if (allMemberAddNos.size > 0) {
+            const { data: studentRows, error: stnError } = await SupaBaseFunction
+              .from("StudentsBox")
+              .select("AddNo, StudentName, Stn_Class, Student_Photo_Urls")
+              .in("AddNo", Array.from(allMemberAddNos));
+
+            if (stnError) throw stnError;
+
+            (studentRows || []).forEach((s: any) => {
+              const matchedClass = meta.classes.find(
+                (c: any) =>
+                  c.class_id === s.Stn_Class ||
+                  c.standard_name === s.Stn_Class ||
+                  c.class_nick_name === s.Stn_Class
+              );
+              studentMap[s.AddNo] = {
+                name: s.StudentName || s.AddNo,
+                photoUrl: s.Student_Photo_Urls || null,
+                className:
+                  matchedClass?.class_nick_name ||
+                  matchedClass?.standard_name ||
+                  s.Stn_Class ||
+                  null,
+              };
+            });
+          }
+
+          // Build mapped registered squad objects
+          const squadsMapped: RegisteredSquad[] = fetchedSquads.map((sq) => {
+            const memberCodes = [
+              sq.member1_uuid,
+              sq.member2_uuid,
+              sq.member3_uuid,
+              sq.member4_uuid,
+              sq.member5_uuid,
+              sq.member6_uuid,
+              sq.member7_uuid,
+            ].filter((m): m is string => Boolean(m && m.trim()));
+
+            const members: TeammateInfo[] = memberCodes.map((mCode) => {
+              const info = studentMap[mCode];
+              return {
+                addNo: mCode,
+                name: info ? info.name : `Teammate (${mCode})`,
+                photoUrl: info?.photoUrl || null,
+                className: info?.className || null,
+              };
+            });
+
+            return {
+              squad_id: sq.squad_id,
+              squad_title: sq.squad_title || "Unnamed Group",
+              members,
+              isRegisteredForProgram: squadIds.includes(sq.squad_id),
+            };
+          });
+
+          // Sort squads: registered first, then alphabetically by title
+          squadsMapped.sort((a, b) => {
+            if (a.isRegisteredForProgram && !b.isRegisteredForProgram) return -1;
+            if (!a.isRegisteredForProgram && b.isRegisteredForProgram) return 1;
+            return a.squad_title.localeCompare(b.squad_title);
+          });
+
+          setRegisteredSquads(squadsMapped);
+          setRegisteredCandidates([]);
+        } else {
+          // INDIVIDUAL PROGRAMME: Fetch individual candidate registrations
+          const { data: regRows, error: regError } = await SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .select("Candidate_Code")
+            .eq("Program_Code", selectedProgram);
+
+          if (regError) throw regError;
+
+          const candidateCodes = Array.from(
+            new Set(
+              (regRows || [])
+                .map((r) => r.Candidate_Code)
+                .filter((c): c is string => Boolean(c && c.trim()))
+            )
+          );
+
+          if (candidateCodes.length === 0) {
+            setRegisteredCandidates([]);
+            setRegisteredSquads([]);
+            return;
+          }
+
+          // Query StudentsBox
+          const { data: studentRows, error: stnError } = await SupaBaseFunction
+            .from("StudentsBox")
+            .select("AddNo, StudentName, Stn_Class, Student_Photo_Urls")
+            .in("AddNo", candidateCodes);
+
+          if (stnError) throw stnError;
+
+          const mapped: RegisteredCandidate[] = (studentRows || []).map((s: any) => {
+            const matchedClass = meta.classes.find(
+              (c: any) =>
+                c.class_id === s.Stn_Class ||
+                c.standard_name === s.Stn_Class ||
+                c.class_nick_name === s.Stn_Class
+            );
+            return {
+              addNo: s.AddNo,
+              name: s.StudentName || "Unnamed Student",
+              photoUrl: s.Student_Photo_Urls || null,
+              className:
+                matchedClass?.class_nick_name ||
+                matchedClass?.standard_name ||
+                s.Stn_Class ||
+                null,
+            };
+          });
+
+          const foundAddNos = new Set(mapped.map((m) => m.addNo));
+          candidateCodes.forEach((code) => {
+            if (!foundAddNos.has(code)) {
+              mapped.push({ addNo: code, name: `Candidate (${code})` });
+            }
+          });
+
+          mapped.sort((a, b) => a.name.localeCompare(b.name));
+          setRegisteredCandidates(mapped);
+          setRegisteredSquads([]);
+        }
       } catch (err: any) {
-        console.error("Error loading candidates:", err);
+        console.error("Error loading candidates/squads:", err);
         setStatusMsg({ type: "error", text: "Could not load candidate registrations: " + err.message });
       } finally {
         setLoadingCandidates(false);
@@ -286,46 +473,67 @@ export default function CreateResult() {
     return 0;
   };
 
-  // Track assigned positions to avoid duplicate candidate assignments
+  const selectedProgDetails = programmes.find((p) => p.Program_Code === selectedProgram);
+  const isGroupProgram = Boolean(selectedProgDetails?.is_group_program);
+
+  // Track assigned positions to avoid duplicate candidate/group assignments
   const assignedPositions = useMemo(() => {
     const map: Record<string, keyof HoldersState> = {};
     (Object.keys(holders) as (keyof HoldersState)[]).forEach((pos) => {
-      const addNo = holders[pos].addNo;
-      if (addNo) {
-        map[addNo] = pos;
+      const selectedId = holders[pos].addNo;
+      if (selectedId) {
+        map[selectedId] = pos;
       }
     });
     return map;
   }, [holders]);
 
-  // Position candidate select handler
-  const handleCandidateSelect = (posKey: keyof HoldersState, selectedAddNo: string) => {
+  // Position selection handler (Candidate if individual, Group/Squad if grouped programme)
+  const handleCandidateSelect = (posKey: keyof HoldersState, selectedId: string) => {
     setStatusMsg({ type: "", text: "" });
 
-    if (!selectedAddNo) {
+    if (!selectedId) {
       setHolders((prev) => ({
         ...prev,
-        [posKey]: { ...prev[posKey], addNo: "", name: "" },
+        [posKey]: { ...prev[posKey], addNo: "", name: "", squadMembers: undefined },
       }));
       return;
     }
 
-    const currentOwner = assignedPositions[selectedAddNo];
+    const currentOwner = assignedPositions[selectedId];
     if (currentOwner && currentOwner !== posKey) {
       setStatusMsg({
         type: "error",
-        text: `⚠️ Conflict: Candidate ${selectedAddNo} is already assigned to another position in this result!`,
+        text: `⚠️ Conflict: ${isGroupProgram ? "Group" : "Candidate"} is already assigned to another position in this result!`,
       });
       return;
     }
 
-    const candidate = registeredCandidates.find((c) => c.addNo === selectedAddNo);
-    const candidateName = candidate ? candidate.name : selectedAddNo;
-
-    setHolders((prev) => ({
-      ...prev,
-      [posKey]: { ...prev[posKey], addNo: selectedAddNo, name: candidateName },
-    }));
+    if (isGroupProgram) {
+      const squad = registeredSquads.find((s) => s.squad_id === selectedId);
+      const groupName = squad ? squad.squad_title : selectedId;
+      setHolders((prev) => ({
+        ...prev,
+        [posKey]: {
+          ...prev[posKey],
+          addNo: selectedId,
+          name: groupName,
+          squadMembers: squad?.members || [],
+        },
+      }));
+    } else {
+      const candidate = registeredCandidates.find((c) => c.addNo === selectedId);
+      const candidateName = candidate ? candidate.name : selectedId;
+      setHolders((prev) => ({
+        ...prev,
+        [posKey]: {
+          ...prev[posKey],
+          addNo: selectedId,
+          name: candidateName,
+          squadMembers: undefined,
+        },
+      }));
+    }
   };
 
   // Grade selection handler
@@ -336,13 +544,16 @@ export default function CreateResult() {
     }));
   };
 
-  // Computed point allocations summary
+  // Computed point allocations summary:
+  // If individual: each candidate gets position points
+  // If grouped: group is resulted, group name listed down, and EQUAL position points assigned to each teammate!
   const allocationsSummary = useMemo(() => {
     const list: {
       positionKey: keyof HoldersState;
       label: string;
       addNo: string;
       name: string;
+      groupName?: string;
       gradeLabel: string;
       points: number;
     }[] = [];
@@ -370,19 +581,50 @@ export default function CreateResult() {
             ? "B Grade"
             : "Position Only (No Grade)";
 
-        list.push({
-          positionKey: key,
-          label,
-          addNo: h.addNo,
-          name: h.name,
-          gradeLabel: gradeText,
-          points: pts,
-        });
+        if (isGroupProgram) {
+          const sq = registeredSquads.find((s) => s.squad_id === h.addNo);
+          const squadTitle = sq ? sq.squad_title : h.name;
+          const members = sq?.members || h.squadMembers || [];
+
+          if (members.length > 0) {
+            // Assign EQUAL position point to each teammate!
+            members.forEach((m) => {
+              list.push({
+                positionKey: key,
+                label: `${label} (Group: ${squadTitle})`,
+                addNo: m.addNo,
+                name: m.name,
+                groupName: squadTitle,
+                gradeLabel: gradeText,
+                points: pts, // Equal position point!
+              });
+            });
+          } else {
+            list.push({
+              positionKey: key,
+              label: `${label} (Group: ${squadTitle})`,
+              addNo: h.addNo,
+              name: squadTitle,
+              groupName: squadTitle,
+              gradeLabel: gradeText,
+              points: pts,
+            });
+          }
+        } else {
+          list.push({
+            positionKey: key,
+            label,
+            addNo: h.addNo,
+            name: h.name,
+            gradeLabel: gradeText,
+            points: pts,
+          });
+        }
       }
     });
 
     return list;
-  }, [holders, activeTemplate]);
+  }, [holders, activeTemplate, isGroupProgram, registeredSquads]);
 
   const totalPointsAwarded = allocationsSummary.reduce((sum, a) => sum + a.points, 0);
 
@@ -395,42 +637,70 @@ export default function CreateResult() {
     }
 
     if (allocationsSummary.length === 0) {
-      setStatusMsg({ type: "error", text: "Please assign at least one candidate position before publishing." });
+      setStatusMsg({
+        type: "error",
+        text: `Please assign at least one ${isGroupProgram ? "group" : "candidate"} position before publishing.`,
+      });
       return;
     }
 
-    // Verify uniqueness
-    const uniqueAddNos = new Set(allocationsSummary.map((a) => a.addNo));
-    if (uniqueAddNos.size !== allocationsSummary.length) {
-      setStatusMsg({
-        type: "error",
-        text: "Duplicate candidate detected across positions. Each candidate can hold at most ONE position.",
-      });
-      return;
+    if (isGroupProgram) {
+      const assignedGroupIds = (["first", "second", "third", "aGrade", "bGrade"] as (keyof HoldersState)[])
+        .map((k) => holders[k].addNo)
+        .filter(Boolean);
+      if (new Set(assignedGroupIds).size !== assignedGroupIds.length) {
+        setStatusMsg({
+          type: "error",
+          text: "Duplicate group detected across positions. Each group can hold at most ONE position.",
+        });
+        return;
+      }
+    } else {
+      // Verify candidate uniqueness in individual mode
+      const uniqueAddNos = new Set(allocationsSummary.map((a) => a.addNo));
+      if (uniqueAddNos.size !== allocationsSummary.length) {
+        setStatusMsg({
+          type: "error",
+          text: "Duplicate candidate detected across positions. Each candidate can hold at most ONE position.",
+        });
+        return;
+      }
     }
 
     try {
       setLoadingSubmit(true);
       setStatusMsg({ type: "", text: "" });
 
-      const selectedProgDetails = programmes.find((p) => p.Program_Code === selectedProgram);
       const progWingCode = selectedProgDetails?.WingCode || wingCode;
 
       // 1. Insert into ResultBox
+      const getHolderValue = (key: keyof HoldersState): string | null => {
+        const h = holders[key];
+        if (!h.addNo) return null;
+        if (isGroupProgram) {
+          const sq = registeredSquads.find((s) => s.squad_id === h.addNo);
+          if (sq && sq.members.length > 0) {
+            return sq.members.map((m) => m.addNo).join(", ");
+          }
+          return h.addNo;
+        }
+        return h.addNo;
+      };
+
       const resultPayload = {
         Program_Id: selectedProgram,
-        First_Holder: holders.first.addNo || null,
-        Second_Holder: holders.second.addNo || null,
-        Third_Holder: holders.third.addNo || null,
-        AGrade: holders.aGrade.addNo || null,
-        BGrade: holders.bGrade.addNo || null,
+        First_Holder: getHolderValue("first"),
+        Second_Holder: getHolderValue("second"),
+        Third_Holder: getHolderValue("third"),
+        AGrade: getHolderValue("aGrade"),
+        BGrade: getHolderValue("bGrade"),
         creaded_At: new Date().toTimeString().split(" ")[0],
       };
 
       const { error: insertError } = await SupaBaseFunction.from("ResultBox").insert([resultPayload]);
       if (insertError) throw insertError;
 
-      // 2. MUST ASSIGN POINTS TO EACH STUDENT in StudentsBox
+      // 2. ASSIGN EQUAL POINTS TO EACH STUDENT/TEAMMATE in StudentsBox
       const studentFeedbackLines: string[] = [];
       for (const allocation of allocationsSummary) {
         const { data: stn, error: stnFetchError } = await SupaBaseFunction
@@ -463,12 +733,44 @@ export default function CreateResult() {
           console.error("Error updating student points:", allocation.addNo, updateStnErr);
         } else {
           studentFeedbackLines.push(
-            `• ${allocation.name} (${allocation.addNo}): +${allocation.points} PTS [${allocation.label} - ${allocation.gradeLabel}]`
+            `• ${allocation.groupName ? `[Group: ${allocation.groupName}] ` : ""}${allocation.name} (${allocation.addNo}): +${allocation.points} PTS [${allocation.label} - ${allocation.gradeLabel}]`
           );
         }
       }
 
-      // 3. MUST ASSIGN POINTS TO WING in Chs-WingS
+      // 3. UPDATE SQUAD TOTAL POINTS in SquadMate for group programmes
+      if (isGroupProgram) {
+        for (const posKey of ["first", "second", "third", "aGrade", "bGrade"] as (keyof HoldersState)[]) {
+          const h = holders[posKey];
+          if (h.addNo) {
+            const sq = registeredSquads.find((s) => s.squad_id === h.addNo);
+            if (sq) {
+              const pts = calculatePoints(posKey, h.grade);
+              try {
+                const { data: currentSquad } = await SupaBaseFunction
+                  .from("SquadMate")
+                  .select("total_points, winning_rate")
+                  .eq("squad_id", sq.squad_id)
+                  .maybeSingle();
+
+                if (currentSquad) {
+                  await SupaBaseFunction
+                    .from("SquadMate")
+                    .update({
+                      total_points: (currentSquad.total_points || 0) + pts,
+                      winning_rate: (currentSquad.winning_rate || 0) + 1,
+                    })
+                    .eq("squad_id", sq.squad_id);
+                }
+              } catch (sqErr) {
+                console.warn("Could not credit squad points:", sqErr);
+              }
+            }
+          }
+        }
+      }
+
+      // 4. MUST ASSIGN POINTS TO WING in Chs-WingS
       if (progWingCode) {
         try {
           const { data: wingRow } = await SupaBaseFunction
@@ -491,7 +793,7 @@ export default function CreateResult() {
         }
       }
 
-      // 4. Mark ProgrammeBox as Resulted
+      // 5. Mark ProgrammeBox as Resulted
       await SupaBaseFunction
         .from("ProgrammesBox")
         .update({
@@ -501,7 +803,7 @@ export default function CreateResult() {
         })
         .eq("Program_Code", selectedProgram);
 
-      // 5. Update Accademic_Info total_resulted metrics
+      // 6. Update Accademic_Info total_resulted metrics
       if (selectedProgDetails?.AccademicYear) {
         try {
           const { data: acad } = await SupaBaseFunction
@@ -521,12 +823,13 @@ export default function CreateResult() {
         }
       }
 
-      // 6. Success notification
+      // 7. Success notification
       setStatusMsg({
         type: "success",
-        text: `Official result published successfully for program ${selectedProgram}! Points assigned to students and credited to wing standings.`,
+        text: `Official result published successfully for ${isGroupProgram ? "group" : "individual"} programme ${selectedProgram}! Equal position points credited to teammates and added to wing standings.`,
         details: [
-          `Points Template Applied: "${activeTemplate.point_template_title}"`,
+          `Programme Type: ${isGroupProgram ? "Group Event (Team Results Declared)" : "Individual Event"}`,
+          `Points Scheme Applied: "${activeTemplate.point_template_title}"`,
           `Total Points Disbursed: ${totalPointsAwarded} PTS`,
           ...studentFeedbackLines,
         ],
@@ -537,6 +840,7 @@ export default function CreateResult() {
       setSelectedProgram("");
       setHolders(INITIAL_HOLDERS);
       setRegisteredCandidates([]);
+      setRegisteredSquads([]);
     } catch (err: any) {
       console.error("Failed to publish result:", err);
       setStatusMsg({
@@ -547,8 +851,6 @@ export default function CreateResult() {
       setLoadingSubmit(false);
     }
   };
-
-  const selectedProgDetails = programmes.find((p) => p.Program_Code === selectedProgram);
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 font-sans space-y-6">
@@ -621,7 +923,7 @@ export default function CreateResult() {
             <option value="">-- Choose an Unresulted Programme --</option>
             {programmes.map((p) => (
               <option key={p.Program_Code} value={p.Program_Code}>
-                [{p.Program_Code}] {p.Program_Title || "Untitled"} {p.is_group_program ? "(Group Event)" : "(Individual)"} - {p.Date || "TBA"}
+                {p.Program_Code} {p.Program_Title || "Untitled"} {p.is_group_program ? "Group" : "Individual"}
               </option>
             ))}
           </select>
@@ -801,19 +1103,23 @@ export default function CreateResult() {
           </div>
         )}
 
-        {/* STEP 3: REGISTERED CANDIDATES */}
+        {/* STEP 3: REGISTERED CANDIDATES / REGISTERED GROUPS */}
         {selectedProgram && (
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-indigo-600" />
                 <h2 className="text-sm font-black text-slate-900">
-                  3. Registered Candidates ({registeredCandidates.length})
+                  {isGroupProgram
+                    ? `3. Registered Groups & Squads (${registeredSquads.length})`
+                    : `3. Registered Candidates (${registeredCandidates.length})`}
                 </h2>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-                  Only verified candidates can be awarded positions
+                  {isGroupProgram
+                    ? "Groups compete as teams; teammates receive equal position points"
+                    : "Only verified candidates can be awarded positions"}
                 </span>
                 <button
                   type="button"
@@ -829,8 +1135,91 @@ export default function CreateResult() {
             {loadingCandidates ? (
               <div className="py-8 text-center text-slate-400 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600" />
-                Loading registered candidates...
+                Loading {isGroupProgram ? "registered groups..." : "registered candidates..."}
               </div>
+            ) : isGroupProgram ? (
+              registeredSquads.length === 0 ? (
+                <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl text-center">
+                  <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-amber-900">
+                    No groups registered for this programme yet.
+                  </p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Squads or group participants must be registered before official results can be published.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto p-1 scrollbar-thin">
+                  {registeredSquads.map((sq, idx) => {
+                    const assignedPosKey = assignedPositions[sq.squad_id];
+                    const isAssigned = Boolean(assignedPosKey);
+
+                    return (
+                      <div
+                        key={`${sq.squad_id}_${idx}`}
+                        className={`p-3.5 rounded-2xl border transition ${
+                          isAssigned
+                            ? "bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400"
+                            : "bg-slate-50 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60">
+                          <div className="flex items-center gap-2">
+                            <span className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs">
+                              👥
+                            </span>
+                            <div>
+                              <span className="font-extrabold text-slate-900 text-sm block">
+                                {sq.squad_title}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-semibold">
+                                {sq.members.length} Registered Teammates
+                              </span>
+                            </div>
+                          </div>
+                          {isAssigned ? (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-indigo-600 text-white shrink-0 shadow-2xs">
+                              Assigned
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-slate-400 shrink-0">
+                              Eligible Group
+                            </span>
+                          )}
+                        </div>
+
+                        {/* List down teammates */}
+                        <div className="space-y-1.5 pt-1">
+                          {sq.members.map((m) => (
+                            <div
+                              key={m.addNo}
+                              className="flex items-center justify-between text-xs bg-white p-1.5 rounded-xl border border-slate-200/70"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 border border-slate-200 bg-slate-50">
+                                  <SafeImage
+                                    src={m.photoUrl}
+                                    alt={m.name}
+                                    fallbackCategory="student"
+                                    fallbackText={m.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <span className="font-bold text-slate-800 truncate text-[11px]">
+                                  {m.name}
+                                </span>
+                              </div>
+                              <span className="font-mono text-[10px] text-indigo-700 font-bold shrink-0 ml-2">
+                                {m.addNo}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
             ) : registeredCandidates.length === 0 ? (
               <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl text-center">
                 <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
@@ -891,14 +1280,16 @@ export default function CreateResult() {
         )}
 
         {/* STEP 4: ASSIGN POSITIONS & GRADES */}
-        {selectedProgram && registeredCandidates.length > 0 && (
+        {selectedProgram && ((isGroupProgram && registeredSquads.length > 0) || (!isGroupProgram && registeredCandidates.length > 0)) && (
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-5">
             <div>
               <h2 className="text-sm font-black text-slate-900 mb-0.5">
-                4. Award Positions, Grades & Student Points
+                4. Award Positions, Grades & Points
               </h2>
               <p className="text-xs text-slate-500">
-                Each position calculates points automatically. When submitted, points are instantly credited to the student's record and wing total.
+                {isGroupProgram
+                  ? "Select the winning group for each position. Equal position points will be credited to all teammates in that group!"
+                  : "Each position calculates points automatically. Points are instantly credited to the student's record and wing total."}
               </p>
             </div>
 
@@ -910,6 +1301,8 @@ export default function CreateResult() {
                 posKey="first"
                 holders={holders}
                 registeredCandidates={registeredCandidates}
+                registeredSquads={registeredSquads}
+                isGroupProgram={isGroupProgram}
                 assignedPositions={assignedPositions}
                 onCandidateSelect={handleCandidateSelect}
                 onGradeSelect={handleGradeSelect}
@@ -924,6 +1317,8 @@ export default function CreateResult() {
                 posKey="second"
                 holders={holders}
                 registeredCandidates={registeredCandidates}
+                registeredSquads={registeredSquads}
+                isGroupProgram={isGroupProgram}
                 assignedPositions={assignedPositions}
                 onCandidateSelect={handleCandidateSelect}
                 onGradeSelect={handleGradeSelect}
@@ -938,6 +1333,8 @@ export default function CreateResult() {
                 posKey="third"
                 holders={holders}
                 registeredCandidates={registeredCandidates}
+                registeredSquads={registeredSquads}
+                isGroupProgram={isGroupProgram}
                 assignedPositions={assignedPositions}
                 onCandidateSelect={handleCandidateSelect}
                 onGradeSelect={handleGradeSelect}
@@ -952,6 +1349,8 @@ export default function CreateResult() {
                 posKey="aGrade"
                 holders={holders}
                 registeredCandidates={registeredCandidates}
+                registeredSquads={registeredSquads}
+                isGroupProgram={isGroupProgram}
                 assignedPositions={assignedPositions}
                 onCandidateSelect={handleCandidateSelect}
                 onGradeSelect={handleGradeSelect}
@@ -966,6 +1365,8 @@ export default function CreateResult() {
                 posKey="bGrade"
                 holders={holders}
                 registeredCandidates={registeredCandidates}
+                registeredSquads={registeredSquads}
+                isGroupProgram={isGroupProgram}
                 assignedPositions={assignedPositions}
                 onCandidateSelect={handleCandidateSelect}
                 onGradeSelect={handleGradeSelect}
@@ -988,9 +1389,9 @@ export default function CreateResult() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {allocationsSummary.map((item) => (
+                  {allocationsSummary.map((item, idx) => (
                     <div
-                      key={item.positionKey}
+                      key={`${item.positionKey}_${item.addNo}_${idx}`}
                       className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-center justify-between"
                     >
                       <div className="truncate pr-2">
@@ -1028,7 +1429,7 @@ export default function CreateResult() {
                 {loadingSubmit ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    Assigning Student Points & Publishing...
+                    Assigning Equal Points & Publishing...
                   </>
                 ) : (
                   <>
@@ -1063,6 +1464,8 @@ function PositionRow({
   posKey,
   holders,
   registeredCandidates,
+  registeredSquads,
+  isGroupProgram,
   assignedPositions,
   onCandidateSelect,
   onGradeSelect,
@@ -1074,8 +1477,10 @@ function PositionRow({
   posKey: keyof HoldersState;
   holders: HoldersState;
   registeredCandidates: RegisteredCandidate[];
+  registeredSquads: RegisteredSquad[];
+  isGroupProgram: boolean;
   assignedPositions: Record<string, keyof HoldersState>;
-  onCandidateSelect: (posKey: keyof HoldersState, addNo: string) => void;
+  onCandidateSelect: (posKey: keyof HoldersState, id: string) => void;
   onGradeSelect: (posKey: keyof HoldersState, grade: GradeSelection) => void;
   calculatedPoints: number;
   hasGradeOptions: boolean;
@@ -1084,108 +1489,200 @@ function PositionRow({
   const currentGrade = holders[posKey].grade;
 
   return (
-    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-slate-300 transition">
-      {/* Title & Icon */}
-      <div className="flex items-center gap-3 md:w-5/12">
-        <span className="text-2xl shrink-0">{icon}</span>
-        <div className="min-w-0">
-          <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate">
-            {label}
-          </span>
-          <span className="inline-block text-[10px] font-black px-2 py-0.5 rounded-md border mt-0.5 bg-amber-50 text-amber-900 border-amber-200">
-            +{calculatedPoints} Points to Student
-          </span>
+    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col gap-3 hover:border-slate-300 transition">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Title & Icon */}
+        <div className="flex items-center gap-3 md:w-5/12">
+          <span className="text-2xl shrink-0">{icon}</span>
+          <div className="min-w-0">
+            <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate">
+              {label}
+            </span>
+            <span className="inline-block text-[10px] font-black px-2 py-0.5 rounded-md border mt-0.5 bg-amber-50 text-amber-900 border-amber-200">
+              +{calculatedPoints} Points {isGroupProgram ? "to Each Teammate" : "to Student"}
+            </span>
+          </div>
+        </div>
+
+        {/* Selection Dropdown & Grade Options */}
+        <div className="flex-1 flex flex-col sm:flex-row items-center gap-2">
+          {/* Individual Avatar preview if individual */}
+          {!isGroupProgram && currentSelection && (
+            (() => {
+              const selectedCand = registeredCandidates.find((c) => c.addNo === currentSelection);
+              return (
+                <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-indigo-200 bg-white shadow-2xs">
+                  <SafeImage
+                    src={selectedCand?.photoUrl}
+                    alt={selectedCand?.name || currentSelection}
+                    fallbackCategory="student"
+                    fallbackText={selectedCand?.name || currentSelection}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              );
+            })()
+          )}
+
+          {isGroupProgram ? (
+            /* GROUP SELECT */
+            <select
+              value={currentSelection}
+              onChange={(e) => onCandidateSelect(posKey, e.target.value)}
+              className={`w-full p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition cursor-pointer ${
+                currentSelection
+                  ? "bg-white border-indigo-400 text-indigo-950 ring-2 ring-indigo-100"
+                  : "bg-white border-slate-300 text-slate-700"
+              }`}
+            >
+              <option value="">-- No Winning Group Awarded --</option>
+              {registeredSquads.map((sq) => {
+                const isAssignedElsewhere =
+                  assignedPositions[sq.squad_id] && assignedPositions[sq.squad_id] !== posKey;
+
+                return (
+                  <option
+                    key={sq.squad_id}
+                    value={sq.squad_id}
+                    disabled={Boolean(isAssignedElsewhere)}
+                  >
+                    👥 {sq.squad_title} ({sq.members.length} Teammates: {sq.members.map((m) => m.name).join(", ")}) {isAssignedElsewhere ? " ⚠️ (Assigned)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            /* INDIVIDUAL CANDIDATE SELECT */
+            <select
+              value={currentSelection}
+              onChange={(e) => onCandidateSelect(posKey, e.target.value)}
+              className={`w-full p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition cursor-pointer ${
+                currentSelection
+                  ? "bg-white border-indigo-400 text-indigo-950 ring-2 ring-indigo-100"
+                  : "bg-white border-slate-300 text-slate-700"
+              }`}
+            >
+              <option value="">-- No Candidate Awarded --</option>
+              {registeredCandidates.map((c, idx) => {
+                const isAssignedElsewhere =
+                  assignedPositions[c.addNo] && assignedPositions[c.addNo] !== posKey;
+
+                return (
+                  <option
+                    key={`${c.addNo}_${idx}`}
+                    value={c.addNo}
+                    disabled={Boolean(isAssignedElsewhere)}
+                  >
+                    [{c.addNo}] {c.name} {isAssignedElsewhere ? " ⚠️ (Assigned)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          )}
+
+          {/* Grade Options (for 1st, 2nd, 3rd) */}
+          {hasGradeOptions && currentSelection && (
+            <div className="flex items-center gap-1 shrink-0 w-full sm:w-auto">
+              <span className="text-[10px] font-bold text-slate-400 uppercase sm:hidden">Grade:</span>
+              <button
+                type="button"
+                onClick={() => onGradeSelect(posKey, "none")}
+                className={`px-2 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  currentGrade === "none"
+                    ? "bg-indigo-600 text-white shadow-2xs"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                }`}
+                title="Position Only (No Grade)"
+              >
+                Position Only
+              </button>
+              <button
+                type="button"
+                onClick={() => onGradeSelect(posKey, "A")}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  currentGrade === "A"
+                    ? "bg-emerald-600 text-white shadow-2xs"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                }`}
+                title="A Grade"
+              >
+                A Grade
+              </button>
+              <button
+                type="button"
+                onClick={() => onGradeSelect(posKey, "B")}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  currentGrade === "B"
+                    ? "bg-blue-600 text-white shadow-2xs"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                }`}
+                title="B Grade"
+              >
+                B Grade
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Candidate Select */}
-      <div className="flex-1 flex flex-col sm:flex-row items-center gap-2">
-        {currentSelection && (
-          (() => {
-            const selectedCand = registeredCandidates.find((c) => c.addNo === currentSelection);
-            return (
-              <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 border border-indigo-200 bg-white shadow-2xs">
-                <SafeImage
-                  src={selectedCand?.photoUrl}
-                  alt={selectedCand?.name || currentSelection}
-                  fallbackCategory="student"
-                  fallbackText={selectedCand?.name || currentSelection}
-                  className="w-full h-full object-cover"
-                />
+      {/* If Group Program and Group is Selected: List down the Group Name and all Teammates */}
+      {isGroupProgram && currentSelection && (() => {
+        const selectedSquad = registeredSquads.find((s) => s.squad_id === currentSelection);
+        if (!selectedSquad) return null;
+
+        return (
+          <div className="w-full mt-1 p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base">👥</span>
+                <span className="font-extrabold text-indigo-950 text-sm">
+                  Group Winner: {selectedSquad.squad_title}
+                </span>
               </div>
-            );
-          })()
-        )}
+              <span className="text-[11px] font-black text-indigo-800 bg-white px-2.5 py-0.5 rounded-lg border border-indigo-200">
+                {selectedSquad.members.length} Teammates • +{calculatedPoints} PTS Each
+              </span>
+            </div>
 
-        <select
-          value={currentSelection}
-          onChange={(e) => onCandidateSelect(posKey, e.target.value)}
-          className={`w-full p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition cursor-pointer ${
-            currentSelection
-              ? "bg-white border-indigo-400 text-indigo-950 ring-2 ring-indigo-100"
-              : "bg-white border-slate-300 text-slate-700"
-          }`}
-        >
-          <option value="">-- No Candidate Awarded --</option>
-          {registeredCandidates.map((c, idx) => {
-            const isAssignedElsewhere =
-              assignedPositions[c.addNo] && assignedPositions[c.addNo] !== posKey;
+            {/* List down teammates with equal position point badge */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+              {selectedSquad.members.map((m) => (
+                <div
+                  key={m.addNo}
+                  className="p-2 bg-white rounded-xl border border-indigo-100 flex items-center justify-between gap-2 shadow-2xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg overflow-hidden shrink-0 border border-slate-200 bg-slate-50">
+                      <SafeImage
+                        src={m.photoUrl}
+                        alt={m.name}
+                        fallbackCategory="student"
+                        fallbackText={m.name}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0 truncate">
+                      <span className="font-bold text-slate-900 block truncate text-[11px]">
+                        {m.name}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {m.addNo}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0">
+                    +{calculatedPoints} PTS
+                  </span>
+                </div>
+              ))}
+            </div>
 
-            return (
-              <option
-                key={`${c.addNo}_${idx}`}
-                value={c.addNo}
-                disabled={Boolean(isAssignedElsewhere)}
-              >
-                [{c.addNo}] {c.name} {isAssignedElsewhere ? " ⚠️ (Assigned)" : ""}
-              </option>
-            );
-          })}
-        </select>
-
-        {/* Grade Options (for 1st, 2nd, 3rd) */}
-        {hasGradeOptions && currentSelection && (
-          <div className="flex items-center gap-1 shrink-0 w-full sm:w-auto">
-            <span className="text-[10px] font-bold text-slate-400 uppercase sm:hidden">Grade:</span>
-            <button
-              type="button"
-              onClick={() => onGradeSelect(posKey, "none")}
-              className={`px-2 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                currentGrade === "none"
-                  ? "bg-indigo-600 text-white shadow-2xs"
-                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-              }`}
-              title="Position Only (No Grade)"
-            >
-              Position Only
-            </button>
-            <button
-              type="button"
-              onClick={() => onGradeSelect(posKey, "A")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                currentGrade === "A"
-                  ? "bg-emerald-600 text-white shadow-2xs"
-                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-              }`}
-              title="A Grade"
-            >
-              A Grade
-            </button>
-            <button
-              type="button"
-              onClick={() => onGradeSelect(posKey, "B")}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                currentGrade === "B"
-                  ? "bg-blue-600 text-white shadow-2xs"
-                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-              }`}
-              title="B Grade"
-            >
-              B Grade
-            </button>
+            <p className="text-[11px] text-indigo-700 font-semibold italic pt-1">
+              ⚡ Equal Position Points Rule: All {selectedSquad.members.length} teammates in group &quot;{selectedSquad.squad_title}&quot; receive equal position points (+{calculatedPoints} PTS) credited directly to their student profile.
+            </p>
           </div>
-        )}
-      </div>
+        );
+      })()}
     </div>
   );
 }

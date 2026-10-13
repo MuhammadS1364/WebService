@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveWingProfile } from "../../lib/wingResolver";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
 
 // --- INTERFACES ---
 interface WingData {
@@ -65,6 +66,7 @@ const OverViewClipBox = ({ BoxTitle, BoxValue, BoxSvgLogo, color = "indigo" }: O
 // 2. Main Analytics Component
 export default function WingAnalytics() {
   const { actWing } = useParams<{ actWing: string }>();
+  const meta = useProgrammeMeta();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [wingData, setWingData] = useState<WingData | null>(null);
@@ -123,7 +125,7 @@ export default function WingAnalytics() {
     );
 
     if (categoryFilter !== "All") {
-      filtered = filtered.filter(p => p.Category === categoryFilter);
+      filtered = filtered.filter(p => meta.getCategoryName(p.Category) === categoryFilter);
     }
 
     if (statusFilter === "Published") {
@@ -132,21 +134,27 @@ export default function WingAnalytics() {
       filtered = filtered.filter(p => !p.IsResultPublished);
     }
 
-    const uniqueCategories = [...new Set(programmes.map(p => p.Category).filter(Boolean))];
+    // Build category stats by resolving readable category names
+    const catMapStats = new Map<string, number>();
+    programmes.forEach(p => {
+      const catName = meta.getCategoryName(p.Category);
+      catMapStats.set(catName, (catMapStats.get(catName) || 0) + (p.Total_Registration || 0));
+    });
 
-    const categoryStats: CategoryStat[] = uniqueCategories.map(cat => ({
-      name: cat,
-      totalReg: programmes.filter(p => p.Category === cat).reduce((sum, p) => sum + (p.Total_Registration || 0), 0)
+    const categoryStats: CategoryStat[] = Array.from(catMapStats.entries()).map(([name, totalReg]) => ({
+      name,
+      totalReg
     }));
 
     const maxReg = Math.max(...categoryStats.map(c => c.totalReg), 1);
+    const uniqueCategoryNames = Array.from(catMapStats.keys());
 
     return {
       filteredProgrammes: filtered,
-      categories: uniqueCategories,
+      categories: uniqueCategoryNames,
       stats: { categoryStats, maxReg }
     };
-  }, [programmes, searchQuery, categoryFilter, statusFilter]);
+  }, [programmes, searchQuery, categoryFilter, statusFilter, meta]);
 
   const totalProgramsCount = programmes.length;
   const publishedResultsCount = programmes.filter(p => p.IsResultPublished).length;
@@ -275,8 +283,14 @@ export default function WingAnalytics() {
                       <div className="font-semibold text-slate-900">{prog.Program_Title}</div>
                       <div className="text-xs text-slate-400 font-mono mt-0.5">{prog.Program_Code}</div>
                     </td>
-                    <td className="py-4 px-6 text-slate-500 font-medium">{prog.Category || "Event"}</td>
-                    <td className="py-4 px-6 text-slate-500 font-medium">{prog.Group}</td>
+                    <td className="py-4 px-6 text-slate-700 font-semibold">
+                      <span className="inline-block px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-bold">
+                        {meta.getCategoryName(prog.Category)}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6 text-slate-600 font-medium">
+                      {meta.getGroupName(prog.Group) || <span className="text-slate-400 text-xs italic">Unassigned</span>}
+                    </td>
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${prog.IsResultPublished
                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"

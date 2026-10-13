@@ -91,11 +91,24 @@ export default function AllResultsList() {
       if (studentAddNos.length > 0) {
         const { data: studentRows } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+          .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
           .in("AddNo", studentAddNos);
 
         (studentRows || []).forEach((s: any) => {
-          studentsMap[s.AddNo] = s;
+          const matchedClass = meta.classes.find(
+            (c: any) =>
+              c.class_id === s.Stn_Class ||
+              c.standard_name === s.Stn_Class ||
+              c.class_nick_name === s.Stn_Class
+          );
+          studentsMap[s.AddNo] = {
+            ...s,
+            Class:
+              matchedClass?.class_nick_name ||
+              matchedClass?.standard_name ||
+              s.Stn_Class ||
+              "",
+          };
         });
       }
 

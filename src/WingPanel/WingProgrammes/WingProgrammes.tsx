@@ -220,10 +220,27 @@ export default function WingProgrammes() {
           const codes = regs.map(r => r.Candidate_Code).filter(Boolean);
           const { data: students } = await SupaBaseFunction
             .from("StudentsBox")
-            .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+            .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
             .in("AddNo", codes);
 
-          setCandidates(p => ({ ...p, [code]: (students as Student[]) || [] }));
+          const mappedStudents: Student[] = (students || []).map((s: any) => {
+            const matchedClass = meta.classes.find(
+              (c: any) =>
+                c.class_id === s.Stn_Class ||
+                c.standard_name === s.Stn_Class ||
+                c.class_nick_name === s.Stn_Class
+            );
+            return {
+              ...s,
+              Class:
+                matchedClass?.class_nick_name ||
+                matchedClass?.standard_name ||
+                s.Stn_Class ||
+                "-",
+            };
+          });
+
+          setCandidates(p => ({ ...p, [code]: mappedStudents }));
         } else {
           setCandidates(p => ({ ...p, [code]: [] }));
         }
@@ -413,12 +430,12 @@ export default function WingProgrammes() {
                             <div className="space-y-1">
                               {p.Category && (
                                 <span className="inline-block text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
-                                  {meta.categoryMap[p.Category] || p.Category}
+                                  {meta.getCategoryName(p.Category)}
                                 </span>
                               )}
-                              {p.Group && (
+                              {p.Group && meta.getGroupName(p.Group) && (
                                 <p className="text-[11px] text-slate-500 font-medium">
-                                  {p.Group}
+                                  {meta.getGroupName(p.Group)}
                                 </p>
                               )}
                             </div>
@@ -434,7 +451,7 @@ export default function WingProgrammes() {
                               {p.Venue && (
                                 <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
                                   <MapPin size={12} className="text-slate-400 shrink-0" />
-                                  <span className="truncate">{meta.venueMap[p.Venue] || p.Venue}</span>
+                                  <span className="truncate">{meta.getVenueName(p.Venue)}</span>
                                 </div>
                               )}
                             </div>

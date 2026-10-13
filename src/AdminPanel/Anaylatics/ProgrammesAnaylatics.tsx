@@ -297,7 +297,7 @@ export default function ProgrammesAnalytics() {
         "Program Title": p.Program_Title,
         "Wing": getWingName(p.WingCode),
         "Category": getCategoryName(p.Category),
-        "Group": p.Group || "N/A",
+        "Group": meta.getGroupName(p.Group, "N/A"),
         "Date": p.Date || "TBA",
         "Venue": getVenueName(p.Venue),
         "Total Registration": p.Total_Registration || 0,

@@ -120,7 +120,7 @@ export default function CandidateRegistration() {
         // Step A: Check if the student exists in StudentsBox
         const { data: studentData, error: studentError } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("StudentName, Stn_Class, Class")
+          .select("StudentName, Stn_Class")
           .eq("AddNo", candidateCode.trim())
           .maybeSingle();
 
@@ -141,13 +141,13 @@ export default function CandidateRegistration() {
           ) {
             // Find student's category
             const classId = studentData.Stn_Class;
-            const className = studentData.Class;
             const matchedClass = meta.classes.find(
               (c) =>
                 (classId && c.class_id === classId) ||
-                (className && (c.standard_name === className || c.class_nick_name === className))
+                (classId && (c.standard_name === classId || c.class_nick_name === classId))
             );
             const resolvedClassId = matchedClass?.class_id || classId;
+            const className = matchedClass?.standard_name || matchedClass?.class_nick_name || "";
 
             let studentCatTitle = "";
             let studentCatId = "";

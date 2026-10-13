@@ -88,14 +88,24 @@ export default function StudentContentShowcase() {
       if (addNos.length > 0) {
         const { data: stnData } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("AddNo, StudentName, Student_Photo_Urls, Class, CollegeName")
+          .select("AddNo, StudentName, Student_Photo_Urls, Stn_Class, CollegeName")
           .in("AddNo", addNos);
 
         (stnData || []).forEach((stn: any) => {
+          const matchedClass = meta.classes.find(
+            (c: any) =>
+              c.class_id === stn.Stn_Class ||
+              c.standard_name === stn.Stn_Class ||
+              c.class_nick_name === stn.Stn_Class
+          );
           studentsMap[stn.AddNo] = {
             name: stn.StudentName || `Student #${stn.AddNo}`,
             photo: stn.Student_Photo_Urls,
-            class: stn.Class,
+            class:
+              matchedClass?.class_nick_name ||
+              matchedClass?.standard_name ||
+              stn.Stn_Class ||
+              null,
             college: stn.CollegeName,
           };
         });

@@ -40,6 +40,7 @@ export default function ProgrammeResultModal({
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<ResultBoxRecord | null>(null);
   const [students, setStudents] = useState<Record<string, StudentInfo>>({});
+  const [squadsMap, setSquadsMap] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -87,15 +88,54 @@ export default function ProgrammeResultModal({
           if (candidateCodes.length > 0) {
             const { data: stnData } = await SupaBaseFunction
               .from("StudentsBox")
-              .select("AddNo, StudentName, Class, CollegeName, Student_Photo_Urls")
+              .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
               .in("AddNo", candidateCodes);
 
             if (isMounted && stnData) {
               const map: Record<string, StudentInfo> = {};
-              stnData.forEach((s) => {
-                map[s.AddNo] = s;
+              stnData.forEach((s: any) => {
+                const matchedClass = meta.classes.find(
+                  (c: any) =>
+                    c.class_id === s.Stn_Class ||
+                    c.standard_name === s.Stn_Class ||
+                    c.class_nick_name === s.Stn_Class
+                );
+                map[s.AddNo] = {
+                  ...s,
+                  Class:
+                    matchedClass?.class_nick_name ||
+                    matchedClass?.standard_name ||
+                    s.Stn_Class ||
+                    undefined,
+                };
               });
               setStudents(map);
+            }
+
+            // Fetch active Squads to resolve group names if group event
+            const { data: sqData } = await SupaBaseFunction
+              .from("SquadMate")
+              .select("squad_id, squad_title, member1_uuid, member2_uuid, member3_uuid, member4_uuid, member5_uuid, member6_uuid, member7_uuid");
+
+            if (isMounted && sqData) {
+              const sMap: Record<string, string> = {};
+              sqData.forEach((sq: any) => {
+                if (sq.squad_id) sMap[sq.squad_id] = sq.squad_title;
+                [
+                  sq.member1_uuid,
+                  sq.member2_uuid,
+                  sq.member3_uuid,
+                  sq.member4_uuid,
+                  sq.member5_uuid,
+                  sq.member6_uuid,
+                  sq.member7_uuid,
+                ]
+                  .filter(Boolean)
+                  .forEach((m) => {
+                    sMap[(m as string).trim()] = sq.squad_title;
+                  });
+              });
+              setSquadsMap(sMap);
             }
           }
         }
@@ -135,9 +175,21 @@ export default function ProgrammeResultModal({
     }
 
     const items = addNoOrText.split(",").map((s) => s.trim()).filter(Boolean);
+    const detectedGroupName = items.map((c) => squadsMap[c]).find(Boolean);
 
     return (
       <div className="space-y-2">
+        {detectedGroupName && (
+          <div className="flex items-center justify-between px-3 py-1.5 bg-indigo-50/90 border border-indigo-200 rounded-xl text-xs font-extrabold text-indigo-950">
+            <span className="flex items-center gap-1.5">
+              <span>👥</span>
+              <span>Winning Group: {detectedGroupName}</span>
+            </span>
+            <span className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200">
+              {items.length} Teammates (Equal Points Awarded)
+            </span>
+          </div>
+        )}
         {items.map((itemCode) => {
           const student = students[itemCode];
           const displayName = student?.StudentName || itemCode;
