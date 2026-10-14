@@ -11,6 +11,7 @@ import {
 } from "../../lib/cascadeDeleteService";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import AdminTopicsManagerModal from "../../components/AdminTopicsManagerModal";
+import ProgrammeResultModal from "../../components/ProgrammeResultModal";
 import { 
   Edit3, 
   Calendar, 
@@ -25,7 +26,8 @@ import {
   Trash2,
   MoreHorizontal,
   CheckCircle2,
-  Clock
+  Clock,
+  Trophy
 } from "lucide-react"; 
 
 export interface Programme {
@@ -108,6 +110,8 @@ export default function AdminProgrammesList() {
     AccademicYear: "", Category: "", Group: "", Venue: "", WingCode: "",
   });
   const [approvalFilter, setApprovalFilter] = useState<"all" | "approved" | "pending">("all");
+  const [resultFilter, setResultFilter] = useState<"all" | "resulted" | "published" | "pending" | "unpublished">("all");
+  const [resultModalProgram, setResultModalProgram] = useState<Programme | null>(null);
   const [openMenuProgCode, setOpenMenuProgCode] = useState<string | null>(null);
 
   const showToast = (message: string, type: ToastState["type"] = "info") => {
@@ -176,6 +180,10 @@ export default function AdminProgrammesList() {
     return programmes.filter((p) => {
       if (approvalFilter === "approved" && !p.IsApproved) return false;
       if (approvalFilter === "pending" && p.IsApproved) return false;
+      if (resultFilter === "resulted" && !p.IsResulted) return false;
+      if (resultFilter === "published" && !p.IsResultPublished) return false;
+      if (resultFilter === "pending" && p.IsResulted) return false;
+      if (resultFilter === "unpublished" && (!p.IsResulted || p.IsResultPublished)) return false;
       return (
         (!filters.AccademicYear || p.AccademicYear === filters.AccademicYear) &&
         (!filters.Category || p.Category === filters.Category) &&
@@ -184,12 +192,12 @@ export default function AdminProgrammesList() {
         (!filters.WingCode || p.WingCode === filters.WingCode)
       );
     });
-  }, [programmes, filters, approvalFilter]);
+  }, [programmes, filters, approvalFilter, resultFilter]);
 
   // --- 1. SINGLE ACTION (Update One By One) ---
   const handleSingleAction = async (
     code: string,
-    action: "ToggleApprove" | "ToggleReg" | "ToggleContent" | "ToggleTopic"
+    action: "ToggleApprove" | "ToggleReg" | "ToggleContent" | "ToggleTopic" | "TogglePublish"
   ) => {
     setIsLoading(prev => ({ ...prev, action: true }));
     try {
@@ -216,6 +224,14 @@ export default function AdminProgrammesList() {
         const { error } = await SupaBaseFunction.from('ProgrammesBox').update({ is_topic_required: newStatus }).eq('Program_Code', code);
         if (error) throw error;
         showToast(`Topic registration ${newStatus ? 'Activated' : 'Deactivated'}.`, "success");
+      } else if (action === "TogglePublish") {
+        const newStatus = !prog.IsResultPublished;
+        const { error } = await SupaBaseFunction.from('ProgrammesBox').update({
+          IsResultPublished: newStatus,
+          IsResulted: newStatus ? true : prog.IsResulted
+        }).eq('Program_Code', code);
+        if (error) throw error;
+        showToast(`Programme result ${newStatus ? 'Published to Public' : 'Unpublished'}.`, "success");
       }
       await fetchData(); // Refresh data to show updated state
     } catch (error: any) {
@@ -321,6 +337,23 @@ export default function AdminProgrammesList() {
         
         await Promise.all(promises);
         showToast(`Topic registration requirement toggled successfully.`, "success");
+      }
+      else if (action === "PublishResults") {
+        const toPublish = Array.from(selectedPrograms);
+        const { error } = await SupaBaseFunction.from('ProgrammesBox').update({
+          IsResultPublished: true,
+          IsResulted: true
+        }).in('Program_Code', toPublish);
+        if (error) throw error;
+        showToast(`Published results for ${toPublish.length} programmes in one click!`, "success");
+      }
+      else if (action === "UnpublishResults") {
+        const toUnpublish = Array.from(selectedPrograms);
+        const { error } = await SupaBaseFunction.from('ProgrammesBox').update({
+          IsResultPublished: false
+        }).in('Program_Code', toUnpublish);
+        if (error) throw error;
+        showToast(`Unpublished results for ${toUnpublish.length} programmes.`, "info");
       }
       
       await fetchData();
@@ -469,6 +502,19 @@ export default function AdminProgrammesList() {
               <option value="pending">⏳ Pending ({programmes.filter(p => !p.IsApproved).length})</option>
             </select>
 
+            {/* Result & Publication Status Filter (Resulted, Published) */}
+            <select
+              className="text-sm font-bold text-slate-800 border border-purple-300 rounded-xl bg-white py-2 px-3 shadow-xs focus:ring-2 focus:ring-purple-500 outline-none transition cursor-pointer hover:bg-purple-50/50"
+              value={resultFilter}
+              onChange={(e) => setResultFilter(e.target.value as any)}
+            >
+              <option value="all">All Results Status ({programmes.length})</option>
+              <option value="published">📢 Published ({programmes.filter(p => p.IsResultPublished).length})</option>
+              <option value="resulted">🏆 Resulted ({programmes.filter(p => p.IsResulted).length})</option>
+              <option value="unpublished">🔒 Resulted (Unpublished) ({programmes.filter(p => p.IsResulted && !p.IsResultPublished).length})</option>
+              <option value="pending">⏳ Awaiting Result ({programmes.filter(p => !p.IsResulted).length})</option>
+            </select>
+
             {(['AccademicYear', 'Category', 'Group', 'Venue', 'WingCode'] as const).map((filterKey) => (
               <select 
                 key={filterKey}
@@ -496,10 +542,23 @@ export default function AdminProgrammesList() {
             ))}
         </div>
 
-        {/* BULK ACTION DROPDOWN */}
+        {/* BULK ACTION DROPDOWN & ONE-CLICK PUBLISH */}
         {viewMode === "cards" && selectedPrograms.size > 0 && (
-          <div className="flex items-center gap-3 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2.5 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-200 shadow-sm">
              <span className="text-sm font-bold text-emerald-800">{selectedPrograms.size} selected</span>
+             
+             {/* One Click Publish Button */}
+             <button
+               type="button"
+               disabled={isLoading.action}
+               onClick={() => handleBulkAction("PublishResults")}
+               className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 active:scale-95 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer disabled:opacity-50 transition"
+               title="Publish results for all selected programmes in one click"
+             >
+               <Award size={14} className="text-yellow-200" />
+               <span>Publish in One Click</span>
+             </button>
+
              <select 
                 disabled={isLoading.action}
                 className="text-sm font-bold border-none text-emerald-900 rounded-lg bg-white py-1.5 pl-3 pr-8 focus:ring-2 focus:ring-emerald-500 cursor-pointer disabled:opacity-50 shadow-sm"
@@ -508,7 +567,9 @@ export default function AdminProgrammesList() {
                   e.target.value = ""; 
                 }}
              >
-                <option value="">Bulk Actions...</option>
+                <option value="">More Bulk Actions...</option>
+                <option value="PublishResults">📢 Publish Results (One Click)</option>
+                <option value="UnpublishResults">🔒 Unpublish Results</option>
                 <option value="ToggleApprove">Toggle Approval</option>
                 <option value="ToggleReg">Toggle Registration</option>
                 <option value="ToggleContent">Toggle Content Submission</option>
@@ -685,6 +746,28 @@ export default function AdminProgrammesList() {
                             >
                               <FileText size={14} className="text-indigo-600" /> Topics Registry
                             </button>
+
+                            {/* Display Result in Dropdown */}
+                            {prog.IsResultPublished && (
+                              <button
+                                type="button"
+                                onClick={() => { setResultModalProgram(prog); setOpenMenuProgCode(null); }}
+                                className="w-full px-3 py-2 rounded-xl text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 transition cursor-pointer font-bold"
+                              >
+                                <Trophy size={14} className="text-amber-600" /> Display Result
+                              </button>
+                            )}
+
+                            {/* Toggle Result Publication */}
+                            <button
+                              type="button"
+                              disabled={isLoading.action}
+                              onClick={() => { handleSingleAction(prog.Program_Code, "TogglePublish"); setOpenMenuProgCode(null); }}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-purple-50 flex items-center gap-2 text-purple-800 transition cursor-pointer font-semibold"
+                            >
+                              <Award size={14} className="text-purple-600" />
+                              {prog.IsResultPublished ? "Unpublish Result" : "Publish Result"}
+                            </button>
                             
                             <div className="h-px bg-slate-100 my-1" />
                             
@@ -788,6 +871,19 @@ export default function AdminProgrammesList() {
                       </div>
                     </div>
 
+                    {/* IF RESULT PUBLISHED, PROMINENT BUTTON TO DISPLAY THE RESULT */}
+                    {prog.IsResultPublished && (
+                      <button
+                        type="button"
+                        onClick={() => setResultModalProgram(prog)}
+                        className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white transition flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                        title="Display official published competition result with podium, winners, and grades"
+                      >
+                        <Trophy size={15} className="text-yellow-200" />
+                        <span>Display Result</span>
+                      </button>
+                    )}
+
                     {/* EDIT & SHEET ACTION BUTTONS (CLEAN 2-BUTTON ROW) */}
                     <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-auto">
                       <button
@@ -855,7 +951,17 @@ export default function AdminProgrammesList() {
                         <div className="flex items-center gap-3"><span className="w-12 font-bold text-emerald-400 text-[10px] uppercase tracking-widest">Wing</span><span className="font-semibold text-gray-800 text-xs">{getWingName(prog.WingCode)}</span></div>
                         <div className="flex items-center gap-3"><span className="w-12 font-bold text-emerald-400 text-[10px] uppercase tracking-widest">Venue</span><span className="font-semibold text-gray-800 text-xs">{prog.Venue || 'TBA'}</span></div>
                       </div>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {prog.IsResultPublished && (
+                          <button
+                            type="button"
+                            onClick={() => setResultModalProgram(prog)}
+                            className="py-1.5 px-3 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                            title="Display published result"
+                          >
+                            <Trophy size={12} className="text-yellow-200" /> Display Result
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => setEditingProgram(prog)}
@@ -889,6 +995,20 @@ export default function AdminProgrammesList() {
           initialProgramTitle={printSheetProgram?.Program_Title || ""}
           onClose={() => setPrintSheetProgram(null)}
         />
+
+        {/* Programme Result Display Modal */}
+        {resultModalProgram && (
+          <ProgrammeResultModal
+            isOpen={Boolean(resultModalProgram)}
+            onClose={() => setResultModalProgram(null)}
+            programCode={resultModalProgram.Program_Code}
+            programTitle={resultModalProgram.Program_Title}
+            programDate={resultModalProgram.Date}
+            programVenue={resultModalProgram.Venue}
+            programPoster={resultModalProgram.Program_Poster}
+            wingCode={resultModalProgram.WingCode}
+          />
+        )}
 
         {/* Edit Programme Modal */}
         <EditProgrammeModal

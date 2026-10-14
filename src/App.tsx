@@ -67,6 +67,7 @@ import CreateBankDeatils from './AdminPanel/Donation/CreateBankDeatil';
 import BankDetailsList from './AdminPanel/Donation/BankDetailsList';
 import OutReachAnaylatics from './OutReachPanel/Anaylatics/OutReachAnaylatics';
 import PublicProgrammesList from './PublicProgrammesComponents/AllProgrammesList';
+import AllResultsList from './PublicProgrammesComponents/AllResults';
 import ProgrammesAnaylatics from './AdminPanel/Anaylatics/ProgrammesAnaylatics';
 import StudentsAnaylaticsGeneral from './AdminPanel/Anaylatics/StudentsAnaylatics';
 import GeneralWingsAnaylatics from './AdminPanel/Anaylatics/WingsAnaylatics';
@@ -98,6 +99,8 @@ export default function App() {
           <Route path='our-programmes-list' element={<PublicProgrammesList />} />
           <Route path='our-programmes' element={<PublicProgrammesList />} />
           <Route path='our-achievements' element={<OutReachAndAchievements />} />
+          <Route path='our-results' element={<AllResultsList />} />
+          <Route path='results' element={<AllResultsList />} />
           <Route path='programmes-calendar' element={<ProgrammesCalendar />} />
           <Route path='donate-us' element={<CreateDonationForUs />} />
           <Route path='leaderboard' element={<ResultedLeaderboard />} />
@@ -113,6 +116,8 @@ export default function App() {
           <Route index element={<AdminDashboard />} />
           <Route path='Programmes-List' element={<AdminProgrammesList />} />
           <Route path='dashBoard' element={<AdminDashboard />} />
+          <Route path='our-results' element={<AllResultsList />} />
+          <Route path='results' element={<AllResultsList />} />
           <Route path='create-bank-detail' element={<CreateBankDeatils />} />
           <Route path='bank-detail-list' element={<BankDetailsList />} />
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />

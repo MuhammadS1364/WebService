@@ -4,7 +4,8 @@ import { useProgrammeMeta } from "../lib/programmeMeta";
 import { exportToExcel } from "../lib/excelService";
 import formatResultDate from "./DateFormatConvertor";
 import SafeImage from "../lib/SafeImage";
-import { Trophy, Search, Download, Calendar, MapPin, CheckCircle2 } from "lucide-react";
+import ProgrammeResultModal from "../components/ProgrammeResultModal";
+import { Trophy, Search, Download, Calendar, MapPin, CheckCircle2, Printer, RotateCcw } from "lucide-react";
 import type { ResultBoxRecord } from "../lib/types";
 
 interface StudentInfo {
@@ -26,6 +27,8 @@ interface EnrichedResult extends ResultBoxRecord {
     Group: string | null;
     is_group_program?: boolean;
     Program_Poster?: string | null;
+    IsResultPublished?: boolean;
+    IsResulted?: boolean;
   } | null;
   firstStudent?: StudentInfo | null;
   secondStudent?: StudentInfo | null;
@@ -33,6 +36,24 @@ interface EnrichedResult extends ResultBoxRecord {
   aGradeStudent?: StudentInfo | null;
   bGradeStudent?: StudentInfo | null;
 }
+
+/**
+ * Flexible Date Parser supporting DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD
+ */
+const parseFlexibleDate = (val?: string | null): Date | null => {
+  if (!val) return null;
+  const str = val.trim();
+  if (/^\d{2}[-/]\d{2}[-/]\d{4}/.test(str)) {
+    const parts = str.split(/[-/]/);
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const d = new Date(year, month, day);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+};
 
 export default function AllResultsList() {
   const meta = useProgrammeMeta();
@@ -44,6 +65,10 @@ export default function AllResultsList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [wingFilter, setWingFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [publicationFilter, setPublicationFilter] = useState<"published" | "all">("published");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [selectedResultModal, setSelectedResultModal] = useState<EnrichedResult | null>(null);
 
   const fetchResults = async () => {
     try {
@@ -68,7 +93,7 @@ export default function AllResultsList() {
       if (progCodes.length > 0) {
         const { data: progRows } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Date, Venue, Category, WingCode, Group, is_group_program, Program_Poster")
+          .select("Program_Code, Program_Title, Date, Venue, Category, WingCode, Group, is_group_program, Program_Poster, IsResultPublished, IsResulted")
           .in("Program_Code", progCodes);
 
         (progRows || []).forEach((p: any) => {
@@ -188,6 +213,34 @@ export default function AllResultsList() {
       const wing = getWingTitle(prog?.WingCode).toLowerCase();
       const venue = getVenueTitle(prog?.Venue).toLowerCase();
 
+      // 1. Publication Filter (Published only vs All)
+      if (publicationFilter === "published") {
+        if (!prog?.IsResultPublished && !prog?.IsResulted) return false;
+      }
+
+      // 2. Specific Date Range Filter (e.g. "20-07-2026" to "10-10-2026")
+      if (startDate) {
+        const start = parseFlexibleDate(startDate);
+        const progDate = parseFlexibleDate(prog?.Date);
+        if (start && progDate) {
+          start.setHours(0, 0, 0, 0);
+          const checkDate = new Date(progDate);
+          checkDate.setHours(0, 0, 0, 0);
+          if (checkDate < start) return false;
+        }
+      }
+
+      if (endDate) {
+        const end = parseFlexibleDate(endDate);
+        const progDate = parseFlexibleDate(prog?.Date);
+        if (end && progDate) {
+          end.setHours(23, 59, 59, 999);
+          const checkDate = new Date(progDate);
+          checkDate.setHours(0, 0, 0, 0);
+          if (checkDate > end) return false;
+        }
+      }
+
       const matchesSearch =
         !query ||
         title.includes(query) ||
@@ -203,7 +256,7 @@ export default function AllResultsList() {
 
       return matchesSearch && matchesWing && matchesCategory;
     });
-  }, [results, searchQuery, wingFilter, categoryFilter, meta.wingMap, meta.categoryMap, meta.venueMap]);
+  }, [results, searchQuery, wingFilter, categoryFilter, publicationFilter, startDate, endDate, meta.wingMap, meta.categoryMap, meta.venueMap]);
 
   // Export to Excel
   const handleExport = () => {
@@ -239,8 +292,17 @@ export default function AllResultsList() {
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 md:p-8 font-sans">
+      {/* PRINT STYLES */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: black !important; }
+          .print-break-inside-avoid { break-inside: avoid; }
+        }
+      `}</style>
+
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-indigo-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl mb-8 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-indigo-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl mb-6 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -251,19 +313,28 @@ export default function AllResultsList() {
                 Official Hall of Fame
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Public Results Board</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Our Published Results</h1>
             <p className="text-orange-100 text-xs sm:text-sm mt-1 max-w-xl">
               Official standings, winners podium, and grade honors for conducted programmes and competitions.
             </p>
           </div>
 
-          <button
-            onClick={handleExport}
-            disabled={filteredResults.length === 0}
-            className="self-start md:self-auto inline-flex items-center gap-2 px-5 py-2.5 bg-white text-slate-900 rounded-xl text-xs sm:text-sm font-bold shadow-md hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
-          >
-            <Download size={15} /> Export Results ({filteredResults.length})
-          </button>
+          <div className="flex items-center gap-2.5 flex-wrap no-print">
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer active:scale-95 border border-white/20"
+              title="Print visual results sheet or export to PDF"
+            >
+              <Printer size={15} /> Print Visual
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={filteredResults.length === 0}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 rounded-xl text-xs sm:text-sm font-bold shadow-md hover:bg-slate-100 transition cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <Download size={15} /> Export Excel ({filteredResults.length})
+            </button>
+          </div>
         </div>
       </div>
 
@@ -273,45 +344,106 @@ export default function AllResultsList() {
         </div>
       )}
 
-      {/* Search & Filter Controls */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs mb-8 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by program, candidate name, or admission number..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition"
-          />
+      {/* Search & Filter Controls (Filtered to only my-tables data) */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs mb-8 space-y-3 no-print">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by program, candidate name, or admission number..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Publication Status Filter */}
+            <select
+              value={publicationFilter}
+              onChange={(e) => setPublicationFilter(e.target.value as any)}
+              className="px-3 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-900 focus:outline-none cursor-pointer"
+            >
+              <option value="published">📢 Published Results Only</option>
+              <option value="all">🏆 All Evaluated Results</option>
+            </select>
+
+            {/* Wing Filter (Strictly from loaded table records) */}
+            <select
+              value={wingFilter}
+              onChange={(e) => setWingFilter(e.target.value)}
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="All">All Wings ({uniqueWings.length})</option>
+              {uniqueWings.map((w) => (
+                <option key={w.code} value={w.code}>
+                  {w.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Category Filter (Strictly from loaded table records) */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+            >
+              <option value="All">All Categories ({uniqueCategories.length})</option>
+              {uniqueCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={wingFilter}
-            onChange={(e) => setWingFilter(e.target.value)}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
-          >
-            <option value="All">All Wings</option>
-            {uniqueWings.map((w) => (
-              <option key={w.code} value={w.code}>
-                {w.label}
-              </option>
-            ))}
-          </select>
+        {/* Date Range Filter Section (From "20-07-2026" to "10-10-2026") */}
+        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-bold text-slate-600 flex items-center gap-1">
+              <Calendar size={14} className="text-amber-600" /> Filter by Date Range:
+            </span>
+            <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">From</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400">To</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer"
+              />
+            </div>
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
-          >
-            <option value="All">All Categories</option>
-            {uniqueCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+            {(startDate || endDate || wingFilter !== "All" || categoryFilter !== "All" || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate("");
+                  setEndDate("");
+                  setWingFilter("All");
+                  setCategoryFilter("All");
+                  setSearchQuery("");
+                }}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+              >
+                <RotateCcw size={12} /> Clear Filters
+              </button>
+            )}
+          </div>
+
+          <div className="text-xs font-semibold text-slate-500">
+            Showing <span className="font-bold text-slate-800">{filteredResults.length}</span> of {results.length} results
+          </div>
         </div>
       </div>
 
@@ -491,22 +623,48 @@ export default function AllResultsList() {
                   )}
                 </div>
 
-                {/* Footer status */}
-                <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-medium">
-                  <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                    <CheckCircle2 size={13} className="text-emerald-600" />
-                    Verified Result
-                  </span>
-                  {res.creaded_At && (
-                    <span className="text-[10px] font-mono text-slate-400">
-                      Published {res.creaded_At}
+                {/* Footer status & Display Result Action */}
+                <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex flex-col gap-2">
+                  <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                    <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                      <CheckCircle2 size={13} className="text-emerald-600" />
+                      Verified Official Result
                     </span>
-                  )}
+                    {res.creaded_At && (
+                      <span className="text-[10px] font-mono text-slate-400">
+                        Published {res.creaded_At}
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedResultModal(res)}
+                    className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-1.5 shadow-2xs transition cursor-pointer active:scale-95 no-print"
+                    title="Open full competition result with winner podium and candidate details"
+                  >
+                    <Trophy size={13} className="text-yellow-200" />
+                    <span>Display Result Details</span>
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Detail Result Modal with Podium & Grades */}
+      {selectedResultModal && (
+        <ProgrammeResultModal
+          isOpen={Boolean(selectedResultModal)}
+          onClose={() => setSelectedResultModal(null)}
+          programCode={selectedResultModal.Program_Id || ""}
+          programTitle={selectedResultModal.programme?.Program_Title || selectedResultModal.Program_Id}
+          programDate={selectedResultModal.programme?.Date}
+          programVenue={selectedResultModal.programme?.Venue}
+          programPoster={selectedResultModal.programme?.Program_Poster}
+          wingCode={selectedResultModal.programme?.WingCode}
+        />
       )}
     </div>
   );
