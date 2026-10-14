@@ -70,13 +70,38 @@
 // }
 
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
+import { Printer, Calendar, RotateCcw, Filter } from "lucide-react";
+
+/**
+ * Robust date parser for both YYYY-MM-DD and DD-MM-YYYY formats (e.g. "20-07-2026")
+ */
+const parseFlexibleDate = (val?: string | null): Date | null => {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) {
+    const d = new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymd) {
+    const d = new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
 
 // --- TypeScript Interfaces ---
 
@@ -127,7 +152,7 @@ export default function OutReachAnaylatics() {
   
   // Selection & Filtering
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [filters, setFilters] = useState({ Type: "", Name: "", Position: "" });
+  const [filters, setFilters] = useState({ Type: "", Name: "", Position: "", startDate: "", endDate: "" });
   
   // Import Modal State
   const [importType, setImportType] = useState<ImportType>(null);
@@ -160,27 +185,48 @@ export default function OutReachAnaylatics() {
     fetchData();
   }, []);
 
-  // Reset selection and filters when changing tabs
+  // Reset selection when changing tabs (preserve date filters)
   useEffect(() => {
     setSelectedIds(new Set());
-    setFilters({ Type: "", Name: "", Position: "" });
+    setFilters(prev => ({ ...prev, Type: "", Name: "", Position: "" }));
   }, [activeTab]);
 
   // 2. Filter Application
   const getFilteredData = () => {
+    const startObj = filters.startDate ? parseFlexibleDate(filters.startDate) : null;
+    if (startObj) startObj.setHours(0, 0, 0, 0);
+    const endObj = filters.endDate ? parseFlexibleDate(filters.endDate) : null;
+    if (endObj) endObj.setHours(23, 59, 59, 999);
+
     if (activeTab === "Achievements") {
-      return achievements.filter(a => 
-        (!filters.Type || a.Achievement_Type === filters.Type) &&
-        (!filters.Name || a.Achiever_Name === filters.Name) &&
-        (!filters.Position || a.Position_Achieved === filters.Position)
-      );
+      return achievements.filter(a => {
+        if (filters.Type && a.Achievement_Type !== filters.Type) return false;
+        if (filters.Name && a.Achiever_Name !== filters.Name) return false;
+        if (filters.Position && a.Position_Achieved !== filters.Position) return false;
+        if (startObj || endObj) {
+          const itemDate = parseFlexibleDate((a as any).created_at || (a as any).Date);
+          if (itemDate) {
+            if (startObj && itemDate < startObj) return false;
+            if (endObj && itemDate > endObj) return false;
+          }
+        }
+        return true;
+      });
     }
     if (activeTab === "Outreach") {
-      return outreach.filter(o => 
-        (!filters.Type || o.OutReach_Type === filters.Type) &&
-        (!filters.Name || o.OutReach_Holder === filters.Name) &&
-        (!filters.Position || o.Position_Achieved === filters.Position)
-      );
+      return outreach.filter(o => {
+        if (filters.Type && o.OutReach_Type !== filters.Type) return false;
+        if (filters.Name && o.OutReach_Holder !== filters.Name) return false;
+        if (filters.Position && o.Position_Achieved !== filters.Position) return false;
+        if (startObj || endObj) {
+          const itemDate = parseFlexibleDate(o.created_at || (o as any).Date);
+          if (itemDate) {
+            if (startObj && itemDate < startObj) return false;
+            if (endObj && itemDate > endObj) return false;
+          }
+        }
+        return true;
+      });
     }
     return [];
   };
@@ -364,24 +410,93 @@ export default function OutReachAnaylatics() {
   };
 
 
-  // --- Analytics Processing ---
-  const kpiTotalAchPts = achievements.reduce((sum, a) => sum + (a.Point_Obtained || 0), 0);
-  const kpiTotalOutPts = outreach.reduce((sum, o) => sum + (o.Point_Obtained || 0), 0);
+  // --- Analytics Processing with Time-Bounded Date Filtering ---
+  const filteredOutreachForAnalytics = useMemo(() => {
+    let list = outreach;
+    const s = filters.startDate ? parseFlexibleDate(filters.startDate) : null;
+    if (s) {
+      s.setHours(0, 0, 0, 0);
+      list = list.filter(o => {
+        const d = parseFlexibleDate(o.created_at || (o as any).Date);
+        return d ? d >= s : true;
+      });
+    }
+    const e = filters.endDate ? parseFlexibleDate(filters.endDate) : null;
+    if (e) {
+      e.setHours(23, 59, 59, 999);
+      list = list.filter(o => {
+        const d = parseFlexibleDate(o.created_at || (o as any).Date);
+        return d ? d <= e : true;
+      });
+    }
+    return list;
+  }, [outreach, filters.startDate, filters.endDate]);
 
-  const achieveTypeData = getUnique(achievements, "Achievement_Type").map(type => ({
+  const filteredAchievementsForAnalytics = useMemo(() => {
+    let list = achievements;
+    const s = filters.startDate ? parseFlexibleDate(filters.startDate) : null;
+    if (s) {
+      s.setHours(0, 0, 0, 0);
+      list = list.filter(a => {
+        const d = parseFlexibleDate((a as any).created_at || (a as any).Date);
+        return d ? d >= s : true;
+      });
+    }
+    const e = filters.endDate ? parseFlexibleDate(filters.endDate) : null;
+    if (e) {
+      e.setHours(23, 59, 59, 999);
+      list = list.filter(a => {
+        const d = parseFlexibleDate((a as any).created_at || (a as any).Date);
+        return d ? d <= e : true;
+      });
+    }
+    return list;
+  }, [achievements, filters.startDate, filters.endDate]);
+
+  const kpiTotalAchPts = filteredAchievementsForAnalytics.reduce((sum: number, a: Achievement) => sum + (a.Point_Obtained || 0), 0);
+  const kpiTotalOutPts = filteredOutreachForAnalytics.reduce((sum: number, o: Outreach) => sum + (o.Point_Obtained || 0), 0);
+
+  const achieveTypeData = getUnique(filteredAchievementsForAnalytics, "Achievement_Type").map(type => ({
     name: type,
-    value: achievements.filter(a => a.Achievement_Type === type).length
+    value: filteredAchievementsForAnalytics.filter((a: Achievement) => a.Achievement_Type === type).length
   }));
 
-  const outReachTypeData = getUnique(outreach, "OutReach_Type").map(type => ({
+  const outReachTypeData = getUnique(filteredOutreachForAnalytics, "OutReach_Type").map(type => ({
     name: type,
-    points: outreach.filter(o => o.OutReach_Type === type).reduce((sum, o) => sum + (o.Point_Obtained || 0), 0)
+    points: filteredOutreachForAnalytics.filter((o: Outreach) => o.OutReach_Type === type).reduce((sum: number, o: Outreach) => sum + (o.Point_Obtained || 0), 0)
   })).sort((a, b) => b.points - a.points).slice(0, 6);
 
   if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>Loading Engagement Data...</div>;
 
   return (
     <div style={{ padding: "24px", backgroundColor: "#f8fafc", minHeight: "100vh", fontFamily: "system-ui, sans-serif" }}>
+      {/* PRINT-ONLY CSS */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-block { display: block !important; }
+        }
+      `}</style>
+
+      {/* PRINT-ONLY BRANDED REPORT HEADER */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
+            <p className="text-sm font-bold text-slate-700">Student External Engagement & Achievements Report</p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
+            <p className="font-bold text-indigo-800">
+              {filters.startDate || filters.endDate
+                ? `Period: ${filters.startDate || "Beginning"} to ${filters.endDate || "Present"}`
+                : "Period: Complete Records"}
+            </p>
+            <p>Outreach: {filteredOutreachForAnalytics.length} | Achievements: {filteredAchievementsForAnalytics.length}</p>
+          </div>
+        </div>
+      </div>
       
       {/* IMPORT MODAL PREVIEW */}
       {importType && (
@@ -423,31 +538,79 @@ export default function OutReachAnaylatics() {
       )}
 
       {/* HEADER SECTION */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", backgroundColor: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)" }}>
+      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", backgroundColor: "#fff", padding: "20px", borderRadius: "16px", boxShadow: "0 2px 4px rgba(0,0,0,0.04)", flexWrap: "wrap", gap: "16px" }}>
         <div>
           <h2 style={{ margin: 0, fontSize: "24px", color: "#0f172a", fontWeight: 700 }}>Student External Engagement</h2>
           <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "13px" }}>
-            <b>CSV Import Formats:</b><br/>
-            Outreach: <span style={{fontFamily: "monospace"}}>StnAddNo, Title, Type, Position, Description, Points</span><br/>
-            Achievements: <span style={{fontFamily: "monospace"}}>StnAddNo, Title, Type, Position, Description, Points</span>
+            Monitor student external achievements, community outreach, and records.
           </p>
         </div>
         
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <div style={{ display: "flex", backgroundColor: "#f1f5f9", borderRadius: "8px", padding: "4px" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", backgroundColor: "#f1f5f9", borderRadius: "10px", padding: "4px" }}>
             <button onClick={() => setActiveTab("Analytics")} style={{...tabStyleBase, backgroundColor: activeTab === "Analytics" ? "#fff" : "transparent", color: activeTab === "Analytics" ? "#0f172a" : "#64748b", boxShadow: activeTab === "Analytics" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"}}>Analytics</button>
             <button onClick={() => setActiveTab("Outreach")} style={{...tabStyleBase, backgroundColor: activeTab === "Outreach" ? "#fff" : "transparent", color: activeTab === "Outreach" ? "#0ea5e9" : "#64748b", boxShadow: activeTab === "Outreach" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"}}>Outreach Directory</button>
             <button onClick={() => setActiveTab("Achievements")} style={{...tabStyleBase, backgroundColor: activeTab === "Achievements" ? "#fff" : "transparent", color: activeTab === "Achievements" ? "#ec4899" : "#64748b", boxShadow: activeTab === "Achievements" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"}}>Achievements Directory</button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer"
+            title="Print Visual Analytics"
+          >
+            <Printer size={15} className="text-emerald-400" />
+            <span>Print Visual</span>
+          </button>
         </div>
+      </div>
+
+      {/* TIME BOUNDED DATE FILTER TOOLBAR */}
+      <div className="no-print" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", marginBottom: "20px", backgroundColor: "#fff", padding: "14px 18px", borderRadius: "16px", boxShadow: "0 2px 4px rgba(0,0,0,0.04)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 700, color: "#334155" }}>
+          <Filter size={15} className="text-cyan-600" />
+          <span>Date Filter:</span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#f8fafc", padding: "6px 12px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+          <Calendar size={13} className="text-slate-400" />
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>From Date:</span>
+          <input
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+            style={{ border: "none", background: "transparent", fontSize: "12px", fontWeight: 600, color: "#1e293b", outline: "none" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#f8fafc", padding: "6px 12px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
+          <Calendar size={13} className="text-slate-400" />
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>To Date:</span>
+          <input
+            type="date"
+            value={filters.endDate}
+            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+            style={{ border: "none", background: "transparent", fontSize: "12px", fontWeight: 600, color: "#1e293b", outline: "none" }}
+          />
+        </div>
+
+        {(filters.startDate || filters.endDate) && (
+          <button
+            type="button"
+            onClick={() => setFilters({ ...filters, startDate: "", endDate: "" })}
+            style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: "#fff1f2", color: "#e11d48", padding: "6px 12px", borderRadius: "10px", fontSize: "12px", fontWeight: 700, border: "none", cursor: "pointer" }}
+          >
+            <RotateCcw size={12} /> Clear Dates
+          </button>
+        )}
       </div>
 
       {/* DYNAMIC CONTENT AREA */}
       {activeTab === "Analytics" ? (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-            <div style={kpiCardStyle}><div style={kpiTitleStyle}>Total Outreach Entries</div><div style={kpiValueStyle}>{outreach.length}</div></div>
-            <div style={kpiCardStyle}><div style={kpiTitleStyle}>Total Achievement Entries</div><div style={kpiValueStyle}>{achievements.length}</div></div>
+            <div style={kpiCardStyle}><div style={kpiTitleStyle}>Total Outreach Entries</div><div style={kpiValueStyle}>{filteredOutreachForAnalytics.length}</div></div>
+            <div style={kpiCardStyle}><div style={kpiTitleStyle}>Total Achievement Entries</div><div style={kpiValueStyle}>{filteredAchievementsForAnalytics.length}</div></div>
             <div style={kpiCardStyle}><div style={kpiTitleStyle}>Total Outreach Points</div><div style={{...kpiValueStyle, color: "#0ea5e9"}}>{kpiTotalOutPts}</div></div>
             <div style={kpiCardStyle}><div style={kpiTitleStyle}>Total Achievement Points</div><div style={{...kpiValueStyle, color: "#ec4899"}}>{kpiTotalAchPts}</div></div>
           </div>

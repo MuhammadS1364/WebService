@@ -25,6 +25,9 @@ import {
   Loader2,
   Maximize2,
   Download,
+  Printer,
+  RotateCcw,
+  Filter,
 } from "lucide-react";
 
 // --- Type Definitions ---
@@ -34,6 +37,8 @@ interface Student extends LoggedInStudentProfile {
   OutReach_Count?: number;
   Achievements_Counts?: number;
   Total_Point_Anjuman?: number;
+  Stn_Class?: string;
+  Class?: string;
 }
 
 interface EnrolledProgram {
@@ -83,6 +88,8 @@ export default function StudentAnalytics() {
   const [outreach, setOutreach] = useState<Outreach[]>([]);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [programFilter, setProgramFilter] = useState<string>("All");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
 
   // View Mode: Cards vs Table Row View
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
@@ -208,13 +215,78 @@ export default function StudentAnalytics() {
     };
   }, [actStn]);
 
+  /**
+   * Flexible Date Parser for YYYY-MM-DD or DD-MM-YYYY (e.g. "20-07-2026")
+   */
+  const parseFlexibleDate = (val?: string | null): Date | null => {
+    if (!val) return null;
+    const s = String(val).trim();
+    if (!s) return null;
+
+    const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmy) {
+      const d = new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (ymd) {
+      const d = new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const parsed = new Date(s);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  // Resolve Class Nick Name (e.g. "U1 or U")
+  const classNickName = useMemo(() => {
+    if (!student) return "";
+    if (student.Stn_Class) {
+      const matched = meta.classes.find((c) => c.class_id === student.Stn_Class);
+      if (matched?.class_nick_name) return matched.class_nick_name;
+    }
+    if (student.Class) {
+      const matched = meta.classes.find(
+        (c) => c.standard_name === student.Class || c.class_nick_name === student.Class
+      );
+      if (matched?.class_nick_name) return matched.class_nick_name;
+      return student.Class;
+    }
+    return "U";
+  }, [student, meta.classes]);
+
   const programGroups = useMemo(() => {
     return ["All", ...Array.from(new Set(programs.map((p) => p.Group).filter(Boolean)))];
   }, [programs]);
 
   const filteredPrograms = useMemo(() => {
-    return programFilter === "All" ? programs : programs.filter((p) => p.Group === programFilter);
-  }, [programs, programFilter]);
+    let result = programFilter === "All" ? programs : programs.filter((p) => p.Group === programFilter);
+
+    if (startDate) {
+      const start = parseFlexibleDate(startDate);
+      if (start) {
+        start.setHours(0, 0, 0, 0);
+        result = result.filter(p => {
+          const d = parseFlexibleDate(p.Date);
+          return d ? d >= start : false;
+        });
+      }
+    }
+
+    if (endDate) {
+      const end = parseFlexibleDate(endDate);
+      if (end) {
+        end.setHours(23, 59, 59, 999);
+        result = result.filter(p => {
+          const d = parseFlexibleDate(p.Date);
+          return d ? d <= end : false;
+        });
+      }
+    }
+
+    return result;
+  }, [programs, programFilter, startDate, endDate]);
 
   // Check if deadline is open or expired
   const isSubmissionOpen = (prog: EnrolledProgram) => {
@@ -329,6 +401,36 @@ export default function StudentAnalytics() {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-28 font-sans px-1 sm:px-2">
+      {/* PRINT-ONLY CSS */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-block { display: block !important; }
+        }
+      `}</style>
+
+      {/* PRINT-ONLY BRANDED REPORT HEADER */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
+            <p className="text-sm font-bold text-slate-700">
+              Student Performance & Activity Report — {student.StudentName} (#{student.AddNo})
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
+            <p className="font-bold text-indigo-800">
+              {startDate || endDate
+                ? `Period: ${startDate || "Beginning"} to ${endDate || "Present"}`
+                : "Period: Complete Records"}
+            </p>
+            <p>Class: {classNickName} | Total Points: {student.Grand_Total_Points || 0}</p>
+          </div>
+        </div>
+      </div>
+
       {/* HEADER HERO */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-7 shadow-xs flex flex-col sm:flex-row items-center sm:items-start justify-between gap-5 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left min-w-0">
@@ -352,8 +454,14 @@ export default function StudentAnalytics() {
             <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight truncate">
               {student.StudentName}
             </h1>
-            <p className="text-slate-500 text-xs sm:text-sm mt-1">
-              {student.Class || "Student"} | {student.CollegeName || "Darul Huda Islamic University"}
+            <p className="text-slate-500 text-xs sm:text-sm mt-1 flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+              <span>{student.Class || "Student"}</span>
+              {classNickName && (
+                <span className="px-2 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wide bg-indigo-100 text-indigo-800 border border-indigo-200" title="Class Nickname">
+                  {classNickName}
+                </span>
+              )}
+              <span>| {student.CollegeName || "Darul Huda Islamic University"}</span>
             </p>
             <div className="mt-2 inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-0.5 rounded-full text-xs font-semibold">
               <span>ID:</span>
@@ -362,14 +470,27 @@ export default function StudentAnalytics() {
           </div>
         </div>
 
-        {/* Grand Total Points Badge */}
-        <div className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shrink-0 shadow-xs flex sm:flex-col items-center justify-between sm:justify-center gap-1 min-w-[150px]">
-          <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Grand Total</p>
-          <p className="text-3xl sm:text-4xl font-black text-indigo-600 flex items-center gap-1">
-            <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />
-            {student.Grand_Total_Points || 0}
-          </p>
-          <span className="text-[10px] font-bold text-slate-400">Total Points</span>
+        {/* Right side: Grand Total Points Badge & Print Visual Button */}
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer no-print"
+            title="Print Visual Analytics"
+          >
+            <Printer size={15} className="text-emerald-400" />
+            <span>Print Visual</span>
+          </button>
+
+          {/* Grand Total Points Badge */}
+          <div className="w-full sm:w-auto bg-slate-50 border border-slate-200 rounded-2xl p-4 text-center shrink-0 shadow-xs flex sm:flex-col items-center justify-between sm:justify-center gap-1 min-w-[150px]">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Grand Total</p>
+            <p className="text-3xl sm:text-4xl font-black text-indigo-600 flex items-center gap-1">
+              <Zap className="w-6 h-6 text-amber-500 fill-amber-500" />
+              {student.Grand_Total_Points || 0}
+            </p>
+            <span className="text-[10px] font-bold text-slate-400">Total Points</span>
+          </div>
         </div>
       </div>
 
@@ -508,6 +629,54 @@ export default function StudentAnalytics() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* TIME BOUNDED DATE FILTER ("From Date" to "To Date", e.g. "20-07-2026" to "10-10-2026") */}
+        <div className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200/80 no-print">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+            <Filter size={14} className="text-indigo-600" />
+            <span>Time Period:</span>
+          </div>
+
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+            <Calendar size={13} className="text-indigo-500 shrink-0" />
+            <span className="text-[11px] font-bold text-slate-500">From Date:</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              placeholder="From Date"
+              className="bg-transparent text-xs font-semibold text-slate-800 outline-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+            <Calendar size={13} className="text-indigo-500 shrink-0" />
+            <span className="text-[11px] font-bold text-slate-500">To Date:</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              placeholder="To Date"
+              className="bg-transparent text-xs font-semibold text-slate-800 outline-none"
+            />
+          </div>
+
+          {(startDate || endDate) && (
+            <button
+              type="button"
+              onClick={() => { setStartDate(""); setEndDate(""); }}
+              className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded-xl transition cursor-pointer"
+            >
+              <RotateCcw size={12} /> Clear Dates
+            </button>
+          )}
+
+          {(startDate || endDate) && (
+            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 ml-auto">
+              Matching: {filteredPrograms.length} activities
+            </span>
+          )}
         </div>
 
         {filteredPrograms.length === 0 ? (

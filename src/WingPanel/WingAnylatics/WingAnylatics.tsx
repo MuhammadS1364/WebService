@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveWingProfile } from "../../lib/wingResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
+import { Printer, Calendar, RotateCcw, Filter } from "lucide-react";
 
 // --- INTERFACES ---
 interface WingData {
@@ -24,6 +25,8 @@ interface Programme {
   Total_Registration: number;
   IsConducted: boolean;
   IsResultPublished: boolean;
+  Date?: string;
+  created_at?: string;
 }
 
 interface CategoryStat {
@@ -76,6 +79,32 @@ export default function WingAnalytics() {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
   const [statusFilter, setStatusFilter] = useState<string>("All");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
+  /**
+   * Flexible Date Parser for YYYY-MM-DD or DD-MM-YYYY (e.g. "20-07-2026")
+   */
+  const parseFlexibleDate = (val?: string | null): Date | null => {
+    if (!val) return null;
+    const s = String(val).trim();
+    if (!s) return null;
+
+    const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmy) {
+      const d = new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (ymd) {
+      const d = new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const parsed = new Date(s);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -134,9 +163,32 @@ export default function WingAnalytics() {
       filtered = filtered.filter(p => !p.IsResultPublished);
     }
 
-    // Build category stats by resolving readable category names
+    // Time bounded date filter ("From Date" to "To Date", e.g. "20-07-2026" to "10-10-2026")
+    if (startDate) {
+      const start = parseFlexibleDate(startDate);
+      if (start) {
+        start.setHours(0, 0, 0, 0);
+        filtered = filtered.filter(p => {
+          const d = parseFlexibleDate(p.Date || p.created_at);
+          return d ? d >= start : false;
+        });
+      }
+    }
+
+    if (endDate) {
+      const end = parseFlexibleDate(endDate);
+      if (end) {
+        end.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(p => {
+          const d = parseFlexibleDate(p.Date || p.created_at);
+          return d ? d <= end : false;
+        });
+      }
+    }
+
+    // Build category stats by resolving readable category names from filtered programmes
     const catMapStats = new Map<string, number>();
-    programmes.forEach(p => {
+    filtered.forEach(p => {
       const catName = meta.getCategoryName(p.Category);
       catMapStats.set(catName, (catMapStats.get(catName) || 0) + (p.Total_Registration || 0));
     });
@@ -154,14 +206,11 @@ export default function WingAnalytics() {
       categories: uniqueCategoryNames,
       stats: { categoryStats, maxReg }
     };
-  }, [programmes, searchQuery, categoryFilter, statusFilter, meta]);
+  }, [programmes, searchQuery, categoryFilter, statusFilter, startDate, endDate, meta]);
 
-  const totalProgramsCount = programmes.length;
-  const publishedResultsCount = programmes.filter(p => p.IsResultPublished).length;
-
-  // count all the value of thsi colun "Total_Registration" 
-  const totalRegistrations = programmes.reduce((sum, p) => sum + (p.Total_Registration || 0), 0);
-  
+  const totalProgramsCount = filteredProgrammes.length;
+  const publishedResultsCount = filteredProgrammes.filter(p => p.IsResultPublished).length;
+  const totalRegistrations = filteredProgrammes.reduce((sum, p) => sum + (p.Total_Registration || 0), 0);
   const completionPercentage = totalProgramsCount === 0 ? 0 : Math.round((publishedResultsCount / totalProgramsCount) * 100);
 
   if (loading) return <div className="flex h-96 items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600"></div></div>;
@@ -169,9 +218,38 @@ export default function WingAnalytics() {
 
   return (
     <div className="mx-auto max-w-[1600px] p-4 font-sans text-slate-800 bg-slate-50 min-h-screen">
+      {/* PRINT-ONLY CSS */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-block { display: block !important; }
+        }
+      `}</style>
+
+      {/* PRINT-ONLY BRANDED REPORT HEADER */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
+            <p className="text-sm font-bold text-slate-700">
+              Wing Analytics & Performance Report — {wingData?.WingTitle || 'Wing'} ({wingData?.WingCode})
+            </p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
+            <p className="font-bold text-indigo-800">
+              {startDate || endDate
+                ? `Period: ${startDate || "Beginning"} to ${endDate || "Present"}`
+                : "Period: Complete Records"}
+            </p>
+            <p>Total Programmes: {totalProgramsCount} | Registrations: {totalRegistrations}</p>
+          </div>
+        </div>
+      </div>
 
       {/* --- HEADER --- */}
-      <div className="mb-8 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 xl:flex-row xl:items-center xl:justify-between">
+      <div className="mb-6 flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 xl:flex-row xl:items-center xl:justify-between no-print">
         <div className="flex flex-col">
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Wing Analytics</h1>
           <p className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-2">
@@ -180,15 +258,56 @@ export default function WingAnalytics() {
           </p>
         </div>
 
-        {/* --- FILTERS & SEARCH CONTROLS --- */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-wrap">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition cursor-pointer"
+            title="Print Visual Analytics"
+          >
+            <Printer size={15} className="text-emerald-400" />
+            <span>Print Visual</span>
+          </button>
+        </div>
+      </div>
+
+      {/* --- FILTERS & SEARCH CONTROLS --- */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-100 mb-6 no-print space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Filter size={15} className="text-indigo-600" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Filter Controls</span>
+            {(startDate || endDate || categoryFilter !== "All" || statusFilter !== "All" || searchQuery) && (
+              <span className="text-[11px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                Filtered: {filteredProgrammes.length} programmes
+              </span>
+            )}
+          </div>
+          {(startDate || endDate || categoryFilter !== "All" || statusFilter !== "All" || searchQuery) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery("");
+                setCategoryFilter("All");
+                setStatusFilter("All");
+                setStartDate("");
+                setEndDate("");
+              }}
+              className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition cursor-pointer"
+            >
+              <RotateCcw size={12} /> Reset Filters
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center flex-wrap">
           <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {(["All", "Published", "Pending"] as const).map((status) => (
               <button
                 key={status}
                 type="button"
                 onClick={() => setStatusFilter(status)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${statusFilter === status
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${statusFilter === status
                     ? "bg-white text-slate-900 shadow-sm"
                     : "text-slate-500 hover:text-slate-800"
                   }`}
@@ -198,7 +317,35 @@ export default function WingAnalytics() {
             ))}
           </div>
 
-          <div className="relative w-full sm:w-64">
+          {/* Time bounded filter: From Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+            <Calendar size={13} className="text-indigo-600 shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] uppercase font-bold text-slate-600">From Date</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-slate-700 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Time bounded filter: To Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
+            <Calendar size={13} className="text-indigo-600 shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] uppercase font-bold text-slate-600">To Date</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-slate-700 outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="relative flex-1 min-w-[200px]">
             <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </span>
@@ -207,7 +354,7 @@ export default function WingAnalytics() {
               placeholder="Search programs..."
               value={searchQuery}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-xs font-medium text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none"
             />
           </div>
 
@@ -215,7 +362,7 @@ export default function WingAnalytics() {
             id="category-filter"
             value={categoryFilter}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCategoryFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-4 text-sm font-medium text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/10 cursor-pointer"
+            className="rounded-xl border border-slate-200 bg-slate-50 py-2 px-3 text-xs font-medium text-slate-700 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none cursor-pointer"
           >
             <option value="All">All Categories</option>
             {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}

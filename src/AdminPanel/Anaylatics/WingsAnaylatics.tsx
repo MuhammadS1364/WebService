@@ -63,7 +63,7 @@ import React, { useState, useEffect, useMemo } from "react";
 // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
 import { SupaBaseFunction } from "../../lib/SupaBase"; 
 import EditWingModal, { type EditableWing } from "../Wing/EditWingModal";
-import { Edit2, Building2, CheckCircle2, Search, Download } from "lucide-react";
+import { Edit2, Building2, CheckCircle2, Search, Download, Calendar, Printer, RotateCcw, Filter } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -92,14 +92,43 @@ export interface Wing {
 interface Filters {
   SearchTerm: string;
   IsActive: string;
+  startDate: string;
+  endDate: string;
 }
 
 // Vibrant Violet & Amber Theme for Wings Dashboard
 const COLORS = ['#8b5cf6', '#f59e0b', '#ec4899', '#3b82f6', '#10b981', '#f43f5e', '#6366f1'];
 
+/**
+ * Robust date parser for both YYYY-MM-DD and DD-MM-YYYY formats (e.g. "20-07-2026")
+ */
+const parseFlexibleDate = (val?: string | null): Date | null => {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+
+  // DD-MM-YYYY or DD/MM/YYYY
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) {
+    const d = new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymd) {
+    const d = new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export default function GeneralWingsAnaylatics() {
   // State Management
   const [wings, setWings] = useState<Wing[]>([]);
+  const [wingActivityDates, setWingActivityDates] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -111,21 +140,32 @@ export default function GeneralWingsAnaylatics() {
   // Filter States
   const [filters, setFilters] = useState<Filters>({
     SearchTerm: "",
-    IsActive: "all"
+    IsActive: "all",
+    startDate: "",
+    endDate: ""
   });
 
-  // 1. Fetch Wings Data
+  // 1. Fetch Wings Data & Associated Programme Dates
   const fetchWings = async () => {
     setLoading(true);
     try {
-      const { data, error } = await SupaBaseFunction
-        .from("Chs-WingS")
-        .select("*")
-        .order("WingTitle", { ascending: true });
+      const [wingRes, progRes] = await Promise.all([
+        SupaBaseFunction.from("Chs-WingS").select("*").order("WingTitle", { ascending: true }),
+        SupaBaseFunction.from("ProgrammesBox").select("WingCode, Date, created_at")
+      ]);
         
-      if (error) throw error;
+      if (wingRes.error) throw wingRes.error;
       
-      setWings(data || []);
+      setWings(wingRes.data || []);
+
+      const actDates: Record<string, string[]> = {};
+      (progRes.data || []).forEach((p: any) => {
+        if (p.WingCode && (p.Date || p.created_at)) {
+          if (!actDates[p.WingCode]) actDates[p.WingCode] = [];
+          actDates[p.WingCode].push(p.Date || p.created_at);
+        }
+      });
+      setWingActivityDates(actDates);
     } catch (error) {
       console.error("Error fetching Wings:", error);
     } finally {
@@ -178,8 +218,43 @@ export default function GeneralWingsAnaylatics() {
       result = result.filter(w => w.IsActive === isActiveBool);
     }
 
+    // Time bounded date filter ("From Date" to "To Date", e.g. "20-07-2026" to "10-10-2026")
+    if (filters.startDate) {
+      const start = parseFlexibleDate(filters.startDate);
+      if (start) {
+        start.setHours(0, 0, 0, 0);
+        result = result.filter(w => {
+          const dates = wingActivityDates[w.WingCode] || [];
+          if (dates.length > 0) {
+            return dates.some(d => {
+              const pd = parseFlexibleDate(d);
+              return pd ? pd >= start : false;
+            });
+          }
+          return true;
+        });
+      }
+    }
+
+    if (filters.endDate) {
+      const end = parseFlexibleDate(filters.endDate);
+      if (end) {
+        end.setHours(23, 59, 59, 999);
+        result = result.filter(w => {
+          const dates = wingActivityDates[w.WingCode] || [];
+          if (dates.length > 0) {
+            return dates.some(d => {
+              const pd = parseFlexibleDate(d);
+              return pd ? pd <= end : false;
+            });
+          }
+          return true;
+        });
+      }
+    }
+
     return result;
-  }, [filters, wings]);
+  }, [filters, wings, wingActivityDates]);
 
   // 3. CSV Export Logic
   const handleExport = () => {
@@ -281,17 +356,44 @@ export default function GeneralWingsAnaylatics() {
 
   return (
     <div className="w-full max-w-full overflow-hidden font-sans space-y-5">
+      {/* PRINT-ONLY CSS */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-block { display: block !important; }
+        }
+      `}</style>
+
+      {/* PRINT-ONLY BRANDED REPORT HEADER */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
+            <p className="text-sm font-bold text-slate-700">Wings & Departmental Performance Visual Analytics Report</p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
+            <p className="font-bold text-violet-800">
+              {filters.startDate || filters.endDate
+                ? `Period: ${filters.startDate || "Beginning"} to ${filters.endDate || "Present"}`
+                : "Period: Complete Records"}
+            </p>
+            <p>Total Wings: {filteredData.length}</p>
+          </div>
+        </div>
+      </div>
       
       {/* FEEDBACK TOAST BANNER */}
       {feedback && (
-        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xs transition-all animate-fade-in">
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold flex items-center gap-2.5 shadow-xs transition-all animate-fade-in no-print">
           <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
           <span>{feedback}</span>
         </div>
       )}
 
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs gap-4 no-print">
         <div>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-violet-50 text-violet-600 border border-violet-100">
@@ -302,7 +404,7 @@ export default function GeneralWingsAnaylatics() {
           <p className="mt-1 text-xs sm:text-sm text-slate-500">Monitor departmental performance, points distribution, and manage wing profiles.</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto items-stretch sm:items-center">
+        <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto items-stretch sm:items-center flex-wrap">
           <div className="flex bg-slate-100 rounded-xl p-1 w-full sm:w-auto">
             <button 
               type="button"
@@ -322,6 +424,16 @@ export default function GeneralWingsAnaylatics() {
 
           <button 
             type="button"
+            onClick={() => window.print()} 
+            className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            title="Print Visual Analytics and Charts"
+          >
+            <Printer size={14} className="text-emerald-400" />
+            <span>Print Visual</span>
+          </button>
+
+          <button 
+            type="button"
             onClick={handleExport} 
             className="w-full sm:w-auto bg-violet-600 hover:bg-violet-700 active:scale-95 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
           >
@@ -331,31 +443,86 @@ export default function GeneralWingsAnaylatics() {
         </div>
       </div>
 
-      {/* FILTER & SEARCH SECTION */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 sm:p-4 rounded-3xl border border-slate-200 shadow-xs">
-        <div className="relative sm:col-span-2">
-          <input 
-            type="text" 
-            name="SearchTerm" 
-            placeholder="Search by Wing Name, Code, or Manager..." 
-            value={filters.SearchTerm} 
-            onChange={handleFilterChange} 
-            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
-          />
-          <Search size={15} className="absolute left-3 top-3 text-slate-400" />
+      {/* FILTER & SEARCH SECTION WITH TIME-BOUNDED DATES */}
+      <div className="bg-white p-3.5 sm:p-5 rounded-3xl border border-slate-200 shadow-xs no-print space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-violet-600" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Filter Controls</span>
+            {(filters.SearchTerm || filters.IsActive !== "all" || filters.startDate || filters.endDate) && (
+              <span className="text-[11px] bg-violet-50 text-violet-700 font-bold px-2 py-0.5 rounded-full border border-violet-200">
+                Filtered: {filteredData.length} wings
+              </span>
+            )}
+          </div>
+          {(filters.SearchTerm || filters.IsActive !== "all" || filters.startDate || filters.endDate) && (
+            <button
+              type="button"
+              onClick={() => setFilters({ SearchTerm: "", IsActive: "all", startDate: "", endDate: "" })}
+              className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition"
+            >
+              <RotateCcw className="w-3 h-3" /> Reset Filters
+            </button>
+          )}
         </div>
 
-        <div>
-          <select 
-            name="IsActive" 
-            value={filters.IsActive} 
-            onChange={handleFilterChange} 
-            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm rounded-xl p-2.5 outline-none focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all cursor-pointer font-medium"
-          >
-            <option value="all">All Statuses (Active & Inactive)</option>
-            <option value="true">Active Operating Wings Only</option>
-            <option value="false">Inactive Wings Only</option>
-          </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="relative">
+            <input 
+              type="text" 
+              name="SearchTerm" 
+              placeholder="Search Wing, Code, Manager..." 
+              value={filters.SearchTerm} 
+              onChange={handleFilterChange} 
+              className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm rounded-xl pl-9 pr-3 py-2.5 outline-none focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+            />
+            <Search size={15} className="absolute left-3 top-3 text-slate-400" />
+          </div>
+
+          {/* Time bounded filter: From Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2">
+            <Calendar className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+            <div className="flex flex-col w-full min-w-0">
+              <span className="text-[10px] uppercase font-bold text-slate-600">From Date</span>
+              <input
+                type="date"
+                name="startDate"
+                value={filters.startDate}
+                onChange={handleFilterChange}
+                placeholder="From Date"
+                className="w-full bg-transparent text-xs font-semibold text-slate-700 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Time bounded filter: To Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2">
+            <Calendar className="w-3.5 h-3.5 text-violet-600 shrink-0" />
+            <div className="flex flex-col w-full min-w-0">
+              <span className="text-[10px] uppercase font-bold text-slate-600">To Date</span>
+              <input
+                type="date"
+                name="endDate"
+                value={filters.endDate}
+                onChange={handleFilterChange}
+                placeholder="To Date"
+                className="w-full bg-transparent text-xs font-semibold text-slate-700 outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <select 
+              name="IsActive" 
+              value={filters.IsActive} 
+              onChange={handleFilterChange} 
+              className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm rounded-xl p-2.5 outline-none focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all cursor-pointer font-medium"
+            >
+              <option value="all">All Statuses (Active & Inactive)</option>
+              <option value="true">Active Operating Wings Only</option>
+              <option value="false">Inactive Wings Only</option>
+            </select>
+          </div>
         </div>
       </div>
 

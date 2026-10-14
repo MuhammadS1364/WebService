@@ -98,6 +98,9 @@ import {
   Zap,
   Clock,
   Eye,
+  Printer,
+  RotateCcw,
+  Filter,
 } from "lucide-react";
 
 export interface Student {
@@ -122,6 +125,7 @@ export interface Student {
   StnState: string | null;
   StnDistrict: string | null;
   resolvedClassName?: string;
+  resolvedClassNickName?: string;
   resolvedCategoryName?: string;
 }
 
@@ -145,6 +149,8 @@ interface FilterState {
   StnDistrict: string;
   CollegeName: string;
   IsActive: string;
+  startDate: string;
+  endDate: string;
 }
 
 interface FilterOptions {
@@ -157,9 +163,36 @@ interface FilterOptions {
 
 const COLORS: string[] = ['#0ea5e9', '#10b981', '#f43f5e', '#8b5cf6', '#f59e0b', '#06b6d4'];
 
+/**
+ * Robust date parser for both YYYY-MM-DD and DD-MM-YYYY formats (e.g. "20-07-2026")
+ */
+const parseFlexibleDate = (val?: string | null): Date | null => {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (!s) return null;
+
+  // DD-MM-YYYY or DD/MM/YYYY
+  const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmy) {
+    const d = new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // YYYY-MM-DD or YYYY/MM/DD
+  const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymd) {
+    const d = new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export default function StudentsAnalyticsGeneral() {
   const meta = useProgrammeMeta();
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentActivityDates, setStudentActivityDates] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -170,7 +203,8 @@ export default function StudentsAnalyticsGeneral() {
   const [programViewMode, setProgramViewMode] = useState<"card" | "table">("card");
 
   const [filters, setFilters] = useState<FilterState>({
-    Class: "", Category: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "true"
+    Class: "", Category: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "true",
+    startDate: "", endDate: ""
   });
 
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -190,6 +224,22 @@ export default function StudentsAnalyticsGeneral() {
       return s.Class;
     }
     return "Unassigned";
+  };
+
+  // Helper to resolve student Class_Nick_name (e.g. "U1", "U2", "U")
+  const getResolvedClassNickName = (s: Student): string => {
+    if (s.Stn_Class) {
+      const matched = meta.classes.find((c) => c.class_id === s.Stn_Class);
+      if (matched?.class_nick_name) return matched.class_nick_name;
+    }
+    if (s.Class) {
+      const matched = meta.classes.find(
+        (c) => c.standard_name === s.Class || c.class_nick_name === s.Class
+      );
+      if (matched?.class_nick_name) return matched.class_nick_name;
+      return s.Class;
+    }
+    return "U";
   };
 
   // Helper to resolve student category name from Our_Category bonding
@@ -227,11 +277,32 @@ export default function StudentsAnalyticsGeneral() {
     const fetchStudents = async () => {
       setLoading(true);
       try {
-        const { data, error } = await SupaBaseFunction.from("StudentsBox").select("*");
-        if (error) throw error;
+        const [stnRes, regRes, progRes] = await Promise.all([
+          SupaBaseFunction.from("StudentsBox").select("*"),
+          SupaBaseFunction.from("CandidateRegistrationTable").select("Candidate_Code, Program_Code"),
+          SupaBaseFunction.from("ProgrammesBox").select("Program_Code, Date, created_at"),
+        ]);
+        if (stnRes.error) throw stnRes.error;
 
-        const rawData = (data as Student[]) || [];
+        const rawData = (stnRes.data as Student[]) || [];
         setStudents(rawData);
+
+        // Map candidate AddNo to program dates
+        const progDateMap: Record<string, string> = {};
+        (progRes.data || []).forEach((p: any) => {
+          if (p.Program_Code && (p.Date || p.created_at)) {
+            progDateMap[p.Program_Code] = p.Date || p.created_at;
+          }
+        });
+
+        const actDates: Record<string, string[]> = {};
+        (regRes.data || []).forEach((r: any) => {
+          if (r.Candidate_Code && r.Program_Code && progDateMap[r.Program_Code]) {
+            if (!actDates[r.Candidate_Code]) actDates[r.Candidate_Code] = [];
+            actDates[r.Candidate_Code].push(progDateMap[r.Program_Code]);
+          }
+        });
+        setStudentActivityDates(actDates);
       } catch (error) {
         console.error("Error fetching students:", error);
       } finally {
@@ -241,11 +312,12 @@ export default function StudentsAnalyticsGeneral() {
     fetchStudents();
   }, []);
 
-  // Hydrate students with resolved class and category names
+  // Hydrate students with resolved class, nick name and category names
   const hydratedStudents = useMemo(() => {
     return students.map((s) => ({
       ...s,
       resolvedClassName: getResolvedClassName(s),
+      resolvedClassNickName: getResolvedClassNickName(s),
       resolvedCategoryName: getResolvedCategoryName(s),
     }));
   }, [students, meta.classMap, meta.classes, meta.categories]);
@@ -363,7 +435,7 @@ export default function StudentsAnalyticsGeneral() {
   // Memoize filteredData to prevent cascading render loops
   const filteredData = useMemo(() => {
     let result = [...hydratedStudents];
-    if (filters.Class) result = result.filter(s => s.resolvedClassName === filters.Class || s.Class === filters.Class);
+    if (filters.Class) result = result.filter(s => s.resolvedClassName === filters.Class || s.Class === filters.Class || s.resolvedClassNickName === filters.Class);
     if (filters.Category) result = result.filter(s => s.resolvedCategoryName === filters.Category);
     if (filters.StnState) result = result.filter(s => s.StnState === filters.StnState);
     if (filters.StnDistrict) result = result.filter(s => s.StnDistrict === filters.StnDistrict);
@@ -372,8 +444,43 @@ export default function StudentsAnalyticsGeneral() {
       const isActiveBool = filters.IsActive === "true";
       result = result.filter(s => s.IsActive === isActiveBool);
     }
+    // Time bounded date filter ("From Date" to "To Date", e.g. "20-07-2026" to "10-10-2026")
+    if (filters.startDate) {
+      const start = parseFlexibleDate(filters.startDate);
+      if (start) {
+        start.setHours(0, 0, 0, 0);
+        result = result.filter(s => {
+          const dates = studentActivityDates[s.AddNo] || [];
+          if (dates.length > 0) {
+            return dates.some(d => {
+              const pd = parseFlexibleDate(d);
+              return pd ? pd >= start : false;
+            });
+          }
+          const dob = parseFlexibleDate((s as any).Stn_Dob || (s as any).created_at);
+          return dob ? dob >= start : true;
+        });
+      }
+    }
+    if (filters.endDate) {
+      const end = parseFlexibleDate(filters.endDate);
+      if (end) {
+        end.setHours(23, 59, 59, 999);
+        result = result.filter(s => {
+          const dates = studentActivityDates[s.AddNo] || [];
+          if (dates.length > 0) {
+            return dates.some(d => {
+              const pd = parseFlexibleDate(d);
+              return pd ? pd <= end : false;
+            });
+          }
+          const dob = parseFlexibleDate((s as any).Stn_Dob || (s as any).created_at);
+          return dob ? dob <= end : true;
+        });
+      }
+    }
     return result;
-  }, [filters, hydratedStudents]);
+  }, [filters, hydratedStudents, studentActivityDates]);
 
   const handleExport = () => {
     const isFiltered = Object.values(filters).some(val => val !== "" && val !== "all");
@@ -410,17 +517,25 @@ export default function StudentsAnalyticsGeneral() {
     }
   };
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const pointsByClass = Object.values(filteredData.reduce<Record<string, {name: string; totalPoints: number; studentCount: number}>>((acc, curr) => {
-    const className = curr.resolvedClassName || "Unassigned";
-    acc[className] = acc[className] || { name: className, totalPoints: 0, studentCount: 0 };
-    acc[className].totalPoints += (curr.Grand_Total_Points || 0);
-    acc[className].studentCount += 1;
-    return acc;
-  }, {})).sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 10);
+  // EXACT USER REQUIREMENT: In student analytics just show the "Class_Nick_name" not the standard name below the bar "U1 or U"
+  const pointsByClass = useMemo(() => {
+    return Object.values(
+      filteredData.reduce<Record<string, { name: string; standardName: string; totalPoints: number; studentCount: number }>>((acc, curr) => {
+        const classNick = curr.resolvedClassNickName || "U";
+        const standardName = curr.resolvedClassName || "Unassigned";
+        if (!acc[classNick]) {
+          acc[classNick] = { name: classNick, standardName, totalPoints: 0, studentCount: 0 };
+        }
+        acc[classNick].totalPoints += (curr.Grand_Total_Points || 0);
+        acc[classNick].studentCount += 1;
+        return acc;
+      }, {})
+    ).sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 10);
+  }, [filteredData]);
 
   const studentsByCategory = Object.values(filteredData.reduce<Record<string, {name: string; value: number; totalPoints: number}>>((acc, curr) => {
     const catName = curr.resolvedCategoryName || "General";
@@ -449,15 +564,42 @@ export default function StudentsAnalyticsGeneral() {
 
   return (
     <div className="min-h-screen bg-teal-50 p-4 sm:p-6 lg:p-8 font-sans">
+      {/* PRINT-ONLY CSS */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-block { display: block !important; }
+        }
+      `}</style>
+
+      {/* PRINT-ONLY BRANDED REPORT HEADER */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
+            <p className="text-sm font-bold text-slate-700">Student Performance & Engagement Visual Report</p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
+            <p className="font-bold text-teal-800">
+              {filters.startDate || filters.endDate
+                ? `Period: ${filters.startDate || "Beginning"} to ${filters.endDate || "Present"}`
+                : "Period: Complete Records"}
+            </p>
+            <p>Total Students: {filteredData.length}</p>
+          </div>
+        </div>
+      </div>
       
       {/* Header Area */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 sm:p-6 rounded-2xl shadow-sm mb-6 gap-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 sm:p-6 rounded-2xl shadow-sm mb-6 gap-5 no-print">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-teal-700 m-0">Student Performance Analytics</h2>
           <p className="text-sm text-slate-500 mt-1">Monitor achievements, outreach, and engagement across all students.</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-stretch sm:items-center">
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-stretch sm:items-center flex-wrap">
           <div className="flex bg-slate-100 rounded-lg p-1 w-full sm:w-auto">
             <button 
               onClick={() => setActiveTab("List")} 
@@ -472,59 +614,165 @@ export default function StudentsAnalyticsGeneral() {
               Analytics
             </button>
           </div>
+
+          <button 
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all"
+            title="Print Visual Analytics and Charts"
+          >
+            <Printer className="w-4 h-4 text-emerald-400" />
+            <span>Print Visual</span>
+          </button>
+
           <button 
             onClick={handleExport} 
-            className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 active:scale-95 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-md shadow-teal-600/20 transition-all text-center"
+            className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-md shadow-teal-600/20 transition-all text-center"
           >
             Export CSV ({filteredData.length})
           </button>
         </div>
       </div>
 
-      {/* Filters Area */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-6 bg-white p-4 sm:p-5 rounded-2xl shadow-sm">
-        <select name="Class" value={filters.Class} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
-          <option value="">All Classes</option>
-          {filterOptions.classes.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select name="Category" value={filters.Category} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
-          <option value="">All Categories</option>
-          {filterOptions.categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-        </select>
-        <select name="CollegeName" value={filters.CollegeName} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
-          <option value="">All Colleges</option>
-          {filterOptions.colleges.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select name="StnState" value={filters.StnState} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
-          <option value="">All States</option>
-          {filterOptions.states.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select name="StnDistrict" value={filters.StnDistrict} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
-          <option value="">All Districts</option>
-          {filterOptions.districts.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select name="IsActive" value={filters.IsActive} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-3 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
-          <option value="all">Status: All</option>
-          <option value="true">Active Only</option>
-          <option value="false">Inactive Only</option>
-        </select>
+      {/* Filters Area with Time-Bounded Date Range and Table-Only Filters */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm mb-6 no-print space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-teal-600" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Filter Controls</span>
+            {(filters.startDate || filters.endDate || filters.Class || filters.Category || filters.CollegeName || filters.StnState || filters.StnDistrict || filters.IsActive !== "all") && (
+              <span className="text-[11px] bg-teal-50 text-teal-700 font-bold px-2 py-0.5 rounded-full border border-teal-200">
+                Filtered: {filteredData.length} records
+              </span>
+            )}
+          </div>
+          {(filters.startDate || filters.endDate || filters.Class || filters.Category || filters.CollegeName || filters.StnState || filters.StnDistrict || filters.IsActive !== "all") && (
+            <button
+              type="button"
+              onClick={() => setFilters({
+                Class: "", Category: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "all",
+                startDate: "", endDate: ""
+              })}
+              className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition"
+            >
+              <RotateCcw className="w-3 h-3" /> Reset Filters
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-2.5">
+          {/* Time bounded filter: From Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2">
+            <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+            <div className="flex flex-col w-full min-w-0">
+              <span className="text-[10px] uppercase font-bold text-slate-600">From Date</span>
+              <input
+                type="date"
+                name="startDate"
+                value={filters.startDate}
+                onChange={handleFilterChange}
+                placeholder="From Date"
+                className="w-full bg-transparent text-xs font-semibold text-slate-700 outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Time bounded filter: To Date */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2">
+            <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+            <div className="flex flex-col w-full min-w-0">
+              <span className="text-[10px] uppercase font-bold text-slate-600">To Date</span>
+              <input
+                type="date"
+                name="endDate"
+                value={filters.endDate}
+                onChange={handleFilterChange}
+                placeholder="To Date"
+                className="w-full bg-transparent text-xs font-semibold text-slate-700 outline-none"
+              />
+            </div>
+          </div>
+
+          <select name="Class" value={filters.Class} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+            <option value="">All Classes</option>
+            {filterOptions.classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+
+          <select name="Category" value={filters.Category} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+            <option value="">All Categories</option>
+            {filterOptions.categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+          </select>
+
+          <select name="CollegeName" value={filters.CollegeName} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+            <option value="">All Colleges</option>
+            {filterOptions.colleges.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+
+          <select name="StnState" value={filters.StnState} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+            <option value="">All States</option>
+            {filterOptions.states.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          <select name="StnDistrict" value={filters.StnDistrict} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+            <option value="">All Districts</option>
+            {filterOptions.districts.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+
+          <select name="IsActive" value={filters.IsActive} onChange={handleFilterChange} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl p-2.5 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 transition-all">
+            <option value="all">Status: All</option>
+            <option value="true">Active Only</option>
+            <option value="false">Inactive Only</option>
+          </select>
+        </div>
       </div>
 
       {activeTab === "Analytics" ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="text-base font-bold text-slate-700 mb-5">Total Points by Class (Top 10)</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-base font-bold text-slate-700 m-0">Total Points by Class (Top 10)</h3>
+              <span className="text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+                Class Nicknames
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">Class nickname shown directly below each bar</p>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={pointsByClass} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
+                  {/* EXACT USER REQUIREMENT: Show Class_Nick_name (e.g. U1, U2, U) just below the bar */}
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{fill: '#0f172a', fontSize: 13, fontWeight: 700}} 
+                    axisLine={false} 
+                    tickLine={false} 
+                  />
                   <YAxis tick={{fill: '#64748b', fontSize: 12}} axisLine={false} tickLine={false} />
-                  <RechartsTooltip cursor={{fill: '#f0fdfa'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} />
+                  <RechartsTooltip 
+                    cursor={{fill: '#f0fdfa'}} 
+                    contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}} 
+                    formatter={(val: any, _name: any, item: any) => [
+                      `${Number(val).toLocaleString()} Points (${item.payload.standardName || item.payload.name})`,
+                      "Total Points"
+                    ]}
+                    labelFormatter={(label, payload) => {
+                      const std = payload?.[0]?.payload?.standardName;
+                      return std ? `${label} (${std})` : label;
+                    }}
+                  />
                   <Bar dataKey="totalPoints" name="Total Points" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+            {/* Quick Nickname Legend */}
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+              {pointsByClass.map((item) => (
+                <span key={item.name} className="inline-flex items-center gap-1 font-medium">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">{item.name}</span>
+                  <span className="text-slate-500 text-[11px] truncate max-w-[120px]">{item.standardName}</span>
+                </span>
+              ))}
             </div>
           </div>
 
