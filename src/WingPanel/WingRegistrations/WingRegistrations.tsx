@@ -40,6 +40,7 @@ interface ProgrammeItem {
   IsOpenRegistration: boolean;
   is_group_program?: boolean;
   isContentRequired?: boolean;
+  is_topic_required?: boolean;
   Total_Registration?: number | null;
   Program_Poster?: string | null;
 }
@@ -993,6 +994,7 @@ export default function WingRegistrations() {
                       <th className="py-3 px-4">Class & College</th>
                       <th className="py-3 px-4">Programme</th>
                       <th className="py-3 px-4">Format / Squad</th>
+                      <th className="py-3 px-4">Registered Topic</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -1001,6 +1003,16 @@ export default function WingRegistrations() {
                       const student = studentsMap[c.Candidate_Code];
                       const prog = progMap[c.Program_Code];
                       const squad = c.squad_uuid ? squadsMap[c.squad_uuid] : null;
+
+                      const candTopic = topics.find(
+                        (t) =>
+                          t.program_code === c.Program_Code &&
+                          ((t.student_addNo &&
+                            (t.student_addNo.trim() === c.Candidate_Code.trim() ||
+                              t.student_addNo.trim().toUpperCase() === c.Candidate_Code.trim().toUpperCase())) ||
+                            (c.squad_uuid && t.team_uuid && t.team_uuid.trim() === c.squad_uuid.trim()))
+                      );
+                      const isTopicReq = Boolean(prog?.is_topic_required);
 
                       const standardName =
                         (student?.Stn_Class && (meta.classStandardNameMap?.[student.Stn_Class] || meta.classMap[student.Stn_Class])) ||
@@ -1066,6 +1078,38 @@ export default function WingRegistrations() {
                               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold">
                                 Individual
                               </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            {candTopic ? (
+                              <div className="space-y-1">
+                                <div
+                                  className="font-bold text-slate-900 truncate max-w-[200px]"
+                                  title={candTopic.topic_title}
+                                >
+                                  {candTopic.topic_title}
+                                </div>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                    candTopic.is_approved
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                      : "bg-amber-50 text-amber-700 border border-amber-200"
+                                  }`}
+                                >
+                                  {candTopic.is_approved ? (
+                                    <CheckCircle2 size={10} />
+                                  ) : (
+                                    <Clock size={10} />
+                                  )}
+                                  {candTopic.is_approved ? "Approved" : "Pending Approval"}
+                                </span>
+                              </div>
+                            ) : isTopicReq ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                <Clock size={10} /> Topic Pending
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">-</span>
                             )}
                           </td>
                           <td className="py-3 px-4 text-right">

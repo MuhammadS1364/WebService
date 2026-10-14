@@ -19,6 +19,8 @@ import {
   Clock,
   CheckCircle2,
   Printer,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 
 // --- INTERFACES MATCHING UPDATED PROGRAMMESBOX TABLE ---
@@ -54,6 +56,16 @@ interface Student {
   Class: string;
   CollegeName: string;
   Student_Photo_Urls?: string;
+  squad_uuid?: string | null;
+  squad_title?: string | null;
+}
+
+interface TopicInfo {
+  topic_id: string;
+  topic_title: string;
+  is_approved: boolean;
+  student_addNo?: string | null;
+  team_uuid?: string | null;
 }
 
 export default function WingProgrammes() {
@@ -72,6 +84,8 @@ export default function WingProgrammes() {
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [contentCounts, setContentCounts] = useState<Record<string, number>>({});
   const [contentMap, setContentMap] = useState<Record<string, Record<string, string>>>({});
+  const [topicCounts, setTopicCounts] = useState<Record<string, number>>({});
+  const [topicsMap, setTopicsMap] = useState<Record<string, Record<string, TopicInfo>>>({});
   const [candidates, setCandidates] = useState<Record<string, Student[]>>({});
   const [printCandidateCode, setPrintCandidateCode] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -80,6 +94,7 @@ export default function WingProgrammes() {
   const [typeFilter, setTypeFilter] = useState<"all" | "individual" | "group">("all");
   const [selectedTopicProg, setSelectedTopicProg] = useState<string | null>(null);
   const [isTopicsModalOpen, setIsTopicsModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   useEffect(() => {
     let isMounted = true;
@@ -93,7 +108,7 @@ export default function WingProgrammes() {
           setWingData(wing);
         }
 
-        const [progsRes, contentsRes] = await Promise.all([
+        const [progsRes, contentsRes, topicsRes] = await Promise.all([
           SupaBaseFunction
             .from("ProgrammesBox")
             .select("*")
@@ -101,7 +116,10 @@ export default function WingProgrammes() {
             .order("Date", { ascending: false }),
           SupaBaseFunction
             .from("Content_Table")
-            .select("programe_code, student_addNo, content_title")
+            .select("programe_code, student_addNo, content_title"),
+          SupaBaseFunction
+            .from("Topics_Box")
+            .select("topic_id, program_code, student_addNo, team_uuid, topic_title, is_approved")
         ]);
 
         if (progsRes.error) throw progsRes.error;
@@ -125,6 +143,37 @@ export default function WingProgrammes() {
             });
             setContentCounts(counts);
             setContentMap(stnContents);
+          }
+
+          if (topicsRes.data) {
+            const tCounts: Record<string, number> = {};
+            const tMap: Record<string, Record<string, TopicInfo>> = {};
+            topicsRes.data.forEach((t: any) => {
+              if (t.program_code) {
+                tCounts[t.program_code] = (tCounts[t.program_code] || 0) + 1;
+                if (!tMap[t.program_code]) {
+                  tMap[t.program_code] = {};
+                }
+                const info: TopicInfo = {
+                  topic_id: t.topic_id,
+                  topic_title: t.topic_title || "Untitled Topic",
+                  is_approved: Boolean(t.is_approved),
+                  student_addNo: t.student_addNo,
+                  team_uuid: t.team_uuid,
+                };
+                if (t.student_addNo) {
+                  const s = String(t.student_addNo).trim();
+                  tMap[t.program_code][s] = info;
+                  tMap[t.program_code][s.toUpperCase()] = info;
+                }
+                if (t.team_uuid) {
+                  const team = String(t.team_uuid).trim();
+                  tMap[t.program_code][team] = info;
+                }
+              }
+            });
+            setTopicCounts(tCounts);
+            setTopicsMap(tMap);
           }
         }
       } catch (err) {
@@ -152,7 +201,6 @@ export default function WingProgrammes() {
         .eq("Program_Code", code);
     } catch (e) {
       console.error("Failed to update registration status:", e);
-      // Revert on error
       setProgrammes(prev =>
         prev.map(p => (p.Program_Code === code ? { ...p, IsOpenRegistration: currentStatus } : p))
       );
@@ -172,7 +220,6 @@ export default function WingProgrammes() {
         .eq("Program_Code", code);
     } catch (e) {
       console.error("Failed to update content submission requirement:", e);
-      // Revert on error
       setProgrammes(prev =>
         prev.map(p => (p.Program_Code === code ? { ...p, isContentRequired: currentStatus } : p))
       );
@@ -192,7 +239,6 @@ export default function WingProgrammes() {
         .eq("Program_Code", code);
     } catch (e) {
       console.error("Failed to update topic registration requirement:", e);
-      // Revert on error
       setProgrammes(prev =>
         prev.map(p => (p.Program_Code === code ? { ...p, is_topic_required: currentStatus } : p))
       );
@@ -213,15 +259,64 @@ export default function WingProgrammes() {
       try {
         const { data: regs } = await SupaBaseFunction
           .from("CandidateRegistrationTable")
-          .select("Candidate_Code")
+          .select("Candidate_Code, squad_uuid")
           .eq("Program_Code", code);
 
         if (regs && regs.length > 0) {
           const codes = regs.map(r => r.Candidate_Code).filter(Boolean);
+          const squadUuids = Array.from(new Set(regs.map(r => r.squad_uuid).filter(Boolean))) as string[];
+
+          let loadedSquadsMap: Record<string, string> = {};
+          if (squadUuids.length > 0) {
+            const { data: squadRows } = await SupaBaseFunction
+              .from("SquadMate")
+              .select("squad_id, squad_title")
+              .in("squad_id", squadUuids);
+            if (squadRows) {
+              squadRows.forEach((sq: any) => {
+                loadedSquadsMap[sq.squad_id] = sq.squad_title;
+              });
+            }
+          }
+
+          // Fetch student profiles
           const { data: students } = await SupaBaseFunction
             .from("StudentsBox")
             .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
             .in("AddNo", codes);
+
+          // Fetch fresh topics for this program to ensure up-to-date registry
+          const { data: progTopics } = await SupaBaseFunction
+            .from("Topics_Box")
+            .select("topic_id, program_code, student_addNo, team_uuid, topic_title, is_approved")
+            .eq("program_code", code);
+
+          if (progTopics) {
+            setTopicsMap(prev => {
+              const updated = { ...prev };
+              if (!updated[code]) updated[code] = {};
+              progTopics.forEach((t: any) => {
+                const info: TopicInfo = {
+                  topic_id: t.topic_id,
+                  topic_title: t.topic_title || "Untitled Topic",
+                  is_approved: Boolean(t.is_approved),
+                  student_addNo: t.student_addNo,
+                  team_uuid: t.team_uuid,
+                };
+                if (t.student_addNo) {
+                  const s = String(t.student_addNo).trim();
+                  updated[code][s] = info;
+                  updated[code][s.toUpperCase()] = info;
+                }
+                if (t.team_uuid) {
+                  updated[code][String(t.team_uuid).trim()] = info;
+                }
+              });
+              return updated;
+            });
+          }
+
+          const regMap = new Map(regs.map(r => [r.Candidate_Code, r]));
 
           const mappedStudents: Student[] = (students || []).map((s: any) => {
             const matchedClass = meta.classes.find(
@@ -230,6 +325,7 @@ export default function WingProgrammes() {
                 c.standard_name === s.Stn_Class ||
                 c.class_nick_name === s.Stn_Class
             );
+            const reg = regMap.get(s.AddNo);
             return {
               ...s,
               Class:
@@ -237,6 +333,8 @@ export default function WingProgrammes() {
                 matchedClass?.standard_name ||
                 s.Stn_Class ||
                 "-",
+              squad_uuid: reg?.squad_uuid || null,
+              squad_title: reg?.squad_uuid ? loadedSquadsMap[reg.squad_uuid] : null,
             };
           });
 
@@ -265,6 +363,14 @@ export default function WingProgrammes() {
     });
   }, [programmes, searchQuery, typeFilter]);
 
+  // Candidate Topic resolver helper
+  const getCandidateTopic = (progCode: string, studentAddNo: string, squadUuid?: string | null): TopicInfo | undefined => {
+    const pMap = topicsMap[progCode];
+    if (!pMap) return undefined;
+    const cleanAdd = studentAddNo.trim();
+    return pMap[cleanAdd] || pMap[cleanAdd.toUpperCase()] || (squadUuid ? pMap[squadUuid.trim()] : undefined);
+  };
+
   if (loading && !wingData) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -272,6 +378,188 @@ export default function WingProgrammes() {
       </div>
     );
   }
+
+  // Subcomponent: Candidates Roster with dedicated Topic column
+  const renderCandidateRoster = (p: Programme) => {
+    const isTopicReq = Boolean(p.is_topic_required);
+    const isContentReq = Boolean(p.isContentRequired);
+    const candidateList = candidates[p.Program_Code] || [];
+    const isLoading = loadingCands[p.Program_Code];
+
+    return (
+      <div className="space-y-3 pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <Users size={14} className="text-blue-600" />
+            Registered Candidates for {p.Program_Title || p.Program_Code}
+          </h4>
+          <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+            <span className="bg-slate-100 px-2 py-0.5 rounded-md font-bold text-slate-700">
+              {candidateList.length} Enrolled
+            </span>
+            {isTopicReq && (
+              <span className="text-indigo-700 font-bold bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200 flex items-center gap-1">
+                <FileText size={10} />
+                Topics: {topicCounts[p.Program_Code] || 0} Registered
+              </span>
+            )}
+            {isContentReq && (
+              <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                <FileText size={10} />
+                Content: {contentCounts[p.Program_Code] || 0} Submitted
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setPrintCandidateCode(p.Program_Code)}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 flex items-center gap-1 transition cursor-pointer shadow-2xs"
+              title="Print Official A4 Candidate Attendance & Evaluation Sheet"
+            >
+              <Printer size={12} /> Print Sheet (A4)
+            </button>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-6 text-xs text-slate-400 italic">
+            Loading registered candidate roster...
+          </div>
+        ) : candidateList.length > 0 ? (
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold uppercase text-[10px] tracking-wider">
+                  <th className="py-2.5 px-3 w-10">#</th>
+                  <th className="py-2.5 px-3">Candidate Profile</th>
+                  <th className="py-2.5 px-3">Class & College</th>
+                  {p.is_group_program && <th className="py-2.5 px-3">Squad Group</th>}
+                  {/* Topic column if programme requires or has topics */}
+                  {isTopicReq && (
+                    <th className="py-2.5 px-3 min-w-[200px]">Registered Topic</th>
+                  )}
+                  {isContentReq && (
+                    <th className="py-2.5 px-3 min-w-[160px]">Content Submission</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                {candidateList.map((c, cIdx) => {
+                  const candTopic = getCandidateTopic(p.Program_Code, c.AddNo, c.squad_uuid);
+                  const stnContentTitle = contentMap[p.Program_Code]?.[c.AddNo];
+
+                  return (
+                    <tr
+                      key={`${c.AddNo}_${p.Program_Code}_${cIdx}`}
+                      className="hover:bg-slate-50/70 transition"
+                    >
+                      <td className="py-2.5 px-3 font-mono text-slate-400 text-[11px] font-bold">
+                        {cIdx + 1}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                            <SafeImage
+                              src={c.Student_Photo_Urls}
+                              alt={c.StudentName}
+                              fallbackCategory="student"
+                              fallbackText={c.StudentName}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="font-bold text-slate-900 block truncate">
+                              {c.StudentName}
+                            </span>
+                            <span className="text-[10px] font-mono text-blue-700 block">
+                              AddNo: #{c.AddNo}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-bold text-slate-800 block text-xs">
+                          {c.Class}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block truncate max-w-[140px]">
+                          {c.CollegeName || "DHIU Main Campus"}
+                        </span>
+                      </td>
+                      {p.is_group_program && (
+                        <td className="py-2.5 px-3">
+                          {c.squad_title ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold">
+                              <Users size={10} /> {c.squad_title}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">-</span>
+                          )}
+                        </td>
+                      )}
+                      {/* Topic Column Display */}
+                      {isTopicReq && (
+                        <td className="py-2.5 px-3">
+                          {candTopic ? (
+                            <div className="space-y-1">
+                              <div
+                                className="font-bold text-slate-900 truncate max-w-[220px]"
+                                title={candTopic.topic_title}
+                              >
+                                {candTopic.topic_title}
+                              </div>
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                  candTopic.is_approved
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                                }`}
+                              >
+                                {candTopic.is_approved ? (
+                                  <CheckCircle2 size={10} />
+                                ) : (
+                                  <Clock size={10} />
+                                )}
+                                {candTopic.is_approved ? "Approved" : "Pending Approval"}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                              <Clock size={10} /> Topic Pending
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      {/* Content Column Display */}
+                      {isContentReq && (
+                        <td className="py-2.5 px-3">
+                          {stnContentTitle ? (
+                            <div
+                              className="flex items-center gap-1 text-emerald-700 font-bold truncate max-w-[180px]"
+                              title={stnContentTitle}
+                            >
+                              <CheckCircle2 size={11} className="text-emerald-600 shrink-0" />
+                              <span className="truncate">{stnContentTitle}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                              <Clock size={10} /> Pending Submission
+                            </span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-xs text-slate-400 bg-white border border-dashed border-slate-200 rounded-2xl">
+            No students have registered for this event yet.
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 font-sans text-slate-800 space-y-6">
@@ -292,7 +580,7 @@ export default function WingProgrammes() {
               {wingData?.WingTitle || "Wing Space"}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-xl">
-              Manage your department's upcoming events, candidate registrations, and result records according to university standards.
+              Manage your department's upcoming events, candidate registrations, topic proposals, and official evaluation records.
             </p>
           </div>
 
@@ -307,7 +595,7 @@ export default function WingProgrammes() {
           </div>
         </div>
 
-        {/* Filter and Search Bar */}
+        {/* Filter, Search, and View Mode Bar */}
         <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -320,56 +608,348 @@ export default function WingProgrammes() {
             />
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
-              <Filter size={12} /> Filter:
-            </span>
-            <button
-              onClick={() => setTypeFilter("all")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                typeFilter === "all"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              All ({programmes.length})
-            </button>
-            <button
-              onClick={() => setTypeFilter("individual")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                typeFilter === "individual"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Individual ({programmes.filter(p => !p.is_group_program).length})
-            </button>
-            <button
-              onClick={() => setTypeFilter("group")}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                typeFilter === "group"
-                  ? "bg-blue-600 text-white shadow-xs"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
-            >
-              Group Squads ({programmes.filter(p => p.is_group_program).length})
-            </button>
+          <div className="flex items-center gap-3 self-start sm:self-auto overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                <Filter size={12} /> Filter:
+              </span>
+              <button
+                onClick={() => setTypeFilter("all")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  typeFilter === "all"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                All ({programmes.length})
+              </button>
+              <button
+                onClick={() => setTypeFilter("individual")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  typeFilter === "individual"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Individual ({programmes.filter(p => !p.is_group_program).length})
+              </button>
+              <button
+                onClick={() => setTypeFilter("group")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  typeFilter === "group"
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                Group Squads ({programmes.filter(p => p.is_group_program).length})
+              </button>
+            </div>
+
+            {/* View Mode Switcher: Card Grid vs Table List */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "cards"
+                    ? "bg-white text-blue-600 shadow-xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                title="Card Grid View (Standard)"
+              >
+                <LayoutGrid size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-white text-blue-600 shadow-xs font-bold"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                title="Table List View"
+              >
+                <List size={16} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Programmes Table / Cards Container */}
-        <div className="bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden">
-          {filteredProgrammes.length === 0 ? (
-            <div className="p-12 text-center space-y-3">
-              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
-                <Calendar size={24} />
-              </div>
-              <h3 className="font-bold text-slate-800 text-base">No Programmes Found</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                No matching programmes registered under this wing yet. Click "Create Programme" to publish a new event.
-              </p>
+        {/* Empty State */}
+        {filteredProgrammes.length === 0 && (
+          <div className="bg-white rounded-3xl p-12 text-center space-y-3 border border-slate-200/90 shadow-xs">
+            <div className="w-14 h-14 bg-blue-50 text-blue-500 rounded-2xl flex items-center justify-center mx-auto">
+              <Calendar size={28} />
             </div>
-          ) : (
+            <h3 className="font-bold text-slate-800 text-base">No Programmes Found</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              No matching programmes registered under this wing yet. Click "Create Programme" to publish a new event.
+            </p>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VIEW 1: MODERN CARD GRID VIEW (Default as for Published Results) */}
+        {/* ========================================================= */}
+        {viewMode === "cards" && filteredProgrammes.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredProgrammes.map((p) => {
+              const isExp = expanded.has(p.Program_Code);
+              const contentsSubmitted = contentCounts[p.Program_Code] || 0;
+              const topicsSubmitted = topicCounts[p.Program_Code] || 0;
+              const isContentReq = Boolean(p.isContentRequired);
+              const isTopicReq = Boolean(p.is_topic_required);
+              const categoryName = meta.getCategoryName(p.Category);
+              const groupName = meta.getGroupName(p.Group);
+              const venueName = meta.getVenueName(p.Venue);
+
+              return (
+                <div
+                  key={p.Program_Code}
+                  className="bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden"
+                >
+                  {/* Card Content Top */}
+                  <div className="p-5 sm:p-6 space-y-4">
+                    {/* Header: Code + Squad Badge + Reg Status + Topic/Content Badges */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-xs text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-lg">
+                          #{p.Program_Code}
+                        </span>
+                        {p.is_group_program && (
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                            Squad
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Registration & Feature Badges */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            p.IsOpenRegistration
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                          }`}
+                        >
+                          {p.IsOpenRegistration ? (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                              <span>Reg: Open</span>
+                            </>
+                          ) : (
+                            <span>Reg: Closed</span>
+                          )}
+                        </span>
+
+                        {isTopicReq && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <FileText size={10} /> Topic
+                          </span>
+                        )}
+                        {isContentReq && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200">
+                            <FileText size={10} /> Content
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Programme Poster & Title */}
+                    <div className="flex gap-3 items-start">
+                      {p.Program_Poster && (
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                          <SafeImage
+                            src={p.Program_Poster}
+                            alt={p.Program_Title || "Poster"}
+                            fallbackCategory="programme"
+                            fallbackText={p.Program_Title || "Event"}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-extrabold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2">
+                          {p.Program_Title || "Untitled Programme"}
+                        </h3>
+                        {/* Category & Group Tags */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                          {categoryName && (
+                            <span className="inline-flex items-center text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md">
+                              {categoryName}
+                            </span>
+                          )}
+                          {groupName && (
+                            <span className="inline-flex items-center text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                              {groupName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Date, Venue, Candidate Count & Submissions Matrix */}
+                    <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-2 text-xs">
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                          <Calendar size={13} className="text-blue-500 shrink-0" />
+                          <span>Date:</span>
+                        </span>
+                        <span className="font-semibold text-slate-800">
+                          {p.Date || "TBA"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                          <MapPin size={13} className="text-emerald-500 shrink-0" />
+                          <span>Venue:</span>
+                        </span>
+                        <span className="font-semibold text-slate-800 truncate max-w-44 text-right" title={venueName}>
+                          {venueName}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/50">
+                        <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                          <Users size={13} className="text-indigo-500 shrink-0" />
+                          <span>Candidates:</span>
+                        </span>
+                        <span className="font-bold text-slate-900">
+                          {p.Total_Registration || 0} Enrolled
+                        </span>
+                      </div>
+
+                      {isTopicReq && (
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span className="flex items-center gap-1.5 text-indigo-600 font-medium">
+                            <FileText size={13} className="shrink-0" />
+                            <span>Topics Submitted:</span>
+                          </span>
+                          <span className="font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                            {topicsSubmitted} Registered
+                          </span>
+                        </div>
+                      )}
+
+                      {isContentReq && (
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span className="flex items-center gap-1.5 text-amber-600 font-medium">
+                            <FileText size={13} className="shrink-0" />
+                            <span>Contents Submitted:</span>
+                          </span>
+                          <span className="font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                            {contentsSubmitted} Files
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Quick Toggles: Registration, Content, Topic */}
+                    <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => toggleReg(p.Program_Code, p.IsOpenRegistration)}
+                        className={`px-2 py-1.5 rounded-xl text-[10px] font-black tracking-wide transition-all cursor-pointer border flex flex-col items-center justify-center gap-0.5 ${
+                          p.IsOpenRegistration
+                            ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                            : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                        }`}
+                        title={p.IsOpenRegistration ? "Click to Turn Off Registration" : "Click to Turn On Registration"}
+                      >
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold opacity-70">Reg</span>
+                        <span>{p.IsOpenRegistration ? "ON" : "OFF"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleContentReq(p.Program_Code, isContentReq)}
+                        className={`px-2 py-1.5 rounded-xl text-[10px] font-black tracking-wide transition-all cursor-pointer border flex flex-col items-center justify-center gap-0.5 ${
+                          isContentReq
+                            ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+                            : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                        }`}
+                        title={isContentReq ? "Click to Turn Off Content Requirement" : "Click to Turn On Content Requirement"}
+                      >
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold opacity-70">Content</span>
+                        <span>{isContentReq ? "ON" : "OFF"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleTopicReq(p.Program_Code, isTopicReq)}
+                        className={`px-2 py-1.5 rounded-xl text-[10px] font-black tracking-wide transition-all cursor-pointer border flex flex-col items-center justify-center gap-0.5 ${
+                          isTopicReq
+                            ? "bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100"
+                            : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                        }`}
+                        title={isTopicReq ? "Click to Turn Off Topic Registration" : "Click to Turn On Topic Registration"}
+                      >
+                        <span className="text-[9px] uppercase tracking-wider font-extrabold opacity-70">Topic</span>
+                        <span>{isTopicReq ? "ON" : "OFF"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Card Bottom: Action Buttons & Expandable Candidate Details */}
+                  <div className="px-5 py-4 bg-slate-50/70 border-t border-slate-100 flex flex-col gap-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {isTopicReq && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedTopicProg(p.Program_Code);
+                              setIsTopicsModalOpen(true);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 inline-flex items-center gap-1 transition cursor-pointer"
+                            title="Manage Registered Topics"
+                          >
+                            <FileText size={12} />
+                            <span>Topics</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setPrintCandidateCode(p.Program_Code)}
+                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 inline-flex items-center gap-1 transition cursor-pointer"
+                          title="Print Official A4 Candidate Evaluation Sheet"
+                        >
+                          <Printer size={12} />
+                          <span>Print</span>
+                        </button>
+                      </div>
+
+                      {/* Candidates Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCandidates(p.Program_Code)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                          isExp
+                            ? "bg-slate-200 text-slate-800"
+                            : "bg-blue-600 text-white hover:bg-blue-700 shadow-xs shadow-blue-200"
+                        }`}
+                      >
+                        <span>{isExp ? "Hide List" : "Candidates"}</span>
+                        {isExp ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      </button>
+                    </div>
+
+                    {/* Candidate Expansion within Card */}
+                    {isExp && renderCandidateRoster(p)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VIEW 2: TABLE LIST VIEW (Optional tabular mode)            */}
+        {/* ========================================================= */}
+        {viewMode === "table" && filteredProgrammes.length > 0 && (
+          <div className="bg-white rounded-3xl shadow-xs border border-slate-200/90 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
@@ -377,7 +957,7 @@ export default function WingProgrammes() {
                     <th className="px-6 py-4">Programme Details</th>
                     <th className="px-4 py-4">Category & Group</th>
                     <th className="px-4 py-4">Date & Venue</th>
-                    <th className="px-4 py-4 text-center">Registrations & Content</th>
+                    <th className="px-4 py-4 text-center">Registrations</th>
                     <th className="px-4 py-4 text-center">Registration Control</th>
                     <th className="px-4 py-4 text-center">Content Submission</th>
                     <th className="px-4 py-4 text-center">Topic Registration</th>
@@ -388,7 +968,9 @@ export default function WingProgrammes() {
                   {filteredProgrammes.map((p) => {
                     const isExp = expanded.has(p.Program_Code);
                     const contentsSubmitted = contentCounts[p.Program_Code] || 0;
+                    const topicsSubmitted = topicCounts[p.Program_Code] || 0;
                     const isContentReq = Boolean(p.isContentRequired);
+                    const isTopicReq = Boolean(p.is_topic_required);
 
                     return (
                       <React.Fragment key={p.Program_Code}>
@@ -457,17 +1039,23 @@ export default function WingProgrammes() {
                             </div>
                           </td>
 
-                          {/* Registrations & Content Count */}
+                          {/* Registrations & Submissions Count */}
                           <td className="px-4 py-4 text-center">
                             <div className="inline-flex flex-col items-center gap-1">
                               <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg text-xs" title="Total Registered Candidates">
                                 <Users size={12} className="text-blue-600" />
                                 {p.Total_Registration || 0} Reg
                               </span>
+                              {isTopicReq && (
+                                <span className="inline-flex items-center gap-1 font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md text-[10px]" title="Registered Topics">
+                                  <FileText size={10} className="text-indigo-600" />
+                                  {topicsSubmitted} Topics
+                                </span>
+                              )}
                               {isContentReq && (
                                 <span className="inline-flex items-center gap-1 font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md text-[10px]" title="Content Submissions Received">
                                   <FileText size={10} className="text-amber-600" />
-                                  {contentsSubmitted} Submitted
+                                  {contentsSubmitted} Files
                                 </span>
                               )}
                             </div>
@@ -592,90 +1180,7 @@ export default function WingProgrammes() {
                         {isExp && (
                           <tr>
                             <td colSpan={8} className="bg-slate-50/70 p-5 border-y border-slate-100">
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Users size={14} className="text-blue-600" />
-                                    Registered Candidates for {p.Program_Title}
-                                  </h4>
-                                  <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
-                                    <span>{candidates[p.Program_Code]?.length || 0} Enrolled</span>
-                                    {isContentReq && (
-                                      <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                                        Content Req: {contentsSubmitted}/{candidates[p.Program_Code]?.length || 0} Submitted
-                                      </span>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => setPrintCandidateCode(p.Program_Code)}
-                                      className="px-2.5 py-1 rounded-lg text-xs font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 flex items-center gap-1 transition cursor-pointer shadow-2xs"
-                                      title="Print Official A4 Candidate Attendance & Evaluation Sheet"
-                                    >
-                                      <Printer size={12} /> Print Sheet (A4)
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {loadingCands[p.Program_Code] ? (
-                                  <div className="text-center py-6 text-xs text-slate-400 italic">
-                                    Loading registered candidate roster...
-                                  </div>
-                                ) : candidates[p.Program_Code] && candidates[p.Program_Code].length > 0 ? (
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                    {candidates[p.Program_Code].map((c, cIdx) => {
-                                      const stnContentTitle = contentMap[p.Program_Code]?.[c.AddNo];
-
-                                      return (
-                                        <div
-                                          key={`${c.AddNo}_${p.Program_Code}_${cIdx}`}
-                                          className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-2"
-                                        >
-                                          <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-xl overflow-hidden shrink-0 border border-slate-200 bg-slate-50">
-                                              <SafeImage
-                                                src={c.Student_Photo_Urls}
-                                                alt={c.StudentName}
-                                                fallbackCategory="student"
-                                                fallbackText={c.StudentName}
-                                                className="w-full h-full object-cover"
-                                              />
-                                            </div>
-                                            <div className="min-w-0">
-                                              <p className="font-bold text-slate-900 text-xs truncate">
-                                                {c.StudentName}
-                                              </p>
-                                              <p className="text-[10px] text-slate-500 font-mono truncate">
-                                                #{c.AddNo} • {c.Class || "Student"}
-                                              </p>
-                                            </div>
-                                          </div>
-
-                                          {/* Candidate Content Submission Status */}
-                                          {isContentReq && (
-                                            <div className="pt-1.5 border-t border-slate-100 text-[10px]">
-                                              {stnContentTitle ? (
-                                                <div className="flex items-center gap-1 text-emerald-700 font-bold truncate" title={stnContentTitle}>
-                                                  <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
-                                                  <span className="truncate">{stnContentTitle}</span>
-                                                </div>
-                                              ) : (
-                                                <div className="flex items-center gap-1 text-slate-400 font-medium">
-                                                  <Clock size={11} className="shrink-0" />
-                                                  <span>Pending Content</span>
-                                                </div>
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                ) : (
-                                  <div className="text-center py-6 text-xs text-slate-400 bg-white border border-dashed border-slate-200 rounded-2xl">
-                                    No students have registered for this event yet.
-                                  </div>
-                                )}
-                              </div>
+                              {renderCandidateRoster(p)}
                             </td>
                           </tr>
                         )}
@@ -685,8 +1190,8 @@ export default function WingProgrammes() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Print Candidate Sheet Modal (A4) */}
         {printCandidateCode && (

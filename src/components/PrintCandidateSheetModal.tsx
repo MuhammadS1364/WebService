@@ -40,6 +40,7 @@ interface ProgramInfo {
   Total_Registration: number | null;
   is_group_program?: boolean;
   is_topic_required?: boolean;
+  isContentRequired?: boolean;
   ContentSubmition_required?: boolean;
 }
 
@@ -190,40 +191,48 @@ export default function PrintCandidateSheetModal({
 
         // 6. Fetch content / topic submission titles
         let contentMap: Record<string, string> = {};
-        if (allAddNos.length > 0) {
-          try {
-            const { data: contentData } = await SupaBaseFunction
-              .from("Content_Table")
-              .select("student_addNo, content_title")
-              .eq("programe_code", programCode)
-              .in("student_addNo", allAddNos);
+        let topicMapByStudent: Record<string, string> = {};
+        let topicMapByTeam: Record<string, string> = {};
 
-            if (contentData) {
-              contentData.forEach((c: any) => {
-                if (c.student_addNo) contentMap[c.student_addNo.trim()] = c.content_title;
-              });
-            }
-          } catch {
-            // ignore
+        try {
+          const { data: contentData } = await SupaBaseFunction
+            .from("Content_Table")
+            .select("student_addNo, content_title")
+            .eq("programe_code", programCode);
+
+          if (contentData) {
+            contentData.forEach((c: any) => {
+              if (c.student_addNo && c.content_title) {
+                const s = c.student_addNo.trim();
+                contentMap[s] = c.content_title.trim();
+                contentMap[s.toUpperCase()] = c.content_title.trim();
+              }
+            });
           }
+        } catch {
+          // ignore
+        }
 
-          try {
-            const { data: topicData } = await SupaBaseFunction
-              .from("Topics_Box")
-              .select("student_addNo, topic_title")
-              .eq("program_code", programCode)
-              .in("student_addNo", allAddNos);
+        try {
+          const { data: topicData } = await SupaBaseFunction
+            .from("Topics_Box")
+            .select("student_addNo, team_uuid, topic_title")
+            .eq("program_code", programCode);
 
-            if (topicData) {
-              topicData.forEach((t: any) => {
-                if (t.student_addNo && t.topic_title) {
-                  contentMap[t.student_addNo.trim()] = t.topic_title;
-                }
-              });
-            }
-          } catch {
-            // ignore
+          if (topicData) {
+            topicData.forEach((t: any) => {
+              if (t.student_addNo && t.topic_title) {
+                const s = t.student_addNo.trim();
+                topicMapByStudent[s] = t.topic_title.trim();
+                topicMapByStudent[s.toUpperCase()] = t.topic_title.trim();
+              }
+              if (t.team_uuid && t.topic_title) {
+                topicMapByTeam[t.team_uuid.trim()] = t.topic_title.trim();
+              }
+            });
           }
+        } catch {
+          // ignore
         }
 
         // 7. BUILD SHEET ENTRIES: Group vs Individual
@@ -269,6 +278,13 @@ export default function PrintCandidateSheetModal({
                 new Set(teammateDetails.map((t) => t.classNick).filter((c) => c && c !== "-"))
               ).join(", ") || "-";
 
+              // Check if squad or any member has a registered topic or submitted content
+              const resolvedSquadTopic =
+                (sqId && topicMapByTeam[sqId]) ||
+                memberAddNos.map((m) => topicMapByStudent[m] || topicMapByStudent[m.toUpperCase()]).find(Boolean) ||
+                memberAddNos.map((m) => contentMap[m] || contentMap[m.toUpperCase()]).find(Boolean) ||
+                "";
+
               entries.push({
                 key: `squad_${sqId}`,
                 isGroup: true,
@@ -277,7 +293,7 @@ export default function PrintCandidateSheetModal({
                 subText: teammateDetails.length > 0 ? `Teammates: ${teammateNamesStr}` : undefined,
                 classNickName: uniqueClasses,
                 district: "",
-                contentTitle: contentMap[memberAddNos[0]] || "",
+                contentTitle: resolvedSquadTopic,
               });
             } else if (!sqId) {
               // Individual participant inside a group programme
@@ -286,6 +302,13 @@ export default function PrintCandidateSheetModal({
               seenIndividualCodes.add(code);
 
               const stn = studentMap[code] || studentMap[code.toUpperCase()];
+              const resolvedCandTopic =
+                topicMapByStudent[code] ||
+                topicMapByStudent[code.toUpperCase()] ||
+                contentMap[code] ||
+                contentMap[code.toUpperCase()] ||
+                "";
+
               entries.push({
                 key: `cand_${r.CandidateUUiD || code}`,
                 isGroup: false,
@@ -294,7 +317,7 @@ export default function PrintCandidateSheetModal({
                 subText: stn?.FatherName ? `S/O ${stn.FatherName}` : undefined,
                 classNickName: getClassNickName(stn?.Stn_Class),
                 district: stn?.StnDistrict || "",
-                contentTitle: contentMap[code] || "",
+                contentTitle: resolvedCandTopic,
               });
             }
           });
@@ -308,6 +331,13 @@ export default function PrintCandidateSheetModal({
             seenCodes.add(code);
 
             const stn = studentMap[code] || studentMap[code.toUpperCase()];
+            const resolvedCandTopic =
+              topicMapByStudent[code] ||
+              topicMapByStudent[code.toUpperCase()] ||
+              contentMap[code] ||
+              contentMap[code.toUpperCase()] ||
+              "";
+
             entries.push({
               key: `cand_${r.CandidateUUiD || code}`,
               isGroup: false,
@@ -316,7 +346,7 @@ export default function PrintCandidateSheetModal({
               subText: stn?.FatherName ? `S/O ${stn.FatherName}` : undefined,
               classNickName: getClassNickName(stn?.Stn_Class),
               district: stn?.StnDistrict || "",
-              contentTitle: contentMap[code] || "",
+              contentTitle: resolvedCandTopic,
             });
           });
         }
@@ -880,151 +910,197 @@ export default function PrintCandidateSheetModal({
 
               {/* --- CANDIDATES TABLE (NO ATTENDANCE COLUMN, NO TEAMMATE ADDNO COLUMN FOR GROUPS) --- */}
               <div className="w-full my-2 overflow-visible print:overflow-visible">
-                <table className="w-full border-collapse border border-slate-900 text-left text-xs table-fixed">
-                  <thead>
-                    <tr className="bg-slate-100 border-b-2 border-slate-900 text-slate-950 font-black">
-                      <th className={`border border-slate-900 ${headerPadding} text-center w-10 shrink-0`}>
-                        Sr.
-                      </th>
-                      {!isGroupProg && (
-                        <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0 font-mono`}>
-                          Add No
-                        </th>
-                      )}
-                      <th className={`border border-slate-900 ${headerPadding} ${isGroupProg ? "w-[54%]" : "w-[42%]"}`}>
-                        {isGroupProg ? "Group Name & Teammates" : "Candidate Full Name"}
-                      </th>
-                      <th className={`border border-slate-900 ${headerPadding} text-center w-20 shrink-0`}>
-                        Class
-                      </th>
-                      
-                      {sheetType === "evaluation" && (
-                        <>
-                          <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0`}>
-                            Score
-                          </th>
-                          <th className={`border border-slate-900 ${headerPadding} text-center w-28 shrink-0`}>
-                            Remarks / Sign
-                          </th>
-                        </>
-                      )}
+                {(() => {
+                  const isTopicRequired = Boolean(
+                    programInfo?.is_topic_required ||
+                    programInfo?.isContentRequired ||
+                    sheetEntries.some((e) => Boolean(e.contentTitle))
+                  );
+                  const totalCols =
+                    1 + // Sr.
+                    (!isGroupProg ? 1 : 0) + // AddNo
+                    1 + // Name
+                    (isTopicRequired ? 1 : 0) + // Topic
+                    1 + // Class
+                    (sheetType === "evaluation" ? 2 : (!isTopicRequired ? 2 : 1));
 
-                      {sheetType === "contestant" && (
-                        <>
-                          <th className={`border border-slate-900 ${headerPadding} w-[34%]`}>
-                            Content / Topic
+                  return (
+                    <table className="w-full border-collapse border border-slate-900 text-left text-xs table-fixed">
+                      <thead>
+                        <tr className="bg-slate-100 border-b-2 border-slate-900 text-slate-950 font-black">
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-10 shrink-0`}>
+                            Sr.
                           </th>
-                          <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0`}>
-                            Signature
-                          </th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {sheetEntries.length === 0 ? (
-                      <tr>
-                        <td colSpan={isGroupProg ? 5 : 6} className="border border-slate-900 py-8 text-center font-bold text-slate-500">
-                          No {isGroupProg ? "groups" : "candidates"} registered yet for this programme ({programCode}).
-                        </td>
-                      </tr>
-                    ) : (
-                      sheetEntries.map((item, idx) => (
-                        <tr 
-                          key={item.key || idx}
-                          className="border-b border-slate-800 hover:bg-slate-50 print:hover:bg-transparent"
-                        >
-                          <td className={`border border-slate-900 ${cellPadding} text-center font-bold text-slate-700`}>
-                            {idx + 1}
-                          </td>
                           {!isGroupProg && (
-                            <td className={`border border-slate-900 ${cellPadding} text-center font-mono font-bold text-slate-950 break-words leading-tight`}>
-                              {item.addNo}
-                            </td>
+                            <th className={`border border-slate-900 ${headerPadding} text-center w-20 shrink-0 font-mono`}>
+                              Add No
+                            </th>
                           )}
-                          <td className={`border border-slate-900 ${cellPadding} font-bold text-slate-950 break-words leading-snug`}>
-                            {/* Display GroupName or Student Name */}
-                            <div className="font-extrabold text-slate-950 text-[12px] sm:text-xs">
-                              {item.name}
-                            </div>
-                            {/* Display Teammates just below the GroupName, or Father Name for individual */}
-                            {item.subText && (
-                              <div className="text-[10px] text-slate-700 font-medium mt-0.5 leading-snug">
-                                {item.subText}
-                              </div>
-                            )}
-                          </td>
-                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-950 font-bold tracking-wide`}>
-                            {item.classNickName}
-                          </td>
-
+                          <th className={`border border-slate-900 ${headerPadding} ${
+                            isGroupProg
+                              ? isTopicRequired ? "w-[42%]" : "w-[54%]"
+                              : isTopicRequired ? "w-[30%]" : "w-[42%]"
+                          }`}>
+                            {isGroupProg ? "Group Name & Teammates" : "Candidate Full Name"}
+                          </th>
+                          {isTopicRequired && (
+                            <th className={`border border-slate-900 ${headerPadding} ${isGroupProg ? "w-[24%]" : "w-[22%]"}`}>
+                              Topic
+                            </th>
+                          )}
+                          <th className={`border border-slate-900 ${headerPadding} text-center w-16 shrink-0`}>
+                            Class
+                          </th>
+                          
                           {sheetType === "evaluation" && (
                             <>
-                              <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
-                                &nbsp;
-                              </td>
-                              <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
-                                &nbsp;
-                              </td>
+                              <th className={`border border-slate-900 ${headerPadding} text-center w-20 shrink-0`}>
+                                Score
+                              </th>
+                              <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0`}>
+                                Remarks / Sign
+                              </th>
                             </>
                           )}
 
                           {sheetType === "contestant" && (
                             <>
-                              <td className={`border border-slate-900 ${cellPadding} text-slate-900 font-medium truncate`} title={item.contentTitle || ""}>
-                                {item.contentTitle || "-"}
-                              </td>
-                              <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
-                                &nbsp;
-                              </td>
+                              {!isTopicRequired && (
+                                <th className={`border border-slate-900 ${headerPadding} w-[34%]`}>
+                                  Content / Topic
+                                </th>
+                              )}
+                              <th className={`border border-slate-900 ${headerPadding} text-center w-24 shrink-0`}>
+                                Signature
+                              </th>
                             </>
                           )}
                         </tr>
-                      ))
-                    )}
-
-                    {/* Optional Blank Extra Rows (NO ATTENDANCE COLUMN, NO TEAMMATE ADDNO FOR GROUPS) */}
-                    {includeBlankRows &&
-                      Array.from({ length: blankRowsCount }).map((_, bIdx) => (
-                        <tr key={`blank-row-${bIdx}`} className="border-b border-slate-800">
-                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-400 font-mono`}>
-                            {sheetEntries.length + bIdx + 1}
-                          </td>
-                          {!isGroupProg && (
-                            <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
-                              &nbsp;
+                      </thead>
+                      <tbody className="divide-y divide-slate-800">
+                        {sheetEntries.length === 0 ? (
+                          <tr>
+                            <td colSpan={totalCols} className="border border-slate-900 py-8 text-center font-bold text-slate-500">
+                              No {isGroupProg ? "groups" : "candidates"} registered yet for this programme ({programCode}).
                             </td>
-                          )}
-                          <td className={`border border-slate-900 ${cellPadding} text-slate-300`}>
-                            &nbsp;
-                          </td>
-                          <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
-                            &nbsp;
-                          </td>
-                          {sheetType === "evaluation" && (
-                            <>
-                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                &nbsp;
+                          </tr>
+                        ) : (
+                          sheetEntries.map((item, idx) => (
+                            <tr 
+                              key={item.key || idx}
+                              className="border-b border-slate-800 hover:bg-slate-50 print:hover:bg-transparent"
+                            >
+                              <td className={`border border-slate-900 ${cellPadding} text-center font-bold text-slate-700`}>
+                                {idx + 1}
                               </td>
-                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
-                                &nbsp;
+                              {!isGroupProg && (
+                                <td className={`border border-slate-900 ${cellPadding} text-center font-mono font-bold text-slate-950 break-words leading-tight`}>
+                                  {item.addNo}
+                                </td>
+                              )}
+                              <td className={`border border-slate-900 ${cellPadding} font-bold text-slate-950 break-words leading-snug`}>
+                                {/* Display GroupName or Student Name */}
+                                <div className="font-extrabold text-slate-950 text-[12px] sm:text-xs">
+                                  {item.name}
+                                </div>
+                                {/* Display Teammates just below the GroupName, or Father Name for individual */}
+                                {item.subText && (
+                                  <div className="text-[10px] text-slate-700 font-medium mt-0.5 leading-snug">
+                                    {item.subText}
+                                  </div>
+                                )}
                               </td>
-                            </>
-                          )}
-                          {sheetType === "contestant" && (
-                            <>
+                              {isTopicRequired && (
+                                <td className={`border border-slate-900 ${cellPadding} text-slate-950 break-words font-semibold leading-tight`}>
+                                  {item.contentTitle ? (
+                                    <span className="font-bold text-slate-900">{item.contentTitle}</span>
+                                  ) : (
+                                    <span className="text-slate-400 font-normal italic">—</span>
+                                  )}
+                                </td>
+                              )}
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-950 font-bold tracking-wide`}>
+                                {item.classNickName}
+                              </td>
+
+                              {sheetType === "evaluation" && (
+                                <>
+                                  <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
+                                    &nbsp;
+                                  </td>
+                                  <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
+                                    &nbsp;
+                                  </td>
+                                </>
+                              )}
+
+                              {sheetType === "contestant" && (
+                                <>
+                                  {!isTopicRequired && (
+                                    <td className={`border border-slate-900 ${cellPadding} text-slate-950 font-medium truncate`} title={item.contentTitle || ""}>
+                                      {item.contentTitle || "-"}
+                                    </td>
+                                  )}
+                                  <td className={`border border-slate-900 ${cellPadding} text-center font-mono text-slate-400`}>
+                                    &nbsp;
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          ))
+                        )}
+
+                        {/* Optional Blank Extra Rows */}
+                        {includeBlankRows &&
+                          Array.from({ length: blankRowsCount }).map((_, bIdx) => (
+                            <tr key={`blank-row-${bIdx}`} className="border-b border-slate-800">
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-400 font-mono`}>
+                                {sheetEntries.length + bIdx + 1}
+                              </td>
+                              {!isGroupProg && (
+                                <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
+                                  &nbsp;
+                                </td>
+                              )}
                               <td className={`border border-slate-900 ${cellPadding} text-slate-300`}>
                                 &nbsp;
                               </td>
-                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
+                              {isTopicRequired && (
+                                <td className={`border border-slate-900 ${cellPadding} text-slate-300`}>
+                                  &nbsp;
+                                </td>
+                              )}
+                              <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300`}>
                                 &nbsp;
                               </td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                              {sheetType === "evaluation" && (
+                                <>
+                                  <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
+                                    &nbsp;
+                                  </td>
+                                  <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
+                                    &nbsp;
+                                  </td>
+                                </>
+                              )}
+                              {sheetType === "contestant" && (
+                                <>
+                                  {!isTopicRequired && (
+                                    <td className={`border border-slate-900 ${cellPadding} text-slate-300`}>
+                                      &nbsp;
+                                    </td>
+                                  )}
+                                  <td className={`border border-slate-900 ${cellPadding} text-center text-slate-300 font-mono`}>
+                                    &nbsp;
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  );
+                })()}
               </div>
 
               {/* --- OFFICIAL SIGN-OFF FOOTER --- */}

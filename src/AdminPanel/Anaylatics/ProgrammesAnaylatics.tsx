@@ -10,7 +10,11 @@ import {
 } from "recharts";
 import {
   Download,
-  Filter
+  Filter,
+  Printer,
+  Calendar,
+  X,
+  RotateCcw
 } from "lucide-react";
 
 export interface WingSummary {
@@ -25,6 +29,8 @@ interface FilterState {
   Venue: string;
   WingCode: string;
   Collaborator: string;
+  startDate: string;
+  endDate: string;
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6', '#10b981'];
@@ -84,6 +90,32 @@ export default function ProgrammesAnalytics() {
     return academicMap[year] || year;
   };
 
+  /**
+   * Robust date parser for both YYYY-MM-DD and DD-MM-YYYY formats
+   */
+  const parseFlexibleDate = (val?: string | null): Date | null => {
+    if (!val) return null;
+    const s = String(val).trim();
+    if (!s) return null;
+
+    // DD-MM-YYYY or DD/MM/YYYY
+    const dmy = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmy) {
+      const d = new Date(parseInt(dmy[3], 10), parseInt(dmy[2], 10) - 1, parseInt(dmy[1], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // YYYY-MM-DD or YYYY/MM/DD
+    const ymd = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (ymd) {
+      const d = new Date(parseInt(ymd[1], 10), parseInt(ymd[2], 10) - 1, parseInt(ymd[3], 10));
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const parsed = new Date(s);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   // Filters State
   const [filters, setFilters] = useState<FilterState>({
     AccademicYear: "",
@@ -91,7 +123,9 @@ export default function ProgrammesAnalytics() {
     Group: "",
     Venue: "",
     WingCode: "",
-    Collaborator: ""
+    Collaborator: "",
+    startDate: "",
+    endDate: ""
   });
 
   // 1. Fetch Data Directly (ProgrammesBox, Chs-WingS, Our_Venues, Accademic_Info)
@@ -286,6 +320,29 @@ export default function ProgrammesAnalytics() {
       result = result.filter(p => p.Collaborator === filters.Collaborator);
     }
 
+    // Specific Time / Date Range Filter (e.g. from "20-07-2026" to "10-10-2026")
+    if (filters.startDate) {
+      const start = parseFlexibleDate(filters.startDate);
+      if (start) {
+        start.setHours(0, 0, 0, 0);
+        result = result.filter(p => {
+          const itemDate = parseFlexibleDate(p.Date || p.created_at);
+          return itemDate ? itemDate >= start : false;
+        });
+      }
+    }
+
+    if (filters.endDate) {
+      const end = parseFlexibleDate(filters.endDate);
+      if (end) {
+        end.setHours(23, 59, 59, 999);
+        result = result.filter(p => {
+          const itemDate = parseFlexibleDate(p.Date || p.created_at);
+          return itemDate ? itemDate <= end : false;
+        });
+      }
+    }
+
     return result;
   }, [programmes, filters, availableAcademicYears, availableVenues, venuesList, meta.venues, venueMap, academicMap]);
 
@@ -313,7 +370,7 @@ export default function ProgrammesAnalytics() {
     }
   };
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
     setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
@@ -324,7 +381,9 @@ export default function ProgrammesAnalytics() {
       Group: "",
       Venue: "",
       WingCode: "",
-      Collaborator: ""
+      Collaborator: "",
+      startDate: "",
+      endDate: ""
     });
   };
 
@@ -387,9 +446,38 @@ export default function ProgrammesAnalytics() {
 
   return (
     <div className="w-full max-w-full overflow-hidden font-sans space-y-5 sm:space-y-6">
-      
+      {/* PRINT-ONLY CSS */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-block { display: block !important; }
+          .print-table { display: table !important; width: 100% !important; }
+          .print-break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+        }
+      `}</style>
+
+      {/* PRINT-ONLY BRANDED REPORT HEADER */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
+            <p className="text-sm font-bold text-slate-700">Programmes & Events Visual Analytics Report</p>
+          </div>
+          <div className="text-right text-xs text-slate-600 font-mono">
+            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
+            <p className="font-bold text-indigo-800">
+              {filters.startDate || filters.endDate
+                ? `Filtered Period: ${filters.startDate || "Beginning"} to ${filters.endDate || "Present"}`
+                : "Period: Complete Records"}
+            </p>
+            <p>Total Events: {totalPrograms} | Registrations: {totalRegistrations}</p>
+          </div>
+        </div>
+      </div>
+
       {/* HEADER SECTION (Fully Responsive on Mobile) */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs gap-4 no-print">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
@@ -432,26 +520,35 @@ export default function ProgrammesAnalytics() {
 
           <button
             onClick={handleExport}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm shadow-indigo-200 transition-all cursor-pointer shrink-0"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm shadow-indigo-200 transition-all cursor-pointer shrink-0 no-print"
           >
             <Download size={14} />
             <span>Export Excel ({filteredData.length})</span>
+          </button>
+
+          <button
+            onClick={() => window.print()}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-black active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all cursor-pointer shrink-0 no-print"
+            title="Print or Save PDF of the Visual Analytics & Directory"
+          >
+            <Printer size={14} />
+            <span>Print Visual</span>
           </button>
         </div>
       </div>
 
       {/* FILTER SECTION (Grid collapses from 6 columns on desktop down to 1 column on mobile) */}
-      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs space-y-3">
+      <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200 shadow-xs space-y-3 no-print">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
             <Filter size={13} /> Filter Events
           </span>
-          {(filters.AccademicYear || filters.Category || filters.Group || filters.Venue || filters.WingCode || filters.Collaborator) && (
+          {(filters.AccademicYear || filters.Category || filters.Group || filters.Venue || filters.WingCode || filters.Collaborator || filters.startDate || filters.endDate) && (
             <button
               onClick={resetFilters}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer underline"
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer underline flex items-center gap-1"
             >
-              Reset Filters
+              <RotateCcw size={11} /> Reset Filters
             </button>
           )}
         </div>
@@ -516,6 +613,59 @@ export default function ProgrammesAnalytics() {
             <option value="">All Collaborators</option>
             {availableCollaborators.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+        </div>
+
+        {/* Date Range Specific Time Filter (e.g. from "20-07-2026" to "10-10-2026") */}
+        <div className="pt-3 border-t border-slate-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5 shrink-0">
+              <Calendar size={13} className="text-indigo-600" /> Specific Time Filter:
+            </span>
+            {(filters.startDate || filters.endDate) ? (
+              <span className="text-[10px] font-extrabold uppercase bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                {filters.startDate || "Start"} → {filters.endDate || "End"} ({filteredData.length} events)
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 font-medium">Filter by specific date range</span>
+            )}
+          </div>
+
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 md:max-w-md justify-end">
+            <div className="flex-1 min-w-[130px]">
+              <label className="text-[10px] font-bold text-slate-400 block mb-0.5 uppercase">From (e.g. 20-07-2026)</label>
+              <input
+                type="date"
+                name="startDate"
+                value={filters.startDate}
+                onChange={handleFilterChange}
+                className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold cursor-pointer"
+                title="Start Date"
+              />
+            </div>
+
+            <div className="flex-1 min-w-[130px]">
+              <label className="text-[10px] font-bold text-slate-400 block mb-0.5 uppercase">To (e.g. 10-10-2026)</label>
+              <input
+                type="date"
+                name="endDate"
+                value={filters.endDate}
+                onChange={handleFilterChange}
+                className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold cursor-pointer"
+                title="End Date"
+              />
+            </div>
+
+            {(filters.startDate || filters.endDate) && (
+              <button
+                type="button"
+                onClick={() => setFilters(prev => ({ ...prev, startDate: "", endDate: "" }))}
+                className="self-end px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                title="Clear date filter"
+              >
+                <X size={13} /> Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

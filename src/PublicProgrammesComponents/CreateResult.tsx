@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Zap,
   Printer,
+  FileText,
 } from "lucide-react";
 
 interface RegisteredCandidate {
@@ -21,6 +22,7 @@ interface RegisteredCandidate {
   name: string;
   photoUrl?: string | null;
   className?: string | null;
+  topicTitle?: string | null;
 }
 
 export interface TeammateInfo {
@@ -35,6 +37,7 @@ export interface RegisteredSquad {
   squad_title: string; // Group Name
   members: TeammateInfo[];
   isRegisteredForProgram: boolean;
+  topicTitle?: string | null;
 }
 
 type GradeSelection = "none" | "A" | "B";
@@ -326,6 +329,25 @@ export default function CreateResult() {
             });
           }
 
+          // Query Topics_Box for topic registrations
+          const { data: topicData } = await SupaBaseFunction
+            .from("Topics_Box")
+            .select("student_addNo, team_uuid, topic_title")
+            .eq("program_code", selectedProgram);
+
+          const topicByStudent: Record<string, string> = {};
+          const topicBySquad: Record<string, string> = {};
+          (topicData || []).forEach((t: any) => {
+            if (t.student_addNo && t.topic_title) {
+              const s = String(t.student_addNo).trim();
+              topicByStudent[s] = t.topic_title;
+              topicByStudent[s.toUpperCase()] = t.topic_title;
+            }
+            if (t.team_uuid && t.topic_title) {
+              topicBySquad[String(t.team_uuid).trim()] = t.topic_title;
+            }
+          });
+
           // Build mapped registered squad objects
           const squadsMapped: RegisteredSquad[] = fetchedSquads.map((sq) => {
             const memberCodes = [
@@ -353,6 +375,7 @@ export default function CreateResult() {
               squad_title: sq.squad_title || "Unnamed Group",
               members,
               isRegisteredForProgram: squadIds.includes(sq.squad_id),
+              topicTitle: topicBySquad[sq.squad_id] || null,
             };
           });
 
@@ -396,6 +419,21 @@ export default function CreateResult() {
 
           if (stnError) throw stnError;
 
+          // Query Topics_Box for individual candidate topics
+          const { data: candTopicData } = await SupaBaseFunction
+            .from("Topics_Box")
+            .select("student_addNo, topic_title")
+            .eq("program_code", selectedProgram);
+
+          const candTopicMap: Record<string, string> = {};
+          (candTopicData || []).forEach((t: any) => {
+            if (t.student_addNo && t.topic_title) {
+              const s = String(t.student_addNo).trim();
+              candTopicMap[s] = t.topic_title;
+              candTopicMap[s.toUpperCase()] = t.topic_title;
+            }
+          });
+
           const mapped: RegisteredCandidate[] = (studentRows || []).map((s: any) => {
             const matchedClass = meta.classes.find(
               (c: any) =>
@@ -412,13 +450,18 @@ export default function CreateResult() {
                 matchedClass?.standard_name ||
                 s.Stn_Class ||
                 null,
+              topicTitle: candTopicMap[s.AddNo] || null,
             };
           });
 
           const foundAddNos = new Set(mapped.map((m) => m.addNo));
           candidateCodes.forEach((code) => {
             if (!foundAddNos.has(code)) {
-              mapped.push({ addNo: code, name: `Candidate (${code})` });
+              mapped.push({
+                addNo: code,
+                name: `Candidate (${code})`,
+                topicTitle: candTopicMap[code] || null,
+              });
             }
           });
 
@@ -1175,6 +1218,12 @@ export default function CreateResult() {
                               <span className="text-[10px] text-slate-500 font-semibold">
                                 {sq.members.length} Registered Teammates
                               </span>
+                              {sq.topicTitle && (
+                                <span className="text-[10px] font-bold text-indigo-700 flex items-center gap-1 truncate block mt-0.5" title={sq.topicTitle}>
+                                  <FileText size={10} className="shrink-0" />
+                                  <span className="truncate">{sq.topicTitle}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                           {isAssigned ? (
@@ -1260,6 +1309,12 @@ export default function CreateResult() {
                             {c.addNo}
                           </span>
                           <span className="text-slate-900 font-bold truncate block">{c.name}</span>
+                          {c.topicTitle && (
+                            <span className="text-[10px] font-semibold text-indigo-700 flex items-center gap-1 truncate block mt-0.5" title={c.topicTitle}>
+                              <FileText size={10} className="shrink-0" />
+                              <span className="truncate">{c.topicTitle}</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                       {isAssigned ? (

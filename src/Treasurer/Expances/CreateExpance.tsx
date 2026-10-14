@@ -100,9 +100,9 @@ export default function CreateExpance() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Amount (₹/$)</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Amount (₹)</label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-lg">$</span>
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-lg">₹</span>
               <input type="number" name="how_mach" value={formData.how_mach} onChange={handleChange} required className="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="0.00" />
             </div>
           </div>
@@ -121,7 +121,7 @@ export default function CreateExpance() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
-              <input type="time" name="Date" value={formData.Date} onChange={handleChange} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
+              <input type="date" name="Date" value={formData.Date} onChange={handleChange} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Payment Method</label>
