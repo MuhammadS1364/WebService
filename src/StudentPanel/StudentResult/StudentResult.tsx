@@ -100,10 +100,11 @@ export default function StudentResult() {
         const formatted: StudentResultEntry[] = [];
         const seenProgramCodes = new Set<string>();
 
+        const cleanAddNo = (addNo || "").trim().toUpperCase();
         const matchesHolder = (holderStr?: string | null) => {
-          if (!holderStr) return false;
-          if (holderStr === addNo) return true;
-          return holderStr.split(",").map((s) => s.trim()).includes(addNo);
+          if (!holderStr || !cleanAddNo) return false;
+          const tokens = holderStr.split(",").map((s) => s.trim().toUpperCase());
+          return tokens.includes(cleanAddNo);
         };
 
         rawResults.forEach((r) => {

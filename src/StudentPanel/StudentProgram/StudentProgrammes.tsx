@@ -163,9 +163,11 @@ export default function StudentProgrammes() {
               let pos = "";
               let pts = 0;
               let isWin = false;
+              const cleanStudentAddNo = (studentData.AddNo || "").trim().toUpperCase();
               const matches = (val?: string | null) => {
-                if (!val) return false;
-                return val === studentData.AddNo || val.split(",").map((s: string) => s.trim()).includes(studentData.AddNo);
+                if (!val || !cleanStudentAddNo) return false;
+                const tokens = val.split(",").map((s: string) => s.trim().toUpperCase());
+                return tokens.includes(cleanStudentAddNo);
               };
 
               if (matches(r.First_Holder)) {
@@ -406,7 +408,9 @@ export default function StudentProgrammes() {
                 className="bg-gray-50 border border-gray-200 text-gray-800 text-sm rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none font-medium cursor-pointer"
               >
                 {categories.map((cat, idx) => (
-                  <option key={idx} value={cat}>{cat || "Uncategorized"}</option>
+                  <option key={idx} value={cat}>
+                    {cat === "All" ? "All Categories" : meta.categoryMap[cat] || cat || "Uncategorized"}
+                  </option>
                 ))}
               </select>
             </div>

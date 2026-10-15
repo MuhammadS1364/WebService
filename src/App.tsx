@@ -79,6 +79,13 @@ import AISupportModal from './components/AISupportModal';
 import UpdatePassword from './UpdatePass/UpdatePass';
 import UpdateProfile from './Profile/UpdateProfile';
 
+// Category Controller Components
+import CategoryControllersList from './AdminPanel/CategoryControllers/CategoryControllersList';
+import ControllerPanel from './CategoryControllerPanel/Dashboard/ControllerPanel';
+import ControllerDashboard from './CategoryControllerPanel/Dashboard/ControllerDashboard';
+import ControllerProgrammesWrapper from './CategoryControllerPanel/Programmes/ControllerProgrammesWrapper';
+import ControllerRegistrations from './CategoryControllerPanel/Registrations/ControllerRegistrations';
+
 
 export default function App() {
   return (
@@ -146,6 +153,8 @@ export default function App() {
           <Route path='points-templates' element={<MasterConfigWrapper defaultTab="templates" />} />
           <Route path='leaderboard' element={<ResultedLeaderboard isAdmin={true} />} />
           <Route path='resulted-leaderboard' element={<ResultedLeaderboard isAdmin={true} />} />
+          <Route path='category-controllers' element={<CategoryControllersList />} />
+          <Route path='create-result' element={<CreateResult />} />
         </Route>
 
         {/* STUDENT PANEL (Protected) */}
@@ -222,6 +231,25 @@ export default function App() {
           <Route path='profile' element={<UpdateProfile />} />
           <Route path='treasurer-profile' element={<UpdateProfile />} />
           <Route path='treasurer-password' element={<UpdatePassword />} />
+        </Route>
+
+        {/* CATEGORY CONTROLLER PANEL (Protected) */}
+        <Route path='/controller-panel/:actController' element={
+          <ProtectedRoute>
+            <ControllerPanel />
+          </ProtectedRoute>
+        }>
+          <Route index element={<ControllerDashboard />} />
+          <Route path='dashboard' element={<ControllerDashboard />} />
+          <Route path='programmes' element={<ControllerProgrammesWrapper />} />
+          <Route path='create-program' element={<ProgrammeRegistration />} />
+          <Route path='create-result' element={<CreateResult />} />
+          <Route path='results' element={<AllResultsList />} />
+          <Route path='our-results' element={<AllResultsList />} />
+          <Route path='calendar' element={<ProgrammesCalendar />} />
+          <Route path='registrations' element={<ControllerRegistrations />} />
+          <Route path='profile' element={<UpdateProfile />} />
+          <Route path='password' element={<UpdatePassword />} />
         </Route>
 
         {/* 404 ERROR PAGE (Catches all unknown URLs) */}

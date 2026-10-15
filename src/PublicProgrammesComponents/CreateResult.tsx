@@ -93,12 +93,14 @@ const INITIAL_HOLDERS: HoldersState = {
 };
 
 export default function CreateResult() {
-  const { actWing } = useParams<{ actWing: string }>();
+  const { actWing, actUser, actController } = useParams<{ actWing?: string; actUser?: string; actController?: string }>();
   const meta = useProgrammeMeta();
 
   // State
   const [wingCode, setWingCode] = useState<string>("");
   const [wingTitle, setWingTitle] = useState<string>("");
+  const [controllerCategoryUuid, setControllerCategoryUuid] = useState<string>("");
+  const [controllerCategoryTitle, setControllerCategoryTitle] = useState<string>("");
   const [programmes, setProgrammes] = useState<ProgrammeDetails[]>([]);
   const [selectedProgram, setSelectedProgram] = useState<string>("");
 
@@ -144,6 +146,36 @@ export default function CreateResult() {
     fetchWingData();
   }, [actWing]);
 
+  // 1.5 Fetch Category Controller info if actController or actUser is a controller
+  useEffect(() => {
+    async function fetchControllerData() {
+      const activeIdentifier = actController || actUser;
+      if (!activeIdentifier) return;
+      try {
+        const { data: ctrl } = await SupaBaseFunction
+          .from("Category_Controller")
+          .select("category_uuid, controller_fullName")
+          .or(`controller_email.ilike.${activeIdentifier},controller_user_id.ilike.${activeIdentifier}`)
+          .maybeSingle();
+
+        if (ctrl && ctrl.category_uuid) {
+          setControllerCategoryUuid(ctrl.category_uuid);
+          const { data: cat } = await SupaBaseFunction
+            .from("Our_Category")
+            .select("category_title")
+            .eq("category_id", ctrl.category_uuid)
+            .maybeSingle();
+          if (cat?.category_title) {
+            setControllerCategoryTitle(cat.category_title);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not check category controller in CreateResult:", err);
+      }
+    }
+    fetchControllerData();
+  }, [actController, actUser]);
+
   // 2. Fetch all Points Templates for selection/customization
   useEffect(() => {
     async function fetchTemplates() {
@@ -172,11 +204,15 @@ export default function CreateResult() {
       try {
         let query = SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Date, Venue, WingCode, is_group_program, points_template, AccademicYear, IsResulted")
+          .select("Program_Code, Program_Title, Date, Venue, WingCode, Category, is_group_program, points_template, AccademicYear, IsResulted")
           .order("Date", { ascending: false });
 
         if (wingCode) {
           query = query.eq("WingCode", wingCode);
+        }
+
+        if (controllerCategoryUuid) {
+          query = query.eq("Category", controllerCategoryUuid);
         }
 
         const { data, error } = await query;
@@ -196,7 +232,7 @@ export default function CreateResult() {
       }
     }
     fetchProgrammes();
-  }, [wingCode, urlProgramCode]);
+  }, [wingCode, controllerCategoryUuid, urlProgramCode]);
 
   // 4. When a programme is chosen: load template and load registered candidates / squads
   useEffect(() => {
@@ -738,10 +774,26 @@ export default function CreateResult() {
         AGrade: getHolderValue("aGrade"),
         BGrade: getHolderValue("bGrade"),
         creaded_At: new Date().toTimeString().split(" ")[0],
+        is_published: true,
       };
 
-      const { error: insertError } = await SupaBaseFunction.from("ResultBox").insert([resultPayload]);
-      if (insertError) throw insertError;
+      // Check if ResultBox already exists for this programme
+      const { data: existingResult } = await SupaBaseFunction
+        .from("ResultBox")
+        .select("Result_id")
+        .eq("Program_Id", selectedProgram)
+        .maybeSingle();
+
+      if (existingResult?.Result_id) {
+        const { error: updateError } = await SupaBaseFunction
+          .from("ResultBox")
+          .update(resultPayload)
+          .eq("Result_id", existingResult.Result_id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await SupaBaseFunction.from("ResultBox").insert([resultPayload]);
+        if (insertError) throw insertError;
+      }
 
       // 2. ASSIGN EQUAL POINTS TO EACH STUDENT/TEAMMATE in StudentsBox
       const studentFeedbackLines: string[] = [];
@@ -906,7 +958,11 @@ export default function CreateResult() {
               <Trophy className="w-6 h-6 text-amber-300" />
             </span>
             <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
-              {wingTitle ? `${wingTitle} Wing` : "Results Office & Points Engine"}
+              {controllerCategoryTitle
+                ? `${controllerCategoryTitle} Category Jurisdiction`
+                : wingTitle
+                ? `${wingTitle} Wing`
+                : "Results Office & Points Engine"}
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">

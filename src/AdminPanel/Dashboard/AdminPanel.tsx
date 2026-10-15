@@ -18,6 +18,7 @@ import {
   X,
   Database,
   Trophy,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function AdminPanel() {
@@ -129,6 +130,9 @@ export default function AdminPanel() {
                 <NavLink to={`/admin-panel/${actUser}/points-templates`} className={desktopNavLinkClasses}>
                   Points Templates
                 </NavLink>
+                <NavLink to={`/admin-panel/${actUser}/category-controllers`} className={desktopNavLinkClasses}>
+                  Category Controllers
+                </NavLink>
               </div>
             )}
           </div>
@@ -188,6 +192,9 @@ export default function AdminPanel() {
                 </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/all-users`} className={desktopNavLinkClasses}>
                   Registered Users
+                </NavLink>
+                <NavLink to={`/admin-panel/${actUser}/category-controllers`} className={desktopNavLinkClasses}>
+                  Category Controllers
                 </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/all-donation`} className={desktopNavLinkClasses}>
                   Donations List
@@ -499,6 +506,15 @@ export default function AdminPanel() {
                 >
                   <UserCheck size={16} className="text-purple-600" />
                   <span>User Accounts</span>
+                </NavLink>
+
+                <NavLink
+                  to={`/admin-panel/${actUser}/category-controllers`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-indigo-50 text-indigo-800 hover:bg-indigo-100 text-xs font-semibold border border-indigo-200 col-span-2"
+                >
+                  <ShieldCheck size={16} className="text-indigo-600" />
+                  <span>Category Controllers (Bidaya, Ula, etc.)</span>
                 </NavLink>
 
                 <NavLink

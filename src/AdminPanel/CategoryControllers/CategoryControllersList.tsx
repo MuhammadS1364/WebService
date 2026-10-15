@@ -17,7 +17,6 @@ import {
   Sparkles,
   Layers,
   KeyRound,
-  ExternalLink,
   RefreshCw,
   Mail,
   User,
@@ -365,7 +364,6 @@ export default function CategoryControllersList() {
   const handleToggleActive = async (ctrl: ControllerWithMeta) => {
     const newStatus = !ctrl.is_active;
     try {
-      // Update both Category_Controller and UserTable
       await SupaBaseFunction
         .from("Category_Controller")
         .update({ is_active: newStatus })
@@ -1113,11 +1111,11 @@ export default function CategoryControllersList() {
         <ConfirmDeleteModal
           isOpen={Boolean(controllerToDelete)}
           title={`Remove Category Controller: ${controllerToDelete.controller_fullName}`}
-          description={`Are you sure you want to remove ${controllerToDelete.controller_fullName} as the controller for "${controllerToDelete.categoryTitle}"? This will delete their controller record and remove their login credentials from UserTable.`}
+          message={`Are you sure you want to remove ${controllerToDelete.controller_fullName} as the controller for "${controllerToDelete.categoryTitle}"? This will delete their controller record and remove their login credentials from UserTable.`}
           confirmText="Yes, Remove Controller"
           isDeleting={isDeleting}
           onConfirm={handleConfirmDelete}
-          onClose={() => setControllerToDelete(null)}
+          onCancel={() => setControllerToDelete(null)}
         />
       )}
     </div>

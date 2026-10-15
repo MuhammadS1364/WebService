@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
@@ -37,6 +37,7 @@ import {
   Users,
   Upload,
   Link as LinkIcon,
+  ShieldCheck,
 } from "lucide-react";
 
 export type MasterTab = "classes" | "batches" | "categories" | "groups" | "venues" | "templates";
@@ -170,6 +171,15 @@ export default function MasterConfigHub() {
             <Trophy size={16} />
             Points Templates ({meta.pointsTemplates.length})
           </button>
+
+          <Link
+            to="../category-controllers"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30 border border-indigo-400/30 cursor-pointer ml-auto"
+            title="Assign and manage category controllers with scoped administrative authority"
+          >
+            <ShieldCheck size={16} className="text-indigo-300" />
+            Category Controllers
+          </Link>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useParams, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import * as XLSX from "xlsx"; 
 import EditProgrammeModal from "./EditProgrammeModal";
@@ -77,7 +78,19 @@ const IMPORT_COLUMNS = [
   "Venue", "Category", "Group", "AccademicYear", "Program_Poster","Total_Registration","IsResulted","IsConducted","Description","OutComes"
 ];
 
-export default function AdminProgrammesList() {
+export interface AdminProgrammesListProps {
+  controllerCategoryUuid?: string;
+  controllerCategoryName?: string;
+  isControllerMode?: boolean;
+}
+
+export default function AdminProgrammesList({
+  controllerCategoryUuid,
+  controllerCategoryName,
+  isControllerMode = false,
+}: AdminProgrammesListProps = {}) {
+  const { actUser, actController } = useParams<{ actUser?: string; actController?: string }>();
+  const activeUser = actController || actUser || "";
   const meta = useProgrammeMeta();
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [wings, setWings] = useState<Wing[]>([]);
@@ -107,7 +120,7 @@ export default function AdminProgrammesList() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [filters, setFilters] = useState<FilterState>({
-    AccademicYear: "", Category: "", Group: "", Venue: "", WingCode: "",
+    AccademicYear: "", Category: controllerCategoryUuid || "", Group: "", Venue: "", WingCode: "",
   });
   const [approvalFilter, setApprovalFilter] = useState<"all" | "approved" | "pending">("all");
   const [resultFilter, setResultFilter] = useState<"all" | "resulted" | "published" | "pending" | "unpublished">("all");
@@ -184,6 +197,7 @@ export default function AdminProgrammesList() {
       if (resultFilter === "published" && !p.IsResultPublished) return false;
       if (resultFilter === "pending" && p.IsResulted) return false;
       if (resultFilter === "unpublished" && (!p.IsResulted || p.IsResultPublished)) return false;
+      if (controllerCategoryUuid && p.Category !== controllerCategoryUuid) return false;
       return (
         (!filters.AccademicYear || p.AccademicYear === filters.AccademicYear) &&
         (!filters.Category || p.Category === filters.Category) &&
@@ -192,7 +206,7 @@ export default function AdminProgrammesList() {
         (!filters.WingCode || p.WingCode === filters.WingCode)
       );
     });
-  }, [programmes, filters, approvalFilter, resultFilter]);
+  }, [programmes, filters, approvalFilter, resultFilter, controllerCategoryUuid]);
 
   // --- 1. SINGLE ACTION (Update One By One) ---
   const handleSingleAction = async (
@@ -454,12 +468,32 @@ export default function AdminProgrammesList() {
       {/* HEADER & TOP CONTROLS */}
       <div className="max-w-7xl mx-auto mb-4 bg-white p-6 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-emerald-50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Admin Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Full control over programmes and schedules.</p>
+          {isControllerMode && (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-black uppercase tracking-wider mb-1 border border-indigo-200">
+              <Layers size={12} />
+              <span>Category Jurisdiction</span>
+            </div>
+          )}
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+            {isControllerMode
+              ? `${controllerCategoryName || "Category"} Programmes`
+              : "Admin Programmes Directory"}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            {isControllerMode
+              ? `Full control over ${controllerCategoryName || "assigned"} category: edit, approve, delete, declare and publish results.`
+              : "Full control over programmes and schedules across all academic categories."}
+          </p>
         </div>
         
         <div className="flex flex-col items-end gap-2 w-full lg:w-auto">
           <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to={isControllerMode ? `/controller-panel/${activeUser}/create-program` : `/admin-panel/${activeUser}/create-program`}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer"
+            >
+              <span>+ New Programme</span>
+            </Link>
             <div className="bg-emerald-50/50 p-1 rounded-xl flex items-center mr-2 border border-emerald-100/50">
               <button onClick={() => setViewMode("cards")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'cards' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-emerald-600'}`}>Cards</button>
               <button onClick={() => setViewMode("calendar")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${viewMode === 'calendar' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:text-emerald-600'}`}>Calendar</button>
@@ -747,14 +781,24 @@ export default function AdminProgrammesList() {
                               <FileText size={14} className="text-indigo-600" /> Topics Registry
                             </button>
 
+                            {/* Declare or Edit Result Link */}
+                            <Link
+                              to={isControllerMode ? `/controller-panel/${activeUser}/create-result?program=${prog.Program_Code}` : `/admin-panel/${activeUser}/create-result?program=${prog.Program_Code}`}
+                              onClick={() => setOpenMenuProgCode(null)}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 transition cursor-pointer font-bold"
+                            >
+                              <Trophy size={14} className="text-amber-600" />
+                              <span>{prog.IsResulted ? "Edit Official Result" : "Declare Official Result"}</span>
+                            </Link>
+
                             {/* Display Result in Dropdown */}
                             {prog.IsResultPublished && (
                               <button
                                 type="button"
                                 onClick={() => { setResultModalProgram(prog); setOpenMenuProgCode(null); }}
-                                className="w-full px-3 py-2 rounded-xl text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 transition cursor-pointer font-bold"
+                                className="w-full px-3 py-2 rounded-xl text-left hover:bg-purple-50 flex items-center gap-2 text-purple-800 transition cursor-pointer font-bold"
                               >
-                                <Trophy size={14} className="text-amber-600" /> Display Result
+                                <Award size={14} className="text-purple-600" /> Display Published Result
                               </button>
                             )}
 

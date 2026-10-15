@@ -32,14 +32,16 @@ export default function ProgrammeRegistration() {
 
   // Role Management States
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isCategoryController, setIsCategoryController] = useState(false);
+  const [controllerCategoryTitle, setControllerCategoryTitle] = useState("");
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   // Success Feedback
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Extract user email/identifier from the URL
-  const { actUser, actWing } = useParams<{ actUser?: string; actWing?: string }>();
-  const loggedInEmail = actUser || actWing;
+  const { actUser, actWing, actController } = useParams<{ actUser?: string; actWing?: string; actController?: string }>();
+  const loggedInEmail = actController || actUser || actWing;
 
   const initialFormState = {
     Program_Code: "",
@@ -117,7 +119,7 @@ export default function ProgrammeRegistration() {
           return;
         }
 
-        // 1. Check Admin status
+        // 1. Check Admin status and CategoryController status
         const { data: userData } = await SupaBaseFunction
           .from("UserTable")
           .select("UserRole")
@@ -125,7 +127,35 @@ export default function ProgrammeRegistration() {
           .maybeSingle();
 
         const isRoleAdmin = userData?.UserRole === "Admin";
+        const isRoleController = userData?.UserRole === "CategoryController";
         setIsAdmin(isRoleAdmin);
+
+        if (isRoleController || actController) {
+          setIsCategoryController(true);
+          const { data: ctrlData } = await SupaBaseFunction
+            .from("Category_Controller")
+            .select("category_uuid, controller_fullName")
+            .or(`controller_email.ilike.${cleanIdentifier},controller_user_id.ilike.${cleanIdentifier}`)
+            .maybeSingle();
+
+          if (ctrlData && ctrlData.category_uuid) {
+            setFormData((prev) => ({
+              ...prev,
+              Category: ctrlData.category_uuid,
+              IsApproved: true,
+            }));
+
+            const { data: catData } = await SupaBaseFunction
+              .from("Our_Category")
+              .select("category_title")
+              .eq("category_id", ctrlData.category_uuid)
+              .maybeSingle();
+
+            if (catData?.category_title) {
+              setControllerCategoryTitle(catData.category_title);
+            }
+          }
+        }
 
         // 2. Fetch Wing details
         let wingQuery = SupaBaseFunction
@@ -159,7 +189,7 @@ export default function ProgrammeRegistration() {
     };
 
     fetchUserRole();
-  }, [loggedInEmail, meta.wings]);
+  }, [loggedInEmail, meta.wings, actController]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -495,7 +525,10 @@ export default function ProgrammeRegistration() {
                   name="Category"
                   value={formData.Category}
                   onChange={handleChange}
-                  className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm font-medium bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                  disabled={isCategoryController}
+                  className={`w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition ${
+                    isCategoryController ? "bg-slate-100 text-slate-700 font-bold cursor-not-allowed border-indigo-200" : "bg-white text-slate-800"
+                  }`}
                 >
                   <option value="">No Category (General / All Classes)</option>
                   {meta.categories.map((c) => (
@@ -504,6 +537,11 @@ export default function ProgrammeRegistration() {
                     </option>
                   ))}
                 </select>
+                {isCategoryController && (
+                  <p className="text-[10px] text-indigo-600 font-bold mt-1">
+                    ★ Jurisdiction locked to: {controllerCategoryTitle || "Your Assigned Category"}
+                  </p>
+                )}
               </div>
 
               {/* Venue (UUID foreign key to Our_Venues) */}

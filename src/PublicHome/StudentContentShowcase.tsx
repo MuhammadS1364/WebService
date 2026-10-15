@@ -387,58 +387,84 @@ export default function StudentContentShowcase() {
 
             const hasImageFile = isImageUrl(item.content_file);
 
+            const wordCount = item.content_text ? item.content_text.trim().split(/\s+/).filter(Boolean).length : 0;
+            const readTimeMin = Math.max(1, Math.ceil(wordCount / 180));
+            const formatBadge = hasImageFile
+              ? { label: "Visual Artwork", bg: "bg-purple-50 text-purple-700 border-purple-200" }
+              : item.content_file
+              ? { label: "Document", bg: "bg-blue-50 text-blue-700 border-blue-200" }
+              : wordCount > 120
+              ? { label: "Article / Essay", bg: "bg-emerald-50 text-emerald-700 border-emerald-200" }
+              : { label: "Literary Piece", bg: "bg-amber-50 text-amber-800 border-amber-200" };
+
             return (
               <div
                 key={item.content_id}
-                className="bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden group"
+                className="bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col overflow-hidden group ring-1 ring-black/5"
               >
-                {/* Top Accent Gradient Header with Wing & Entry Tag */}
-                <div className="bg-gradient-to-r from-emerald-50 via-teal-50/60 to-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 truncate">
-                      {item.programWing ? meta.wingMap[item.programWing] || item.programWing : "Literary Submission"}
+                {/* Top Header with Department Wing, Format Badge & Date */}
+                <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-slate-50 px-5 py-3.5 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 ring-4 ring-emerald-100" />
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-900 truncate">
+                      {item.programWing ? meta.wingMap[item.programWing] || item.programWing : "Literary Showcase"}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-slate-500 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200/80">
-                    <Calendar size={11} className="text-slate-400" />
-                    <span>{dateStr}</span>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${formatBadge.bg}`}>
+                      {formatBadge.label}
+                    </span>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-white/90 px-2 py-0.5 rounded-md border border-slate-200">
+                      <Calendar size={11} className="text-slate-400" />
+                      <span>{dateStr}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="p-5 flex flex-col grow space-y-4">
-                  {/* Author Info Row */}
+                <div className="p-5 sm:p-6 flex flex-col grow space-y-4">
+                  {/* Author Profile Row */}
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-50 border-2 border-white shadow-xs p-0.5 overflow-hidden shrink-0 flex items-center justify-center">
-                        {item.studentPhoto ? (
-                          <SafeImage
-                            src={item.studentPhoto}
-                            alt={item.studentName || "Author"}
-                            fallbackCategory="student"
-                            fallbackText={item.studentName}
-                            className="w-full h-full object-cover rounded-xl"
-                          />
-                        ) : (
-                          <div className="w-full h-full rounded-xl bg-emerald-700 text-white font-black text-sm flex items-center justify-center">
-                            {(item.studentName || "S")[0].toUpperCase()}
-                          </div>
-                        )}
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 p-0.5 shadow-md shadow-emerald-500/10 shrink-0 flex items-center justify-center">
+                        <div className="w-full h-full rounded-[14px] bg-white overflow-hidden flex items-center justify-center">
+                          {item.studentPhoto ? (
+                            <SafeImage
+                              src={item.studentPhoto}
+                              alt={item.studentName || "Author"}
+                              fallbackCategory="student"
+                              fallbackText={item.studentName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-teal-800 text-white font-black text-base flex items-center justify-center">
+                              {(item.studentName || "S")[0].toUpperCase()}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="min-w-0">
-                        <h4 className="text-xs font-black text-slate-900 truncate flex items-center gap-1.5" title={item.studentName}>
-                          <span className="truncate">{item.studentName}</span>
+                        <h4
+                          className="text-sm font-black text-slate-900 truncate flex items-center gap-1.5"
+                          title={item.studentName}
+                        >
+                          <span className="truncate">{item.studentName || "Anonymous Student"}</span>
                         </h4>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           {item.studentClass && (
-                            <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
-                              {item.studentClass}
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-100/80 text-emerald-900 font-black text-[10px] tracking-wide">
+                              Class {item.studentClass}
                             </span>
                           )}
-                          <span className="text-[10px] font-mono text-slate-500 font-bold">
+                          <span className="text-[11px] font-mono text-slate-500 font-bold">
                             #{item.student_addNo || "Student"}
                           </span>
+                          {wordCount > 0 && (
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              • {wordCount} words ({readTimeMin} min read)
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -448,19 +474,26 @@ export default function StudentContentShowcase() {
                   <div>
                     <h3
                       onClick={() => setSelectedItemForRead(item)}
-                      className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug line-clamp-2 cursor-pointer"
+                      className="text-lg font-black text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug line-clamp-2 cursor-pointer tracking-tight"
                       title={item.content_title}
                     >
                       {item.content_title}
                     </h3>
                   </div>
 
-                  {/* Content Excerpt / Quote */}
+                  {/* Content Excerpt / Quote Card */}
                   {item.content_text && item.content_text !== "content_text" && (
-                    <div className="bg-slate-50 border-l-4 border-emerald-500 rounded-r-2xl p-3 text-xs text-slate-700 leading-relaxed italic">
-                      <p className="line-clamp-3">
-                        "{item.content_text}"
+                    <div 
+                      onClick={() => setSelectedItemForRead(item)}
+                      className="relative bg-gradient-to-br from-slate-50 to-slate-100/70 border-l-4 border-emerald-500 rounded-r-2xl p-3.5 text-xs text-slate-700 leading-relaxed cursor-pointer hover:bg-emerald-50/40 transition group/excerpt shadow-2xs"
+                    >
+                      <p className="line-clamp-3 italic text-slate-700 font-serif">
+                        “{item.content_text}”
                       </p>
+                      <span className="text-[10px] font-bold text-emerald-700 mt-1 inline-flex items-center gap-1 group-hover/excerpt:underline">
+                        <span>Read full piece</span>
+                        <ArrowRight size={10} />
+                      </span>
                     </div>
                   )}
 
@@ -470,7 +503,7 @@ export default function StudentContentShowcase() {
                       {hasImageFile ? (
                         <div
                           onClick={() => setSelectedItemForRead(item)}
-                          className="relative h-32 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group/img shadow-2xs"
+                          className="relative h-36 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group/img shadow-2xs"
                         >
                           <img
                             src={item.content_file}
@@ -480,9 +513,9 @@ export default function StudentContentShowcase() {
                               (e.target as HTMLElement).style.display = "none";
                             }}
                           />
-                          <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 backdrop-blur-2xs">
-                            <Eye size={14} />
-                            <span>View Visual Artwork</span>
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 backdrop-blur-2xs">
+                            <Eye size={15} />
+                            <span>View Full Artwork</span>
                           </div>
                         </div>
                       ) : (
@@ -490,19 +523,19 @@ export default function StudentContentShowcase() {
                           href={item.content_file}
                           target="_blank"
                           rel="noreferrer"
-                          className="flex items-center justify-between p-3 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 hover:from-emerald-100/70 hover:to-teal-100/70 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-900 transition-all shadow-2xs group/doc"
+                          className="flex items-center justify-between p-3.5 bg-gradient-to-r from-emerald-50/90 to-teal-50/90 hover:from-emerald-100 hover:to-teal-100 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-950 transition-all shadow-2xs group/doc"
                         >
-                          <span className="flex items-center gap-2.5 min-w-0">
-                            <div className="p-1.5 rounded-lg bg-emerald-600 text-white shrink-0">
-                              <FileType size={14} />
+                          <span className="flex items-center gap-3 min-w-0">
+                            <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0 shadow-xs">
+                              <FileType size={16} />
                             </div>
                             <div className="truncate">
-                              <span className="block text-[11px] font-black truncate">Submission Attachment</span>
-                              <span className="block text-[9px] font-normal text-emerald-700">Official Student Work</span>
+                              <span className="block text-xs font-black truncate">Submission Document</span>
+                              <span className="block text-[10px] font-medium text-emerald-700">Click to view / download</span>
                             </div>
                           </span>
-                          <div className="p-1.5 rounded-lg bg-white/80 group-hover/doc:bg-white text-emerald-700 shrink-0 transition">
-                            <Download size={13} className="group-hover/doc:translate-y-0.5 transition-transform" />
+                          <div className="p-2 rounded-xl bg-white/90 group-hover/doc:bg-white text-emerald-700 shrink-0 transition shadow-2xs">
+                            <Download size={14} className="group-hover/doc:translate-y-0.5 transition-transform" />
                           </div>
                         </a>
                       )}
@@ -511,18 +544,18 @@ export default function StudentContentShowcase() {
 
                   {/* Programme Context Pill */}
                   <div className="mt-auto pt-2">
-                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-2.5 flex items-center justify-between gap-2 text-xs">
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 flex items-center justify-between gap-2 text-xs">
                       <div className="min-w-0">
                         <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">
-                          Programme Reference
+                          Official Programme
                         </span>
-                        <p className="font-bold text-slate-800 text-[11px] truncate" title={item.programTitle}>
+                        <p className="font-black text-slate-800 text-xs truncate" title={item.programTitle}>
                           {item.programTitle}
                         </p>
                       </div>
                       {item.programe_code && (
-                        <span className="shrink-0 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600">
-                          #{item.programe_code}
+                        <span className="shrink-0 text-[11px] font-mono font-black px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 shadow-2xs">
+                          {item.programe_code}
                         </span>
                       )}
                     </div>
@@ -534,15 +567,15 @@ export default function StudentContentShowcase() {
                     <button
                       type="button"
                       onClick={() => handleLike(item)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer active:scale-95 ${
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer active:scale-95 shadow-2xs ${
                         isLiked
                           ? "bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100"
                           : "bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100"
                       }`}
                     >
                       <Heart
-                        size={14}
-                        className={isLiked ? "fill-rose-500 text-rose-500" : "text-slate-400"}
+                        size={15}
+                        className={isLiked ? "fill-rose-500 text-rose-500 scale-110" : "text-slate-400"}
                       />
                       <span>{item.like_count || 0}</span>
                     </button>
@@ -552,21 +585,21 @@ export default function StudentContentShowcase() {
                       <button
                         type="button"
                         onClick={() => setSelectedItemForRead(item)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-black transition-all shadow-sm active:scale-95 cursor-pointer"
                       >
-                        <span>Read Full Work</span>
-                        <ArrowRight size={12} />
+                        <BookOpen size={13} />
+                        <span>Read Full</span>
                       </button>
 
                       {/* Share Button */}
                       <button
                         type="button"
                         onClick={() => handleShare(item)}
-                        className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                        className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 border border-slate-200 rounded-xl transition cursor-pointer"
                         title="Share Work"
                       >
                         {copiedId === item.content_id ? (
-                          <Check size={14} className="text-emerald-600" />
+                          <Check size={14} className="text-emerald-600 font-bold" />
                         ) : (
                           <Share2 size={14} />
                         )}
