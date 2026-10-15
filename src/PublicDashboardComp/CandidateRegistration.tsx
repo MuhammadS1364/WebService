@@ -1,18 +1,33 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
+import { resolveStudentProfile } from "../lib/accountResolver";
 import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
 import TopicRegistrationModal from "../components/TopicRegistrationModal";
-import { Printer, FileText, Sparkles } from "lucide-react";
+import {
+  Printer,
+  FileText,
+  Sparkles,
+  Lock,
+  ShieldCheck,
+  CheckCircle2,
+  Calendar,
+  RefreshCw,
+  Eye,
+} from "lucide-react";
 
 // Define the shape of your program data
 interface ProgramDetails {
   Program_Code: string;
   Program_Title: string;
   Category?: string;
+  WingCode?: string;
+  Date?: string;
+  Venue?: string;
   Total_Registration?: number;
   is_topic_required?: boolean;
+  IsOpenRegistration?: boolean;
 }
 
 // Define the shape of your status alerts
@@ -23,16 +38,20 @@ interface StatusState {
 
 export default function CandidateRegistration() {
   const meta = useProgrammeMeta();
-  // Extract P_Code from the URL and tell TypeScript it's a string
-  // IMPORTANT: Your router MUST look like: <Route path="/register/:P_Code" element={...} />
-  const { P_Code } = useParams<{ P_Code: string }>();
+  const { P_Code, actStn } = useParams<{ P_Code?: string; actStn?: string }>();
   const navigate = useNavigate();
 
   // Core Data States
   const [programDetails, setProgramDetails] = useState<ProgramDetails | null>(null);
   const [candidateCode, setCandidateCode] = useState<string>("");
   const [studentName, setStudentName] = useState<string>("");
-  
+  const [isStudent, setIsStudent] = useState<boolean>(true);
+  const [loggedInStudent, setLoggedInStudent] = useState<{
+    AddNo: string;
+    StudentName: string;
+    Stn_Class?: string | null;
+  } | null>(null);
+
   // UI/UX Status States
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -44,6 +63,58 @@ export default function CandidateRegistration() {
   const [isTopicModalOpen, setIsTopicModalOpen] = useState<boolean>(false);
   const [lastRegisteredStudent, setLastRegisteredStudent] = useState<string>("");
 
+  // 1. Resolve Logged-in Student Profile (Dynamic AddNo prefill & Readonly lock)
+  useEffect(() => {
+    async function resolveCurrentStudent() {
+      try {
+        let identifier = actStn;
+
+        // If no actStn in URL, check localStorage
+        if (!identifier) {
+          const stored = localStorage.getItem("user");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            const role = (parsed.role || parsed.UserRole || "").toLowerCase();
+            if (role === "student" || !role) {
+              identifier = parsed.UserEmail || parsed.UserId;
+            }
+          }
+        }
+
+        // Check cached profile first
+        const cached = localStorage.getItem("cached_student_profile");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (parsed.AddNo) {
+              setLoggedInStudent(parsed);
+              setCandidateCode(parsed.AddNo);
+              setIsStudent(true);
+            }
+          } catch {}
+        }
+
+        if (identifier) {
+          const profile = await resolveStudentProfile(identifier);
+          if (profile?.AddNo) {
+            setLoggedInStudent({
+              AddNo: profile.AddNo,
+              StudentName: profile.StudentName || profile.AddNo,
+              Stn_Class: (profile as any).Stn_Class || (profile as any).Class || null,
+            });
+            setCandidateCode(profile.AddNo);
+            setIsStudent(true);
+          }
+        }
+      } catch (e) {
+        console.error("Could not resolve student:", e);
+      }
+    }
+
+    resolveCurrentStudent();
+  }, [actStn]);
+
+  // Check Print permissions (Admins/Wings)
   useEffect(() => {
     try {
       const cachedWing = localStorage.getItem("cached_wing_profile");
@@ -67,7 +138,7 @@ export default function CandidateRegistration() {
   }, []);
 
   // ----------------------------------------
-  // 1. Fetch current program info 
+  // 2. Fetch current program info 
   // ----------------------------------------
   useEffect(() => {
     async function fetchProgram() {
@@ -80,7 +151,7 @@ export default function CandidateRegistration() {
       try {
         const { data, error } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Category, Total_Registration, is_topic_required")
+          .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Total_Registration, is_topic_required, IsOpenRegistration")
           .eq("Program_Code", P_Code)
           .maybeSingle();
 
@@ -102,7 +173,7 @@ export default function CandidateRegistration() {
   }, [P_Code]);
 
   // ----------------------------------------
-  // 2. Real-time Student Lookup Validation
+  // 3. Real-time Student Lookup Validation
   // ----------------------------------------
   useEffect(() => {
     if (!candidateCode.trim()) {
@@ -121,7 +192,7 @@ export default function CandidateRegistration() {
         const { data: studentData, error: studentError } = await SupaBaseFunction
           .from("StudentsBox")
           .select("StudentName, Stn_Class")
-          .eq("AddNo", candidateCode.trim())
+          .ilike("AddNo", candidateCode.trim())
           .maybeSingle();
 
         if (studentError || !studentData) {
@@ -180,7 +251,7 @@ export default function CandidateRegistration() {
 
             if (!isMatch && studentCatTitle) {
               setStudentName(
-                `❌ Category Mismatch: This programme is strictly for "${progCatTitle}". ${studentData.StudentName} belongs to "${studentCatTitle}".`
+                `❌ Category Mismatch: This programme is strictly for "${progCatTitle}". Your class is in "${studentCatTitle}".`
               );
               setCategoryMismatch(true);
               return;
@@ -193,13 +264,13 @@ export default function CandidateRegistration() {
           .from("CandidateRegistrationTable")
           .select("CandidateUUiD")
           .eq("Program_Code", P_Code)
-          .eq("Candidate_Code", candidateCode.trim())
+          .ilike("Candidate_Code", candidateCode.trim())
           .maybeSingle();
 
         if (duplicateError && duplicateError.code !== "PGRST116") throw duplicateError;
 
         if (duplicateCheck) {
-          setStudentName(`⚠️ ${studentData.StudentName} is ALREADY registered!`);
+          setStudentName(`⚠️ You are ALREADY registered for this event!`);
           setIsDuplicate(true);
         } else {
           setStudentName(`✅ ${studentData.StudentName}`);
@@ -210,14 +281,13 @@ export default function CandidateRegistration() {
         console.error(err);
         setStudentName("⚠️ Validation service runtime exception");
       }
-    }, 450); // Debounce delay for smooth typing UX
+    }, 350);
 
     return () => clearTimeout(delayDebounce);
   }, [candidateCode, P_Code, programDetails, meta]);
 
-
   // ----------------------------------------
-  // 3. Process the Registration
+  // 4. Process the Registration
   // ----------------------------------------
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -253,14 +323,14 @@ export default function CandidateRegistration() {
       const { data: currentStudent } = await SupaBaseFunction
         .from("StudentsBox")
         .select("Registration_Count")
-        .eq("AddNo", candidateCode.trim())
+        .ilike("AddNo", candidateCode.trim())
         .maybeSingle();
 
       if (currentStudent) {
         await SupaBaseFunction
           .from("StudentsBox")
           .update({ Registration_Count: (currentStudent.Registration_Count || 0) + 1 })
-          .eq("AddNo", candidateCode.trim());
+          .ilike("AddNo", candidateCode.trim());
       }
 
       const registeredCode = candidateCode.trim();
@@ -268,11 +338,9 @@ export default function CandidateRegistration() {
       setStatus({
         type: "success",
         text: programDetails?.is_topic_required
-          ? "🎉 Candidate successfully assigned! Topic registration is required for this event."
-          : "🎉 Candidate successfully assigned to program!",
+          ? "🎉 You have been successfully registered! Topic registration is required for this competition."
+          : `🎉 You have been successfully registered for ${programDetails?.Program_Title || "this event"}!`,
       });
-      setCandidateCode("");
-      setStudentName("");
       
     } catch (err) {
       console.error("Workflow Pipeline Failure:", err);
@@ -288,24 +356,30 @@ export default function CandidateRegistration() {
   // ----------------------------------------
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 font-sans">
         <div className="flex flex-col items-center animate-pulse">
           <div className="h-10 w-10 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mb-4"></div>
-          <p className="text-slate-500 font-medium tracking-wide">Validating secure channel...</p>
+          <p className="text-slate-500 font-medium tracking-wide">Validating candidate access...</p>
         </div>
       </div>
     );
   }
 
+  const studentProfileUrl = actStn ? `/student-panel/${actStn}/stn-program` : "/student-panel/dashboard";
+
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-12 flex items-center justify-center font-sans selection:bg-violet-500 selection:text-white">
-      <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl shadow-slate-200/50 border border-slate-100 p-6 sm:p-10 transition-all">
+    <div className="min-h-screen bg-slate-50 px-4 py-8 sm:py-12 flex items-center justify-center font-sans selection:bg-violet-500 selection:text-white">
+      <div className="w-full max-w-xl bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-6 sm:p-10 transition-all">
         
         {/* Header Section */}
-        <div className="mb-8 border-b border-slate-100 pb-5 flex items-center justify-between gap-3">
+        <div className="mb-6 border-b border-slate-100 pb-5 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-800 tracking-tight">Candidate Entry</h2>
-            <p className="text-sm text-slate-500 mt-1 font-medium">Assign records to active programs seamlessly.</p>
+            <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-violet-50 text-violet-700 text-[10px] font-black uppercase tracking-wider mb-1.5 border border-violet-200/60">
+              <ShieldCheck size={12} />
+              <span>Student Self-Registration</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Event Entry</h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5 font-medium">Enroll yourself in campus competitions & programmes.</p>
           </div>
           {programDetails && canPrintSheet && (
             <button
@@ -321,113 +395,168 @@ export default function CandidateRegistration() {
 
         {/* Action Validation Alerts */}
         {status.text && (
-          <div className={`p-4 rounded-xl mb-6 text-sm font-semibold border transition-all flex items-start ${
+          <div className={`p-4 rounded-2xl mb-6 text-sm font-semibold border transition-all flex items-start gap-2.5 ${
             status.type === "success" 
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-              : "bg-rose-50 text-rose-700 border-rose-200"
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200 shadow-xs" 
+              : "bg-rose-50 text-rose-800 border-rose-200 shadow-xs"
           }`}>
-            <span className="mr-2 text-lg">{status.type === "success" ? "✅" : "⚠️"}</span>
-            <span className="mt-0.5">{status.text}</span>
+            <span className="text-lg shrink-0 mt-0.5">{status.type === "success" ? "🎉" : "⚠️"}</span>
+            <span className="leading-snug">{status.text}</span>
           </div>
         )}
 
         {/* Prevent rendering form if the P_Code wasn't found in DB */}
         {!programDetails && status.type === "error" ? (
-           <button
-            onClick={() => navigate("/student-panel/:actStn/candidate-registration")}
-            className="w-full py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all active:scale-95"
-           >
-             Return to Program List
-           </button>
+          <button
+            type="button"
+            onClick={() => navigate(studentProfileUrl)}
+            className="w-full py-3.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all active:scale-95 cursor-pointer"
+          >
+            Return to My Events
+          </button>
         ) : status.type === "success" ? (
           // Success / Next Action Workflow
-          <div className="space-y-6 py-4 animate-in fade-in zoom-in duration-300">
-            <p className="text-slate-600 text-center font-medium">What would you like to do next?</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-5 py-4 animate-in fade-in zoom-in duration-300">
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 text-center space-y-2">
+              <div className="w-12 h-12 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-md">
+                <CheckCircle2 size={24} />
+              </div>
+              <h3 className="text-base font-black text-emerald-950">You're Officially Registered!</h3>
+              <p className="text-xs text-emerald-800 font-medium">
+                Your entry for <span className="font-bold underline">{programDetails?.Program_Title}</span> (#{P_Code}) has been confirmed under admission code <span className="font-mono font-bold">#{candidateCode}</span>.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               {programDetails?.is_topic_required && (
                 <button
                   type="button"
                   onClick={() => setIsTopicModalOpen(true)}
-                  className="sm:col-span-2 w-full py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-md shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer text-center flex items-center justify-center gap-2"
+                  className="sm:col-span-2 w-full py-3.5 bg-indigo-600 text-white font-bold rounded-2xl shadow-md shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer text-center flex items-center justify-center gap-2 text-xs"
                 >
-                  <FileText size={16} /> Register Candidate Topic (Topics_Box)
+                  <FileText size={16} /> Register Candidate Topic & Lyrics (Topics_Box)
                 </button>
               )}
-              <button
-                onClick={() => setStatus({ type: "", text: "" })}
-                className="w-full py-3.5 bg-violet-600 text-white font-bold rounded-xl shadow-md shadow-violet-200 hover:bg-violet-700 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer text-center"
+              
+              <Link
+                to={studentProfileUrl}
+                className="w-full py-3.5 bg-slate-900 text-white font-bold rounded-2xl shadow-md hover:bg-slate-800 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer text-center text-xs flex items-center justify-center gap-2"
               >
-                + Register Another
-              </button>
-              {canPrintSheet && (
-                <button
-                  type="button"
-                  onClick={() => setIsPrintSheetOpen(true)}
-                  className="w-full py-3.5 bg-violet-50 text-violet-700 border border-violet-200 font-bold rounded-xl hover:bg-violet-100 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-                >
-                  <Printer size={16} /> Print Sheet (A4)
-                </button>
-              )}
+                <Eye size={15} />
+                <span>View My Registered Events</span>
+              </Link>
+
+              <Link
+                to={actStn ? `/student-panel/${actStn}/all-programmes-list` : "/public-panel/our-programmes"}
+                className="w-full py-3.5 bg-slate-100 text-slate-700 font-bold rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer text-center text-xs flex items-center justify-center gap-2"
+              >
+                <Calendar size={15} />
+                <span>Browse More Events</span>
+              </Link>
             </div>
           </div>
         ) : (
-          // Main Form
-          <form onSubmit={handleRegister} className="space-y-6">
+          // Main Student Registration Form
+          <form onSubmit={handleRegister} className="space-y-5">
             
             {/* Field 1: Program Meta Reference */}
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Target Program</label>
-              <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-wrap gap-3 items-center">
-                <span className="font-bold text-violet-700 bg-violet-100 px-2.5 py-1 rounded-md text-xs tracking-wide shadow-sm">
-                  {P_Code || "N/A"}
-                </span>
-                <span className="text-slate-700 font-semibold text-sm">
-                  {programDetails ? programDetails.Program_Title : "Loading title..."}
-                </span>
-                {programDetails?.Category && (
-                  <span className="ml-auto text-xs font-bold bg-white border border-slate-200 text-slate-500 px-3 py-1 rounded-full shadow-sm">
-                    {programDetails.Category}
+              <div className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono font-bold text-violet-700 bg-violet-100 px-2.5 py-1 rounded-md text-xs tracking-wide shadow-xs">
+                    {P_Code || "N/A"}
                   </span>
-                )}
+                  <span className="text-slate-900 font-extrabold text-sm sm:text-base leading-snug">
+                    {programDetails ? programDetails.Program_Title : "Loading title..."}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap pt-1">
+                  {programDetails?.Category && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-bold text-[11px]">
+                      Category: {meta.categoryMap[programDetails.Category] || programDetails.Category}
+                    </span>
+                  )}
+                  {programDetails?.WingCode && (
+                    <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-bold text-[11px]">
+                      Wing: {meta.wingMap[programDetails.WingCode] || programDetails.WingCode}
+                    </span>
+                  )}
+                  {programDetails?.Date && (
+                    <span className="text-[11px] font-medium text-slate-600">
+                      Date: {programDetails.Date}
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Notice if Topic Registration is required */}
               {programDetails?.is_topic_required && (
-                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3 text-xs mt-1">
                   <div className="flex items-center gap-2 text-indigo-900 font-semibold">
-                    <Sparkles size={16} className="text-indigo-600 shrink-0" />
-                    <span>Topic Registration required for this competition.</span>
+                    <Sparkles size={15} className="text-indigo-600 shrink-0" />
+                    <span>Topic submission required for this competition.</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsTopicModalOpen(true)}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shrink-0 transition flex items-center gap-1.5 cursor-pointer text-[11px]"
-                  >
-                    <FileText size={12} /> Open Topic Form
-                  </button>
+                  <span className="text-[10px] uppercase font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200 shrink-0">
+                    Topics_Box
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Field 2: Target Candidate Admission Code */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Candidate Admission No (AddNo) <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. 4501"
-                value={candidateCode}
-                onChange={(e) => setCandidateCode(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 p-3.5 text-slate-800 placeholder-slate-400 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-500/20 transition-all text-sm font-bold bg-white"
-              />
+            {/* Field 2: Target Candidate Admission Code (READONLY FOR STUDENTS!) */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <span>Candidate Admission No (AddNo)</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                {isStudent && (
+                  <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md flex items-center gap-1 border border-indigo-200">
+                    <Lock size={10} />
+                    <span>Locked to your account</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  readOnly={isStudent}
+                  placeholder="e.g. U1476"
+                  value={candidateCode}
+                  onChange={(e) => {
+                    if (!isStudent) setCandidateCode(e.target.value.toUpperCase());
+                  }}
+                  className={`w-full rounded-2xl border p-3.5 text-sm font-mono font-bold transition-all ${
+                    isStudent
+                      ? "bg-slate-100 text-slate-800 border-indigo-200 cursor-not-allowed select-none"
+                      : "bg-white text-slate-800 border-slate-300 focus:border-violet-500 focus:ring-4 focus:ring-violet-500/20"
+                  }`}
+                />
+                {isStudent && (
+                  <div className="absolute right-3.5 top-3.5 text-slate-400">
+                    <Lock size={16} />
+                  </div>
+                )}
+              </div>
+
+              {isStudent && loggedInStudent && (
+                <p className="text-[11px] text-slate-500 font-semibold flex items-center gap-1 mt-0.5">
+                  <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
+                  <span>
+                    Authenticated student: <span className="font-bold text-slate-800">{loggedInStudent.StudentName}</span> (AddNo: {loggedInStudent.AddNo})
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* Field 3: Dynamic Verification Feedback Box */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Identity Verification</label>
-              <div className={`w-full rounded-xl border p-3.5 text-sm font-semibold transition-all duration-300 flex items-center ${
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Identity & Eligibility</label>
+              <div className={`w-full rounded-2xl border p-3.5 text-xs sm:text-sm font-semibold transition-all duration-300 flex items-center ${
                   studentName.startsWith("✅")
                     ? "bg-emerald-50 border-emerald-200 text-emerald-800 shadow-inner"
                     : isDuplicate || studentName.startsWith("❌") || studentName.startsWith("⚠️")
@@ -439,57 +568,87 @@ export default function CandidateRegistration() {
               </div>
             </div>
 
+            {/* If Already Registered: Show quick direct link to View Events */}
+            {isDuplicate && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                <span className="text-amber-900 font-bold">You are already registered in this competition.</span>
+                <Link
+                  to={studentProfileUrl}
+                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shrink-0 transition"
+                >
+                  View My Events
+                </Link>
+              </div>
+            )}
+
             {/* Form Actions */}
-            <div className="pt-4 flex flex-col align-middle justify-center sm:flex-row gap-3">
-              {/* <button
+            <div className="pt-3 flex flex-col sm:flex-row gap-3">
+              <button
                 type="button"
-                onClick={() => navigate("/admin-panel/admin@gmail.com/")}
-                className="w-full sm:w-1/3 order-2 sm:order-1 py-3.5 bg-slate-100 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-200 transition-all active:scale-95"
+                onClick={() => navigate(-1)}
+                className="w-full sm:w-1/3 py-3.5 bg-slate-100 text-slate-600 text-xs font-bold rounded-2xl hover:bg-slate-200 transition-all active:scale-95 cursor-pointer text-center"
               >
-                Cancel
-              </button> */}
+                Back
+              </button>
+
               <button
                 type="submit"
-                disabled={isSubmitting || !studentName.startsWith("✅") || isDuplicate}
-                className={`w-full sm:w-2/3 order-1 sm:order-2 py-3.5 text-sm font-bold text-white rounded-xl transition-all duration-200 shadow-lg flex justify-center items-center ${
-                  isSubmitting || !studentName.startsWith("✅") || isDuplicate
-                    ? "bg-slate-300 cursor-not-allowed shadow-none"
-                    : "bg-violet-600 hover:bg-violet-700 hover:-translate-y-0.5 hover:shadow-violet-300 active:scale-[0.98]"
+                disabled={
+                  isSubmitting ||
+                  !studentName.startsWith("✅") ||
+                  isDuplicate ||
+                  categoryMismatch ||
+                  !candidateCode.trim()
+                }
+                className={`w-full sm:w-2/3 py-3.5 text-xs font-black rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                  isSubmitting ||
+                  !studentName.startsWith("✅") ||
+                  isDuplicate ||
+                  categoryMismatch ||
+                  !candidateCode.trim()
+                    ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                    : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-violet-500/25 cursor-pointer hover:-translate-y-0.5"
                 }`}
               >
                 {isSubmitting ? (
                   <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    Processing...
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Processing Registration...</span>
                   </>
-                ) : "Complete Registration"}
+                ) : (
+                  <span>Complete My Registration</span>
+                )}
               </button>
             </div>
-            
           </form>
         )}
 
-        {/* Print Candidate Sheet Modal (A4) */}
-        {programDetails && (
-          <PrintCandidateSheetModal
-            isOpen={isPrintSheetOpen}
-            programCode={programDetails.Program_Code}
-            initialProgramTitle={programDetails.Program_Title}
-            onClose={() => setIsPrintSheetOpen(false)}
-          />
-        )}
-
-        {/* Topic Registration Modal (Topics_Box) */}
-        {programDetails && (
-          <TopicRegistrationModal
-            isOpen={isTopicModalOpen}
-            onClose={() => setIsTopicModalOpen(false)}
-            programCode={programDetails.Program_Code}
-            programTitle={programDetails.Program_Title}
-            studentAddNo={lastRegisteredStudent || candidateCode.trim() || null}
-          />
-        )}
       </div>
+
+      {/* Print Candidate Sheet Modal */}
+      {isPrintSheetOpen && programDetails && (
+        <PrintCandidateSheetModal
+          isOpen={isPrintSheetOpen}
+          onClose={() => setIsPrintSheetOpen(false)}
+          programCode={programDetails.Program_Code}
+          initialProgramTitle={programDetails.Program_Title}
+        />
+      )}
+
+      {/* Topic Registration Modal */}
+      {isTopicModalOpen && programDetails && (
+        <TopicRegistrationModal
+          isOpen={isTopicModalOpen}
+          onClose={() => setIsTopicModalOpen(false)}
+          programCode={programDetails.Program_Code}
+          programTitle={programDetails.Program_Title}
+          studentAddNo={lastRegisteredStudent || candidateCode}
+          onSuccess={() => {
+            setIsTopicModalOpen(false);
+            navigate(studentProfileUrl);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
   Printer,
   LayoutGrid,
   List,
+  UserPlus,
 } from "lucide-react";
 
 // --- INTERFACES MATCHING UPDATED PROGRAMMESBOX TABLE ---
@@ -919,6 +920,15 @@ export default function WingProgrammes() {
                           <Printer size={12} />
                           <span>Print</span>
                         </button>
+
+                        <Link
+                          to={`/wing-panel/${actWing}/candidate-registration/${p.Program_Code}`}
+                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 inline-flex items-center gap-1 transition shadow-2xs"
+                          title="Assign other candidates by AddNo"
+                        >
+                          <UserPlus size={12} />
+                          <span>Assign +</span>
+                        </Link>
                       </div>
 
                       {/* Candidates Toggle */}

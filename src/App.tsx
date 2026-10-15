@@ -38,6 +38,7 @@ import WingProgrammes from './WingPanel/WingProgrammes/WingProgrammes';
 import WingResults from './WingPanel/WingResults/WingResults';
 import WingRegistrations from './WingPanel/WingRegistrations/WingRegistrations';
 import CandidateRegistration from './PublicDashboardComp/CandidateRegistration';
+import ManageCandidateRegistrations from './AdminPanel/Registrations/ManageCandidateRegistrations';
 
 // Outreach Components
 import OutReachPanel from './OutReachPanel/DashBoard/OutReachPanel';
@@ -130,7 +131,8 @@ export default function App() {
           <Route path='programmes-card' element={<ProgrammesRegistrationCard />} />
           <Route path='programmes-calendar' element={<ProgrammesCalendar />} />
           <Route path='create-program' element={<ProgrammeRegistration />} />
-          <Route path='candidate-registration/:P_Code' element={<CandidateRegistration />} />
+          <Route path='candidate-registration/:P_Code' element={<ManageCandidateRegistrations />} />
+          <Route path='manage-registrations/:P_Code' element={<ManageCandidateRegistrations />} />
           <Route path='edite-student/:StnAddNo' element={<EditeStudentRecord />} />
           <Route path='all-students' element={<OurStudentsList />} />
           <Route path='new-student' element={<StudentRegistration />} />
@@ -194,6 +196,8 @@ export default function App() {
           <Route path='wing-programmes' element={<WingProgrammes />} />
           <Route path='wing-registrations' element={<WingRegistrations />} />
           <Route path='registrations' element={<WingRegistrations />} />
+          <Route path='candidate-registration/:P_Code' element={<ManageCandidateRegistrations />} />
+          <Route path='manage-registrations/:P_Code' element={<ManageCandidateRegistrations />} />
           <Route path='wing-results' element={<WingResults />} />
           <Route path='profile' element={<UpdateProfile />} />
           <Route path='wing-profile' element={<UpdateProfile />} />
@@ -248,6 +252,8 @@ export default function App() {
           <Route path='our-results' element={<AllResultsList />} />
           <Route path='calendar' element={<ProgrammesCalendar />} />
           <Route path='registrations' element={<ControllerRegistrations />} />
+          <Route path='candidate-registration/:P_Code' element={<ManageCandidateRegistrations />} />
+          <Route path='manage-registrations/:P_Code' element={<ManageCandidateRegistrations />} />
           <Route path='profile' element={<UpdateProfile />} />
           <Route path='password' element={<UpdatePassword />} />
         </Route>

@@ -28,7 +28,8 @@ import {
   MoreHorizontal,
   CheckCircle2,
   Clock,
-  Trophy
+  Trophy,
+  UserPlus
 } from "lucide-react"; 
 
 export interface Programme {
@@ -903,10 +904,17 @@ export default function AdminProgrammesList({
 
                       {/* Registration Stats & Year Counter */}
                       <div className="flex items-center justify-between pt-1 text-[11px]">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-bold">
+                        <Link
+                          to={`../candidate-registration/${prog.Program_Code}`}
+                          className="flex items-center gap-1.5 text-indigo-700 hover:text-indigo-900 font-extrabold hover:underline"
+                          title="Manage registered candidates & assign other candidates"
+                        >
                           <Users size={13} className="text-indigo-600" />
                           <span>{prog.Total_Registration || 0} Registered</span>
-                        </div>
+                          <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
+                            Manage
+                          </span>
+                        </Link>
                         {prog.AccademicYear && (
                           <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md">
                             {getAcademicYearName(prog.AccademicYear)}
@@ -928,22 +936,29 @@ export default function AdminProgrammesList({
                       </button>
                     )}
 
-                    {/* EDIT & SHEET ACTION BUTTONS (CLEAN 2-BUTTON ROW) */}
+                    {/* ACTION BUTTONS (CANDIDATES, EDIT & SHEET) */}
                     <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-auto">
+                      <Link
+                        to={`../candidate-registration/${prog.Program_Code}`}
+                        className="py-2 px-2.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center justify-center gap-1 shadow-2xs"
+                        title="Assign and manage candidates"
+                      >
+                        <UserPlus size={13} /> Candidates
+                      </Link>
                       <button
                         type="button"
                         onClick={() => setEditingProgram(prog)}
                         className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                       >
-                        <Edit3 size={13} /> Edit Details
+                        <Edit3 size={13} /> Edit
                       </button>
                       <button
                         type="button"
                         onClick={() => setPrintSheetProgram(prog)}
-                        className="py-2 px-3 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                        className="py-2 px-2.5 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                         title="Print Official A4 Candidate Attendance & Evaluation Sheet"
                       >
-                        <Printer size={13} /> Sheet (A4)
+                        <Printer size={13} /> Sheet
                       </button>
                     </div>
                   </div>
