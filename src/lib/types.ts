@@ -4,11 +4,23 @@
 
 export interface UserRecord {
   UserEmail: string;
-  UserRole: "Admin" | "Wing" | "Student" | "Treasurer" | "OutReach" | string;
+  UserRole: "Admin" | "Wing" | "Student" | "Treasurer" | "OutReach" | "CategoryController" | string;
   UserPassword?: string;
   IsActive?: boolean;
   IsAuthenticated?: boolean;
   UserId?: string;
+}
+
+export interface CategoryControllerRecord {
+  controller_uuid: string;
+  created_at?: string;
+  controller_fullName: string;
+  controller_email: string;
+  controller_id: string;
+  category_uuid: string | null;
+  controller_img?: string | null;
+  is_active?: boolean;
+  controller_user_id?: string | null;
 }
 
 export interface StudentRecord {

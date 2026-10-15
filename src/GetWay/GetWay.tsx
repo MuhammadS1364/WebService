@@ -25,12 +25,26 @@ export default function GetWay() {
     setMsgType("");
 
     try {
+      let resolvedEmail = email.trim();
+
+      // If user typed their Controller ID in the email/username input
+      if (!resolvedEmail.includes("@")) {
+        const { data: ctrlMatch } = await SupaBaseFunction
+          .from("Category_Controller")
+          .select("controller_email")
+          .ilike("controller_id", resolvedEmail)
+          .maybeSingle();
+        if (ctrlMatch?.controller_email) {
+          resolvedEmail = ctrlMatch.controller_email;
+        }
+      }
+
       // Find a user matching BOTH email and password
       const { data: actUser, error: checkError } = await SupaBaseFunction
         .from("UserTable")
         .select("UserId, UserEmail, UserRole, IsActive")
-        .eq("UserEmail", email)
-        .eq("UserPassword", password)
+        .ilike("UserEmail", resolvedEmail)
+        .eq("UserPassword", password.trim())
         .maybeSingle();
 
       if (checkError) throw checkError;
@@ -64,6 +78,8 @@ export default function GetWay() {
       setTimeout(() => {
         if (actUser.UserRole === 'Admin') {
           navigate(`/admin-panel/${actUser.UserEmail}`);
+        } else if (actUser.UserRole === 'CategoryController' || actUser.UserRole === 'Controller') {
+          navigate(`/controller-panel/${actUser.UserEmail}`);
         } else if (actUser.UserRole === 'Wing') {
           navigate(`/wing-panel/${actUser.UserEmail}`);
         } else if (actUser.UserRole === 'Treasurer') {

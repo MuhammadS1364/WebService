@@ -820,12 +820,12 @@ export default function StudentAnalytics() {
                       <span className="text-slate-400">{prog.Category ? meta.categoryMap[prog.Category] || prog.Category : "Standard"}</span>
                       <span
                         className={`font-bold px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider ${
-                          prog.IsConducted
+                          (prog.IsConducted || prog.IsResultPublished)
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}
                       >
-                        {prog.IsConducted ? "Conducted" : "Upcoming"}
+                        {prog.IsResultPublished ? "Result Out" : prog.IsConducted ? "Conducted" : "Upcoming"}
                       </span>
                     </div>
                   </div>

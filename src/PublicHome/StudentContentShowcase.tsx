@@ -5,7 +5,6 @@ import SafeImage from "../lib/SafeImage";
 import {
   Heart,
   BookOpen,
-  User,
   Search,
   Sparkles,
   Share2,
@@ -15,6 +14,8 @@ import {
   Download,
   Eye,
   FileType,
+  Calendar,
+  ArrowRight,
 } from "lucide-react";
 
 export interface StudentContentItem {
@@ -373,7 +374,7 @@ export default function StudentContentShowcase() {
         </div>
       ) : (
         /* Content Cards Grid: Upgraded Context Cards */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map(item => {
             const isLiked = likedIds.has(item.content_id);
             const dateStr = item.created_at
@@ -389,82 +390,87 @@ export default function StudentContentShowcase() {
             return (
               <div
                 key={item.content_id}
-                className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all duration-300 flex flex-col overflow-hidden p-5 group"
+                className="bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden group"
               >
-                {/* Author Info Bar */}
-                <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200/80 p-0.5 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
-                      {item.studentPhoto ? (
-                        <SafeImage
-                          src={item.studentPhoto}
-                          alt={item.studentName || "Author"}
-                          fallbackCategory="student"
-                          fallbackText={item.studentName}
-                          className="w-full h-full object-cover rounded-xl"
-                        />
-                      ) : (
-                        <div className="w-full h-full rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-sm flex items-center justify-center">
-                          {(item.studentName || "S")[0].toUpperCase()}
-                        </div>
-                      )}
-                    </div>
+                {/* Top Accent Gradient Header with Wing & Entry Tag */}
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50/60 to-slate-50 px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 truncate">
+                      {item.programWing ? meta.wingMap[item.programWing] || item.programWing : "Literary Submission"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 text-[10px] font-bold text-slate-500 bg-white/80 px-2 py-0.5 rounded-md border border-slate-200/80">
+                    <Calendar size={11} className="text-slate-400" />
+                    <span>{dateStr}</span>
+                  </div>
+                </div>
 
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate flex items-center gap-1.5" title={item.studentName}>
-                        <User size={12} className="text-emerald-600 shrink-0" />
-                        <span className="truncate">{item.studentName}</span>
-                      </p>
-                      <p className="text-[10px] text-slate-500 truncate mt-0.5">
-                        {item.studentClass || "Student"} {item.student_addNo ? `• #${item.student_addNo}` : ""}
-                      </p>
+                <div className="p-5 flex flex-col grow space-y-4">
+                  {/* Author Info Row */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-50 border-2 border-white shadow-xs p-0.5 overflow-hidden shrink-0 flex items-center justify-center">
+                        {item.studentPhoto ? (
+                          <SafeImage
+                            src={item.studentPhoto}
+                            alt={item.studentName || "Author"}
+                            fallbackCategory="student"
+                            fallbackText={item.studentName}
+                            className="w-full h-full object-cover rounded-xl"
+                          />
+                        ) : (
+                          <div className="w-full h-full rounded-xl bg-emerald-700 text-white font-black text-sm flex items-center justify-center">
+                            {(item.studentName || "S")[0].toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-black text-slate-900 truncate flex items-center gap-1.5" title={item.studentName}>
+                          <span className="truncate">{item.studentName}</span>
+                        </h4>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {item.studentClass && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
+                              {item.studentClass}
+                            </span>
+                          )}
+                          <span className="text-[10px] font-mono text-slate-500 font-bold">
+                            #{item.student_addNo || "Student"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <span className="text-[10px] font-semibold text-slate-400 shrink-0 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-150">
-                    {dateStr}
-                  </span>
-                </div>
-
-                {/* Content Details & Body Snippet */}
-                <div className="py-3.5 space-y-3 grow flex flex-col">
-                  {/* Title */}
-                  <div className="flex items-start gap-2">
-                    <FileText size={16} className="text-emerald-600 shrink-0 mt-0.5" />
+                  {/* Content Title */}
+                  <div>
                     <h3
                       onClick={() => setSelectedItemForRead(item)}
-                      className="text-sm font-extrabold text-slate-900 leading-snug line-clamp-2 hover:text-emerald-700 transition cursor-pointer"
+                      className="text-base font-black text-slate-900 group-hover:text-emerald-700 transition-colors leading-snug line-clamp-2 cursor-pointer"
                       title={item.content_title}
                     >
                       {item.content_title}
                     </h3>
                   </div>
 
-                  {/* Content Text Snippet (If Present) */}
+                  {/* Content Excerpt / Quote */}
                   {item.content_text && item.content_text !== "content_text" && (
-                    <div className="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 text-xs text-slate-700 leading-relaxed font-normal">
-                      <p className="line-clamp-3 italic">
+                    <div className="bg-slate-50 border-l-4 border-emerald-500 rounded-r-2xl p-3 text-xs text-slate-700 leading-relaxed italic">
+                      <p className="line-clamp-3">
                         "{item.content_text}"
                       </p>
-                      {item.content_text.length > 130 && (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedItemForRead(item)}
-                          className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline mt-1 block cursor-pointer"
-                        >
-                          Read full content →
-                        </button>
-                      )}
                     </div>
                   )}
 
-                  {/* Attached File Preview (If Image or File Link) */}
+                  {/* Attached Visual or Document */}
                   {item.content_file && (
-                    <div className="mt-auto pt-1">
+                    <div className="pt-1">
                       {hasImageFile ? (
                         <div
                           onClick={() => setSelectedItemForRead(item)}
-                          className="relative h-28 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group/img"
+                          className="relative h-32 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer group/img shadow-2xs"
                         >
                           <img
                             src={item.content_file}
@@ -474,8 +480,9 @@ export default function StudentContentShowcase() {
                               (e.target as HTMLElement).style.display = "none";
                             }}
                           />
-                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
-                            <Eye size={14} /> View Visual
+                          <div className="absolute inset-0 bg-black/35 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5 backdrop-blur-2xs">
+                            <Eye size={14} />
+                            <span>View Visual Artwork</span>
                           </div>
                         </div>
                       ) : (
@@ -483,85 +490,88 @@ export default function StudentContentShowcase() {
                           href={item.content_file}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center justify-between w-full p-2.5 bg-emerald-50/60 hover:bg-emerald-100/60 border border-emerald-200/80 rounded-2xl text-[11px] font-bold text-emerald-800 transition group/doc"
+                          className="flex items-center justify-between p-3 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 hover:from-emerald-100/70 hover:to-teal-100/70 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-900 transition-all shadow-2xs group/doc"
                         >
-                          <span className="flex items-center gap-2 truncate">
-                            <FileType size={14} className="text-emerald-700 shrink-0" />
-                            <span className="truncate">Attached Submission Document</span>
+                          <span className="flex items-center gap-2.5 min-w-0">
+                            <div className="p-1.5 rounded-lg bg-emerald-600 text-white shrink-0">
+                              <FileType size={14} />
+                            </div>
+                            <div className="truncate">
+                              <span className="block text-[11px] font-black truncate">Submission Attachment</span>
+                              <span className="block text-[9px] font-normal text-emerald-700">Official Student Work</span>
+                            </div>
                           </span>
-                          <Download size={13} className="text-emerald-600 shrink-0 group-hover/doc:translate-y-0.5 transition-transform" />
+                          <div className="p-1.5 rounded-lg bg-white/80 group-hover/doc:bg-white text-emerald-700 shrink-0 transition">
+                            <Download size={13} className="group-hover/doc:translate-y-0.5 transition-transform" />
+                          </div>
                         </a>
                       )}
                     </div>
                   )}
 
-                  {/* Associated Programme Badge */}
-                  <div className="pt-1">
-                    <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 text-[11px] text-slate-700 flex items-center justify-between gap-2">
+                  {/* Programme Context Pill */}
+                  <div className="mt-auto pt-2">
+                    <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-2.5 flex items-center justify-between gap-2 text-xs">
                       <div className="min-w-0">
-                        <span className="text-[9px] uppercase font-mono font-bold text-emerald-700 block">
-                          Programme Entry
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-slate-400 block">
+                          Programme Reference
                         </span>
-                        <p className="font-bold text-slate-900 truncate" title={item.programTitle}>
+                        <p className="font-bold text-slate-800 text-[11px] truncate" title={item.programTitle}>
                           {item.programTitle}
                         </p>
                       </div>
-                      {item.programWing && (
-                        <span className="shrink-0 px-2 py-0.5 bg-white border border-slate-200 rounded-md text-[10px] font-bold text-slate-600">
-                          {item.programWing}
+                      {item.programe_code && (
+                        <span className="shrink-0 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-600">
+                          #{item.programe_code}
                         </span>
                       )}
                     </div>
                   </div>
-                </div>
 
-                {/* Footer Action Bar with Interactive Like Button */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
-                  {/* Like Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleLike(item)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 ${
-                      isLiked
-                        ? "bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100"
-                        : "bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    <Heart
-                      size={14}
-                      className={isLiked ? "fill-rose-500 text-rose-500" : "text-slate-500"}
-                    />
-                    <span>{item.like_count || 0}</span>
-                    <span className="font-normal text-[11px]">
-                      {isLiked ? "Liked" : "Like"}
-                    </span>
-                  </button>
-
-                  <div className="flex items-center gap-1">
-                    {/* Read Full Content Modal Trigger */}
+                  {/* Footer Actions */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    {/* Like Button */}
                     <button
                       type="button"
-                      onClick={() => setSelectedItemForRead(item)}
-                      className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition cursor-pointer text-xs font-semibold flex items-center gap-1"
-                      title="Read Full Content"
+                      onClick={() => handleLike(item)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer active:scale-95 ${
+                        isLiked
+                          ? "bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100"
+                          : "bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100"
+                      }`}
                     >
-                      <Eye size={14} />
-                      <span className="hidden sm:inline">Details</span>
+                      <Heart
+                        size={14}
+                        className={isLiked ? "fill-rose-500 text-rose-500" : "text-slate-400"}
+                      />
+                      <span>{item.like_count || 0}</span>
                     </button>
 
-                    {/* Share button */}
-                    <button
-                      type="button"
-                      onClick={() => handleShare(item)}
-                      className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-slate-50 rounded-xl transition cursor-pointer"
-                      title="Share Showcase"
-                    >
-                      {copiedId === item.content_id ? (
-                        <Check size={14} className="text-emerald-600" />
-                      ) : (
-                        <Share2 size={14} />
-                      )}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Read / Details Button */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedItemForRead(item)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer"
+                      >
+                        <span>Read Full Work</span>
+                        <ArrowRight size={12} />
+                      </button>
+
+                      {/* Share Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleShare(item)}
+                        className="p-1.5 text-slate-400 hover:text-emerald-700 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                        title="Share Work"
+                      >
+                        {copiedId === item.content_id ? (
+                          <Check size={14} className="text-emerald-600" />
+                        ) : (
+                          <Share2 size={14} />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

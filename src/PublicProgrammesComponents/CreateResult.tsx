@@ -842,6 +842,7 @@ export default function CreateResult() {
         .update({
           IsResulted: true,
           IsResultPublished: true,
+          IsConducted: true,
           points_template: activeTemplate.p_template_id !== "default" ? activeTemplate.p_template_id : null,
         })
         .eq("Program_Code", selectedProgram);

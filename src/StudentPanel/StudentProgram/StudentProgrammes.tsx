@@ -7,6 +7,7 @@ import SafeImage from "../../lib/SafeImage";
 import ProgrammeFeedbackModal from "../../PublicProgrammesComponents/ProgrammeFeedbackModal";
 import SubmitContentModal from "../../PublicProgrammesComponents/SubmitContentModal";
 import TopicRegistrationModal from "../../components/TopicRegistrationModal";
+import ProgrammeResultModal from "../../components/ProgrammeResultModal";
 import { resolveStudentProfile } from "../../lib/accountResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import {
@@ -20,6 +21,8 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  Trophy,
+  Award,
 } from "lucide-react";
 
 // 1. Define explicit structures matching your Supabase Database Schemas
@@ -74,6 +77,10 @@ export default function StudentProgrammes() {
   const [contentModalProgram, setContentModalProgram] = useState<ProgramItem | null>(null);
   // Topic Registration Modal State
   const [topicModalProgram, setTopicModalProgram] = useState<ProgramItem | null>(null);
+  // Official Result Modal State
+  const [resultModalProgram, setResultModalProgram] = useState<ProgramItem | null>(null);
+  // Enrolled Program Results Map (winner position, points, result details)
+  const [studentResults, setStudentResults] = useState<Record<string, { position?: string; points?: number; isWinner: boolean; isPublished: boolean; resultRow: any }>>({});
 
   const handleDownloadImage = async (url: string, title?: string) => {
     try {
@@ -144,6 +151,56 @@ export default function StudentProgrammes() {
             setPrograms((programsData as ProgramItem[]) || []);
           }
 
+          // Step 3.5: Fetch ResultBox records for these programmes to show results & winner positions
+          const { data: resData } = await SupaBaseFunction
+            .from("ResultBox")
+            .select("*")
+            .in("Program_Id", programCodes);
+
+          if (resData && isMounted) {
+            const resMap: Record<string, { position?: string; points?: number; isWinner: boolean; isPublished: boolean; resultRow: any }> = {};
+            resData.forEach((r: any) => {
+              let pos = "";
+              let pts = 0;
+              let isWin = false;
+              const matches = (val?: string | null) => {
+                if (!val) return false;
+                return val === studentData.AddNo || val.split(",").map((s: string) => s.trim()).includes(studentData.AddNo);
+              };
+
+              if (matches(r.First_Holder)) {
+                pos = "1st Place";
+                pts = 10;
+                isWin = true;
+              } else if (matches(r.Second_Holder)) {
+                pos = "2nd Place";
+                pts = 7;
+                isWin = true;
+              } else if (matches(r.Third_Holder)) {
+                pos = "3rd Place";
+                pts = 5;
+                isWin = true;
+              } else if (matches(r.AGrade)) {
+                pos = "Grade A";
+                pts = 5;
+                isWin = true;
+              } else if (matches(r.BGrade)) {
+                pos = "Grade B";
+                pts = 3;
+                isWin = true;
+              }
+
+              resMap[r.Program_Id] = {
+                position: pos,
+                points: pts,
+                isWinner: isWin,
+                isPublished: Boolean(r.is_published || true),
+                resultRow: r,
+              };
+            });
+            setStudentResults(resMap);
+          }
+
           // Fetch existing content submissions for this student
           const { data: cData } = await SupaBaseFunction
             .from("Content_Table")
@@ -198,8 +255,19 @@ export default function StudentProgrammes() {
     setContentModalProgram(prog);
   };
 
-  // Derived tracking calculations
-  const conductedCount = programs.filter(p => p.IsConducted).length;
+  // Check if a programme has concluded (conducted, resulted, result published, or date passed)
+  const isProgramConcluded = (p: ProgramItem) => {
+    return Boolean(
+      p.IsConducted ||
+      p.IsResultPublished ||
+      (p as any).IsResulted ||
+      Boolean(studentResults[p.Program_Code]) ||
+      (p.Date && new Date(p.Date) <= new Date())
+    );
+  };
+
+  // Derived tracking calculations: Concluded programmes are marked Completed
+  const conductedCount = programs.filter(isProgramConcluded).length;
   const upcomingCount = programs.length - conductedCount;
   
   // Prevent run-time assignment crashes by safely matching array conditions
@@ -211,9 +279,9 @@ export default function StudentProgrammes() {
       const matchesCategory = categoryFilter === "All" || prog.Category === categoryFilter;
       let matchesStatus = true;
       
-      if (statusFilter === "Upcoming") matchesStatus = !prog.IsConducted;
-      if (statusFilter === "Completed") matchesStatus = prog.IsConducted;
-      if (statusFilter === "Result Out") matchesStatus = prog.IsResultPublished;
+      if (statusFilter === "Upcoming") matchesStatus = !isProgramConcluded(prog);
+      if (statusFilter === "Completed") matchesStatus = isProgramConcluded(prog);
+      if (statusFilter === "Result Out") matchesStatus = Boolean(prog.IsResultPublished || (prog as any).IsResulted || studentResults[prog.Program_Code]);
 
       let matchesSearch = true;
       if (searchQuery.trim()) {
@@ -227,7 +295,7 @@ export default function StudentProgrammes() {
 
       return matchesCategory && matchesStatus && matchesSearch;
     });
-  }, [programs, categoryFilter, statusFilter, searchQuery, meta]);
+  }, [programs, categoryFilter, statusFilter, searchQuery, meta, studentResults]);
 
   if (loading) {
     return (
@@ -383,11 +451,22 @@ export default function StudentProgrammes() {
                       <span>View & Download</span>
                     </div>
                   </div>
-                  <div className="absolute top-3 right-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                    {prog.IsResultPublished && <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md">🏆 Result Out</span>}
-                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-lg ${prog.IsConducted ? "bg-emerald-500/90 text-white" : "bg-amber-400/90 text-amber-950"}`}>
-                      {prog.IsConducted ? "Completed" : "Upcoming"}
-                    </span>
+                  <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    {Boolean(prog.IsResultPublished || (prog as any).IsResulted || studentResults[prog.Program_Code]) ? (
+                      <>
+                        <span className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1">
+                          <Trophy size={12} className="text-yellow-300" />
+                          <span>Result Out</span>
+                        </span>
+                        <span className="bg-emerald-500/90 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-xs">
+                          Completed
+                        </span>
+                      </>
+                    ) : (
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-full shadow-lg ${isProgramConcluded(prog) ? "bg-emerald-500/90 text-white" : "bg-amber-400 text-amber-950"}`}>
+                        {isProgramConcluded(prog) ? "Completed" : "Upcoming"}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -402,6 +481,40 @@ export default function StudentProgrammes() {
                   </div>
                   <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">{prog.Program_Title}</h3>
                   <p className="text-sm text-gray-500 line-clamp-2 mb-3 flex-1">{prog.Description || "Registered participant."}</p>
+
+                  {/* Student Official Award / Standing Banner */}
+                  {studentResults[prog.Program_Code] && (
+                    <div className={`mb-3 p-3 rounded-2xl flex items-center justify-between gap-2 shadow-xs border ${
+                      studentResults[prog.Program_Code].isWinner
+                        ? "bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300 text-amber-950"
+                        : "bg-blue-50/80 border-blue-200 text-blue-900"
+                    }`}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        {studentResults[prog.Program_Code].isWinner ? (
+                          <Trophy size={18} className="text-amber-600 shrink-0" />
+                        ) : (
+                          <Award size={18} className="text-blue-600 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <span className="text-[9px] font-black uppercase tracking-wider block opacity-70">
+                            {studentResults[prog.Program_Code].isWinner ? "Official Achievement" : "Competition Status"}
+                          </span>
+                          <span className="text-xs font-black truncate block">
+                            {studentResults[prog.Program_Code].isWinner
+                              ? `${studentResults[prog.Program_Code].position} (+${studentResults[prog.Program_Code].points} PTS)`
+                              : "Official Result Declared"}
+                          </span>
+                        </div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase shrink-0 ${
+                        studentResults[prog.Program_Code].isWinner
+                          ? "bg-amber-200 text-amber-900"
+                          : "bg-blue-100 text-blue-800"
+                      }`}>
+                        {studentResults[prog.Program_Code].isWinner ? "Podium Winner" : "Participated"}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Content Submission Required Section */}
                   {prog.isContentRequired && (
@@ -490,6 +603,19 @@ export default function StudentProgrammes() {
                       {meta.venueMap[prog.Venue || ""] || prog.Venue || "TBA"}
                     </div>
                   </div>
+
+                  {/* DISPLAY RESULT BUTTON IF RESULT IS PUBLISHED / RESULTED */}
+                  {Boolean(prog.IsResultPublished || (prog as any).IsResulted || studentResults[prog.Program_Code]) && (
+                    <button
+                      type="button"
+                      onClick={() => setResultModalProgram(prog)}
+                      className="w-full mb-2 flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white text-xs font-black rounded-xl transition shadow-sm shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
+                      title="View official declared competition standings & podium"
+                    >
+                      <Trophy size={14} className="text-yellow-200" />
+                      <span>Display Official Result</span>
+                    </button>
+                  )}
 
                   {/* Feedback action: Permitted because this student officially registered/participated in this programme */}
                   <button
@@ -615,6 +741,20 @@ export default function StudentProgrammes() {
             programTitle={feedbackModal.title}
             studentAddNo={student?.AddNo}
             onClose={() => setFeedbackModal({ isOpen: false, code: "", title: "" })}
+          />
+        )}
+
+        {/* Official Programme Result & Standing Modal */}
+        {resultModalProgram && (
+          <ProgrammeResultModal
+            isOpen={Boolean(resultModalProgram)}
+            onClose={() => setResultModalProgram(null)}
+            programCode={resultModalProgram.Program_Code}
+            programTitle={resultModalProgram.Program_Title}
+            programDate={resultModalProgram.Date}
+            programVenue={resultModalProgram.Venue}
+            programPoster={resultModalProgram.Program_Poster}
+            wingCode={(resultModalProgram as any).WingCode}
           />
         )}
       </div>
