@@ -203,7 +203,37 @@ export default function StudentRegistration() {
         try {
             const { data, error } = await SupaBaseFunction.from("StudentsBox").select("*");
             if (error) throw error;
-            exportToExcel(data || [], "Students_Directory_Export.xlsx", "Students");
+            const formatted = (data || []).map((s: any, idx: number) => {
+                const rawClass = s.Stn_Class || s.Class;
+                const matchedClass = meta.classes?.find(
+                    (c) => c.class_id === rawClass || c.standard_name === rawClass || c.class_nick_name === rawClass
+                );
+                const resolvedClass = matchedClass
+                    ? (matchedClass.standard_name && matchedClass.class_nick_name
+                        ? `${matchedClass.standard_name} (${matchedClass.class_nick_name})`
+                        : matchedClass.standard_name || matchedClass.class_nick_name)
+                    : (meta.classStandardNameMap?.[rawClass] || meta.classMap?.[rawId(rawClass)] || "Standard Class");
+
+                return {
+                    "Sl No": idx + 1,
+                    "Admission No": s.AddNo,
+                    "Student Name": s.StudentName,
+                    "Class": resolvedClass,
+                    "Father Name": s.FatherName || "",
+                    "College / Study Center": s.CollegeName || "",
+                    "Email": s.StudentEmail || "",
+                    "State": s.StnState || "",
+                    "District": s.StnDistrict || "",
+                    "Grand Total Points": s.Grand_Total_Points || 0,
+                    "Anjuman Points": s.Total_Point_Anjuman || 0,
+                    "Achievements": s.Achievements_Counts || 0,
+                    "Status": s.IsActive !== false ? "Active" : "Inactive"
+                };
+            });
+
+            function rawId(id: string) { return id || ""; }
+
+            exportToExcel(formatted, "Students_Directory_Export.xlsx", "Students");
             setStatusMessage("✅ Export successful!");
         } catch (err: any) {
             setStatusMessage(`❌ Export failed: ${err.message}`);

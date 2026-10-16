@@ -154,6 +154,9 @@ export default function AdminPanel() {
                 <NavLink to={`/admin-panel/${actUser}/Programmes-List`} className={desktopNavLinkClasses}>
                   All Programmes
                 </NavLink>
+                <NavLink to={`/admin-panel/${actUser}/group-programme-manager`} className={desktopNavLinkClasses}>
+                  Group & Candidate Hub
+                </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/our-results`} className={desktopNavLinkClasses}>
                   Results Directory
                 </NavLink>
@@ -461,6 +464,15 @@ export default function AdminPanel() {
                 >
                   <Calendar size={16} className="text-indigo-600" />
                   <span>New Programme</span>
+                </NavLink>
+
+                <NavLink
+                  to={`/admin-panel/${actUser}/group-programme-manager`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-indigo-50 text-indigo-900 hover:bg-indigo-100 text-xs font-semibold border border-indigo-200"
+                >
+                  <Users size={16} className="text-indigo-600" />
+                  <span>Group & Candidate Hub</span>
                 </NavLink>
 
                 <NavLink

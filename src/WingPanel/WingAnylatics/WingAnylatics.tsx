@@ -370,6 +370,23 @@ export default function WingAnalytics() {
         </div>
       </div>
 
+      {/* --- POINTS POLICY NOTIFICATION --- */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-4 sm:p-5 text-white mb-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-slate-800">
+        <div>
+          <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded border border-amber-400/30">
+            Points Policy: Held Until Resulted
+          </span>
+          <h3 className="text-sm sm:text-base font-black text-white mt-1">
+            Points for this wing are strictly held on pending programmes and awarded only upon official result publication.
+          </h3>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="px-3 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-amber-300 border border-white/15">
+            {Math.max(0, totalProgramsCount - publishedResultsCount)} Pending Programmes (Points on Hold)
+          </span>
+        </div>
+      </div>
+
       {/* --- METRICS LAYER --- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <OverViewClipBox BoxTitle="Total Programmes" BoxValue={totalProgramsCount} color="indigo" BoxSvgLogo={<svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /></svg>} />

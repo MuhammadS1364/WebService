@@ -540,12 +540,22 @@ export default function WingRegistrations() {
         const prog = progMap[c.Program_Code];
         const squad = c.squad_uuid ? squadsMap[c.squad_uuid] : null;
 
+        const rawClass = (student as any)?.Stn_Class || student?.Class;
+        const matchedClass = meta.classes?.find(
+          (cl) => cl.class_id === rawClass || cl.standard_name === rawClass || cl.class_nick_name === rawClass
+        );
+        const resolvedClass = matchedClass
+          ? (matchedClass.standard_name && matchedClass.class_nick_name
+              ? `${matchedClass.standard_name} (${matchedClass.class_nick_name})`
+              : matchedClass.standard_name || matchedClass.class_nick_name)
+          : (rawClass ? (meta.classStandardNameMap?.[rawClass] || meta.classMap?.[rawClass] || "Standard Class") : "N/A");
+
         return {
           "Program Code": c.Program_Code,
           "Program Title": prog?.Program_Title || c.Program_Code,
           "Candidate AddNo": c.Candidate_Code,
           "Student Name": student?.StudentName || c.Candidate_Code,
-          "Class": student?.Class || "N/A",
+          "Class": resolvedClass,
           "College": student?.CollegeName || "N/A",
           "Format": c.squad_uuid ? "Squad Member" : "Individual",
           "Squad Name": squad?.squad_title || "N/A",

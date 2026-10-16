@@ -77,17 +77,20 @@ export default function ProgrammesAnalytics() {
 
   const getVenueName = (ven?: string | null) => {
     if (!ven) return "TBA (Campus)";
-    return venueMap[ven] || ven;
+    if (venueMap[ven]) return venueMap[ven];
+    return meta.getVenueName(ven, "Campus Venue");
   };
 
   const getCategoryName = (cat?: string | null) => {
     if (!cat) return "General";
-    return meta.categoryMap[cat] || cat;
+    return meta.getCategoryName(cat, "General Category");
   };
 
   const getAcademicYearName = (year?: string | null) => {
     if (!year) return "Current Academic Cycle";
-    return academicMap[year] || year;
+    if (academicMap[year]) return academicMap[year];
+    if (meta.academicMap[year]) return meta.academicMap[year];
+    return "Current Academic Cycle";
   };
 
   /**

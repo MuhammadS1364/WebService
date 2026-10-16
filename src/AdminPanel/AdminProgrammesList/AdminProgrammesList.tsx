@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import * as XLSX from "xlsx"; 
+import { exportToExcel } from "../../lib/excelService";
 import EditProgrammeModal from "./EditProgrammeModal";
 import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
@@ -380,18 +381,40 @@ export default function AdminProgrammesList({
     }
   };
 
-  // --- EXPORT (Full Columns) ---
+  // --- EXPORT (Formatted & Resolved Columns - Never Raw UUIDs) ---
   const handleExport = () => {
     setIsLoading(prev => ({ ...prev, export: true }));
     try {
       const dataToExport = selectedPrograms.size > 0 ? filteredProgrammes.filter(p => selectedPrograms.has(p.Program_Code)) : filteredProgrammes;
       if (dataToExport.length === 0) return showToast("No data to export.", "info");
 
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Programmes Data");
-      XLSX.writeFile(workbook, `Programmes_Full_Export_${new Date().toISOString().slice(0,10)}.xlsx`);
-      showToast(`Exported ${dataToExport.length} rows.`, "success");
+      const exportRows = dataToExport.map((p, idx) => ({
+        "Sl No": idx + 1,
+        "Program Code": p.Program_Code,
+        "Program Title": p.Program_Title || "Untitled",
+        "Wing": p.WingCode ? (meta.wingMap[p.WingCode] || p.WingCode) : "General Wing",
+        "Category": meta.getCategoryName(p.Category, "General"),
+        "Group": meta.getGroupName(p.Group, "Standard"),
+        "Venue": meta.getVenueName(p.Venue, "Campus Venue"),
+        "Academic Year": p.AccademicYear ? (meta.academicMap[p.AccademicYear] || "Current Cycle") : "Current Cycle",
+        "Date": p.Date || "TBA",
+        "Format": p.Group ? "Group / Squad" : "Individual",
+        "Registrations": p.Total_Registration || 0,
+        "Registration Open": p.IsOpenRegistration ? "Open" : "Closed",
+        "Conducted": p.IsConducted ? "Yes" : "No",
+        "Approved": p.IsApproved ? "Approved" : "Pending",
+        "Resulted": p.IsResulted ? "Declared" : "Pending (Points on Hold)",
+        "Result Published": p.IsResultPublished ? "Published" : "Unpublished",
+        "Description": p.Description || "",
+        "Outcomes": p.OutComes || "",
+      }));
+
+      exportToExcel(
+        exportRows,
+        `Programmes_Full_Export_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        "Programmes Data"
+      );
+      showToast(`Exported ${dataToExport.length} rows with resolved facilities.`, "success");
     } catch (error) {
       showToast("Failed to generate Excel export.", "error");
     } finally {
@@ -813,6 +836,24 @@ export default function AdminProgrammesList({
                               <Award size={14} className="text-purple-600" />
                               {prog.IsResultPublished ? "Unpublish Result" : "Publish Result"}
                             </button>
+
+                            {/* Direct Result Editor / Declaration (Admin & Wing Only) */}
+                            <Link
+                              to={`../create-result?code=${prog.Program_Code}`}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-amber-50 flex items-center gap-2 text-amber-900 transition cursor-pointer font-semibold"
+                            >
+                              <Trophy size={14} className="text-amber-600" />
+                              <span>{prog.IsResulted ? "Edit Result & Points" : "Declare Result"}</span>
+                            </Link>
+
+                            {/* Manage Groups / Candidates */}
+                            <Link
+                              to={`../group-programme-manager`}
+                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-indigo-50 flex items-center gap-2 text-indigo-900 transition cursor-pointer font-semibold"
+                            >
+                              <Users size={14} className="text-indigo-600" />
+                              <span>Group & Candidate Hub</span>
+                            </Link>
                             
                             <div className="h-px bg-slate-100 my-1" />
                             

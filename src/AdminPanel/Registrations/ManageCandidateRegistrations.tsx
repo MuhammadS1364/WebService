@@ -197,16 +197,26 @@ export default function ManageCandidateRegistrations() {
       const hydrated: RegisteredCandidate[] = rawRegs.map((r) => {
         const stn = studentMap[r.Candidate_Code];
         const topic = topicsMap[r.Candidate_Code];
-        return {
-          ...r,
-          studentName: stn?.StudentName || r.Candidate_Code,
-          studentPhoto: stn?.Student_Photo_Urls || null,
-          studentClass: stn?.Stn_Class || null,
-          studentCollege: stn?.CollegeName || null,
-          squadTitle: r.squad_uuid ? squadMap[r.squad_uuid] || null : null,
-          topicTitle: topic?.title || null,
-          isTopicApproved: topic?.is_approved,
-        };
+          const rawClass = stn?.Stn_Class;
+          const matchedClass = meta.classes?.find(
+            (c) => c.class_id === rawClass || c.standard_name === rawClass || c.class_nick_name === rawClass
+          );
+          const resolvedClass = matchedClass
+            ? (matchedClass.standard_name && matchedClass.class_nick_name
+                ? `${matchedClass.standard_name} (${matchedClass.class_nick_name})`
+                : matchedClass.standard_name || matchedClass.class_nick_name)
+            : (rawClass ? (meta.classStandardNameMap?.[rawClass] || meta.classMap?.[rawClass] || "Standard Class") : null);
+
+          return {
+            ...r,
+            studentName: stn?.StudentName || r.Candidate_Code,
+            studentPhoto: stn?.Student_Photo_Urls || null,
+            studentClass: resolvedClass,
+            studentCollege: stn?.CollegeName || null,
+            squadTitle: r.squad_uuid ? squadMap[r.squad_uuid] || null : null,
+            topicTitle: topic?.title || null,
+            isTopicApproved: topic?.is_approved,
+          };
       });
 
       // Sort by Name / AddNo

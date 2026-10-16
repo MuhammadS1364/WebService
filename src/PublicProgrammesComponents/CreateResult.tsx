@@ -66,6 +66,9 @@ interface ProgrammeDetails {
   is_group_program?: boolean;
   points_template?: string | null;
   AccademicYear?: string | null;
+  Category?: string | null;
+  IsResulted?: boolean | null;
+  IsResultPublished?: boolean | null;
 }
 
 const DEFAULT_POINTS_FALLBACK: PointsTemplateRecord = {
@@ -96,6 +99,11 @@ export default function CreateResult() {
   const { actWing, actUser, actController } = useParams<{ actWing?: string; actUser?: string; actController?: string }>();
   const meta = useProgrammeMeta();
 
+  // Role Permissions: Editable results are authorized for Wing and Admin ONLY
+  const isAdmin = Boolean(actUser);
+  const isWing = Boolean(actWing);
+  const canEditExistingResult = isAdmin || isWing;
+
   // State
   const [wingCode, setWingCode] = useState<string>("");
   const [wingTitle, setWingTitle] = useState<string>("");
@@ -118,6 +126,10 @@ export default function CreateResult() {
   // Holders
   const [holders, setHolders] = useState<HoldersState>(INITIAL_HOLDERS);
   const [loadingSubmit, setLoadingSubmit] = useState<boolean>(false);
+  const [isEditingExistingResult, setIsEditingExistingResult] = useState<boolean>(false);
+  const [_existingResultId, setExistingResultId] = useState<string | null>(null);
+  const [previousPointsAwarded, setPreviousPointsAwarded] = useState<number>(0);
+  const [previousAllocations, setPreviousAllocations] = useState<{ addNo: string; points: number }[]>([]);
   const [statusMsg, setStatusMsg] = useState<{
     type: "success" | "error" | "";
     text: string;
@@ -263,6 +275,9 @@ export default function CreateResult() {
       setLoadingCandidates(true);
       setStatusMsg({ type: "", text: "" });
       setHolders(INITIAL_HOLDERS);
+
+      let loadedSquads: RegisteredSquad[] = [];
+      let loadedCandidates: RegisteredCandidate[] = [];
 
       try {
         if (isGroup) {
@@ -422,6 +437,7 @@ export default function CreateResult() {
             return a.squad_title.localeCompare(b.squad_title);
           });
 
+          loadedSquads = squadsMapped;
           setRegisteredSquads(squadsMapped);
           setRegisteredCandidates([]);
         } else {
@@ -502,8 +518,135 @@ export default function CreateResult() {
           });
 
           mapped.sort((a, b) => a.name.localeCompare(b.name));
+          loadedCandidates = mapped;
           setRegisteredCandidates(mapped);
           setRegisteredSquads([]);
+        }
+
+        // Check for existing official result to enable editing for Wing and Admin
+        const { data: existingResult } = await SupaBaseFunction
+          .from("ResultBox")
+          .select("*")
+          .eq("Program_Id", selectedProgram)
+          .maybeSingle();
+
+        if (existingResult) {
+          setIsEditingExistingResult(true);
+          setExistingResultId(existingResult.Result_id);
+
+          const activeSquadsList: RegisteredSquad[] = isGroup ? loadedSquads : [];
+          const activeCandidatesList: RegisteredCandidate[] = !isGroup ? loadedCandidates : [];
+
+          const matchHolderToEntry = (holderStr?: string | null, defaultGrade: GradeSelection = "none"): HolderEntry => {
+            if (!holderStr) return { addNo: "", name: "", grade: defaultGrade };
+            const cleanStr = String(holderStr).trim();
+
+            if (isGroup) {
+              const directSquad = activeSquadsList.find((s: RegisteredSquad) => s.squad_id === cleanStr);
+              if (directSquad) {
+                return {
+                  addNo: directSquad.squad_id,
+                  name: directSquad.squad_title,
+                  grade: defaultGrade,
+                  squadMembers: directSquad.members,
+                };
+              }
+              const tokens = cleanStr.split(",").map((s) => s.trim().toUpperCase());
+              const memberSquad = activeSquadsList.find((s: RegisteredSquad) =>
+                s.members.some((m: TeammateInfo) => tokens.includes(m.addNo.toUpperCase()))
+              );
+              if (memberSquad) {
+                return {
+                  addNo: memberSquad.squad_id,
+                  name: memberSquad.squad_title,
+                  grade: defaultGrade,
+                  squadMembers: memberSquad.members,
+                };
+              }
+            } else {
+              const cleanCode = cleanStr.split(",")[0].trim().toUpperCase();
+              const cand = activeCandidatesList.find((c: RegisteredCandidate) => c.addNo.toUpperCase() === cleanCode);
+              if (cand) {
+                return {
+                  addNo: cand.addNo,
+                  name: cand.name,
+                  grade: defaultGrade,
+                };
+              }
+            }
+
+            return {
+              addNo: cleanStr,
+              name: cleanStr,
+              grade: defaultGrade,
+            };
+          };
+
+          const initialLoadedHolders: HoldersState = {
+            first: matchHolderToEntry(existingResult.First_Holder, "none"),
+            second: matchHolderToEntry(existingResult.Second_Holder, "none"),
+            third: matchHolderToEntry(existingResult.Third_Holder, "none"),
+            aGrade: matchHolderToEntry(existingResult.AGrade, "A"),
+            bGrade: matchHolderToEntry(existingResult.BGrade, "B"),
+          };
+
+          setHolders(initialLoadedHolders);
+
+          // Calculate previous points allocated to students and wing
+          let prevTotalPts = 0;
+          const prevAllocationsList: { addNo: string; points: number }[] = [];
+          const getPosPts = (pos: keyof HoldersState, gr: GradeSelection) => {
+            const t = activeTemplate;
+            if (pos === "first") return gr === "A" ? (t.first_A_grade ?? 10) : gr === "B" ? (t.first_B_grade ?? 8) : (t.first_only ?? 5);
+            if (pos === "second") return gr === "A" ? (t.second_A_grade ?? 8) : gr === "B" ? (t.second_B_grade ?? 6) : (t.second_only ?? 3);
+            if (pos === "third") return gr === "A" ? (t.third_A_grade ?? 6) : gr === "B" ? (t.third_B_grade ?? 4) : (t.third_only ?? 1);
+            if (pos === "aGrade") return t.A_grade ?? 5;
+            if (pos === "bGrade") return t.B_grade ?? 3;
+            return 0;
+          };
+
+          (["first", "second", "third", "aGrade", "bGrade"] as (keyof HoldersState)[]).forEach((posKey) => {
+            const h = initialLoadedHolders[posKey];
+            if (h.addNo) {
+              const pts = getPosPts(posKey, h.grade);
+              if (isGroup) {
+                const sq = loadedSquads.find((s: RegisteredSquad) => s.squad_id === h.addNo);
+                const members = sq?.members || h.squadMembers || [];
+                if (members.length > 0) {
+                  members.forEach((m: TeammateInfo) => {
+                    prevTotalPts += pts;
+                    prevAllocationsList.push({ addNo: m.addNo, points: pts });
+                  });
+                } else {
+                  prevTotalPts += pts;
+                  prevAllocationsList.push({ addNo: h.addNo, points: pts });
+                }
+              } else {
+                prevTotalPts += pts;
+                prevAllocationsList.push({ addNo: h.addNo, points: pts });
+              }
+            }
+          });
+
+          setPreviousPointsAwarded(prevTotalPts);
+          setPreviousAllocations(prevAllocationsList);
+
+          if (!canEditExistingResult) {
+            setStatusMsg({
+              type: "error",
+              text: "Official Result Declared (Read-Only): This competition result has been finalized. Only Wing Managers and Central Admins are authorized to edit official declared results.",
+            });
+          } else {
+            setStatusMsg({
+              type: "success",
+              text: "Official Result Declared (Editor Mode): Existing results loaded into editor. Wing and Admin may edit podium positions, grades, and re-publish with automatic point recalibration.",
+            });
+          }
+        } else {
+          setIsEditingExistingResult(false);
+          setExistingResultId(null);
+          setPreviousPointsAwarded(0);
+          setPreviousAllocations([]);
         }
       } catch (err: any) {
         console.error("Error loading candidates/squads:", err);
@@ -746,13 +889,21 @@ export default function CreateResult() {
       }
     }
 
+    if (isEditingExistingResult && !canEditExistingResult) {
+      setStatusMsg({
+        type: "error",
+        text: "Permission Denied: Official declared results are editable for Wing and Admin accounts only. Controllers and users cannot modify finalized results.",
+      });
+      return;
+    }
+
     try {
       setLoadingSubmit(true);
       setStatusMsg({ type: "", text: "" });
 
       const progWingCode = selectedProgDetails?.WingCode || wingCode;
 
-      // 1. Insert into ResultBox
+      // 1. Insert or Update ResultBox
       const getHolderValue = (key: keyof HoldersState): string | null => {
         const h = holders[key];
         if (!h.addNo) return null;
@@ -796,6 +947,32 @@ export default function CreateResult() {
       }
 
       // 2. ASSIGN EQUAL POINTS TO EACH STUDENT/TEAMMATE in StudentsBox
+      // If editing an existing result, revert previous allocations first to prevent duplicate or inflated point counts
+      if (isEditingExistingResult && previousAllocations.length > 0) {
+        for (const prev of previousAllocations) {
+          try {
+            const { data: stn } = await SupaBaseFunction
+              .from("StudentsBox")
+              .select("AddNo, Resluted_Count, Total_Point_Anjuman, Grand_Total_Points")
+              .eq("AddNo", prev.addNo)
+              .maybeSingle();
+
+            if (stn) {
+              await SupaBaseFunction
+                .from("StudentsBox")
+                .update({
+                  Resluted_Count: Math.max(0, Number(stn.Resluted_Count || 0) - 1),
+                  Total_Point_Anjuman: Math.max(0, Number(stn.Total_Point_Anjuman || 0) - prev.points),
+                  Grand_Total_Points: Math.max(0, Number(stn.Grand_Total_Points || 0) - prev.points),
+                })
+                .eq("AddNo", prev.addNo);
+            }
+          } catch (revErr) {
+            console.warn("Could not revert previous student points:", prev.addNo, revErr);
+          }
+        }
+      }
+
       const studentFeedbackLines: string[] = [];
       for (const allocation of allocationsSummary) {
         const { data: stn, error: stnFetchError } = await SupaBaseFunction
@@ -865,7 +1042,7 @@ export default function CreateResult() {
         }
       }
 
-      // 4. MUST ASSIGN POINTS TO WING in Chs-WingS
+      // 4. MUST ASSIGN POINTS TO WING in Chs-WingS (Points strictly held until resulted)
       if (progWingCode) {
         try {
           const { data: wingRow } = await SupaBaseFunction
@@ -875,11 +1052,22 @@ export default function CreateResult() {
             .maybeSingle();
 
           if (wingRow) {
+            const currentPoints = wingRow.Total_Points || 0;
+            const currentResulted = wingRow.Total_Resulted || 0;
+
+            const newTotalPoints = isEditingExistingResult
+              ? Math.max(0, currentPoints - previousPointsAwarded + totalPointsAwarded)
+              : currentPoints + totalPointsAwarded;
+
+            const newTotalResulted = isEditingExistingResult
+              ? currentResulted
+              : currentResulted + 1;
+
             await SupaBaseFunction
               .from("Chs-WingS")
               .update({
-                Total_Points: (wingRow.Total_Points || 0) + totalPointsAwarded,
-                Total_Resulted: (wingRow.Total_Resulted || 0) + 1,
+                Total_Points: newTotalPoints,
+                Total_Resulted: newTotalResulted,
               })
               .eq("WingCode", progWingCode);
           }
@@ -1008,10 +1196,10 @@ export default function CreateResult() {
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <label className="text-sm font-black text-slate-900">
-              1. Select Programme for Result Declaration
+              1. Select Programme for Result Declaration / Editing
             </label>
             <span className="text-xs font-bold text-slate-500">
-              {programmes.length} Unresulted Events
+              {programmes.length} Available Programmes
             </span>
           </div>
 
@@ -1020,13 +1208,41 @@ export default function CreateResult() {
             onChange={(e) => setSelectedProgram(e.target.value)}
             className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
           >
-            <option value="">-- Choose an Unresulted Programme --</option>
+            <option value="">-- Choose a Programme to Declare or Edit Results --</option>
             {programmes.map((p) => (
               <option key={p.Program_Code} value={p.Program_Code}>
-                {p.Program_Code} {p.Program_Title || "Untitled"} {p.is_group_program ? "Group" : "Individual"}
+                [{p.Program_Code}] {p.Program_Title || "Untitled"} {p.is_group_program ? "(Group Event)" : "(Individual)"} {p.IsResulted ? "✓ Result Declared (Editable)" : "⏳ Pending"}
               </option>
             ))}
           </select>
+
+          {isEditingExistingResult && (
+            <div className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold shadow-2xs border ${
+              canEditExistingResult
+                ? "bg-amber-50 border-amber-200/90 text-amber-900"
+                : "bg-rose-50 border-rose-200 text-rose-900"
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <Trophy size={18} className={canEditExistingResult ? "text-amber-600 shrink-0" : "text-rose-600 shrink-0"} />
+                <span>
+                  {canEditExistingResult ? (
+                    <>
+                      <strong>Result Editor Mode:</strong> Existing official result is loaded below. Wing and Admin accounts can modify podium winners, adjust grades, and re-publish with automatic point recalibration.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Result Finalized (Read-Only):</strong> This competition result has been declared. In accordance with institutional policy, results are editable exclusively by Central Admin and Wing Managers.
+                    </>
+                  )}
+                </span>
+              </div>
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0 ${
+                canEditExistingResult ? "bg-amber-200 text-amber-900" : "bg-rose-200 text-rose-900"
+              }`}>
+                {canEditExistingResult ? "Wing & Admin Editable" : "Read-Only (Locked)"}
+              </span>
+            </div>
+          )}
 
           {selectedProgDetails && (
             <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -1420,6 +1636,7 @@ export default function CreateResult() {
                 onGradeSelect={handleGradeSelect}
                 calculatedPoints={calculatePoints("first", holders.first.grade)}
                 hasGradeOptions={true}
+                disabled={isEditingExistingResult && !canEditExistingResult}
               />
 
               {/* 2nd Place */}
@@ -1436,6 +1653,7 @@ export default function CreateResult() {
                 onGradeSelect={handleGradeSelect}
                 calculatedPoints={calculatePoints("second", holders.second.grade)}
                 hasGradeOptions={true}
+                disabled={isEditingExistingResult && !canEditExistingResult}
               />
 
               {/* 3rd Place */}
@@ -1452,6 +1670,7 @@ export default function CreateResult() {
                 onGradeSelect={handleGradeSelect}
                 calculatedPoints={calculatePoints("third", holders.third.grade)}
                 hasGradeOptions={true}
+                disabled={isEditingExistingResult && !canEditExistingResult}
               />
 
               {/* A-Grade Recognition */}
@@ -1468,6 +1687,7 @@ export default function CreateResult() {
                 onGradeSelect={handleGradeSelect}
                 calculatedPoints={calculatePoints("aGrade", "A")}
                 hasGradeOptions={false}
+                disabled={isEditingExistingResult && !canEditExistingResult}
               />
 
               {/* B-Grade Recognition */}
@@ -1484,6 +1704,7 @@ export default function CreateResult() {
                 onGradeSelect={handleGradeSelect}
                 calculatedPoints={calculatePoints("bGrade", "B")}
                 hasGradeOptions={false}
+                disabled={isEditingExistingResult && !canEditExistingResult}
               />
             </div>
 
@@ -1527,25 +1748,34 @@ export default function CreateResult() {
             <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 type="button"
+                disabled={isEditingExistingResult && !canEditExistingResult}
                 onClick={() => setHolders(INITIAL_HOLDERS)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Reset Positions
               </button>
 
               <button
                 type="submit"
-                disabled={loadingSubmit || allocationsSummary.length === 0}
-                className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer disabled:opacity-50"
+                disabled={loadingSubmit || allocationsSummary.length === 0 || (isEditingExistingResult && !canEditExistingResult)}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs sm:text-sm font-bold shadow-md transition ${
+                  isEditingExistingResult && !canEditExistingResult
+                    ? "bg-slate-300 text-slate-600 cursor-not-allowed shadow-none"
+                    : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer disabled:opacity-50"
+                }`}
               >
                 {loadingSubmit ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                     Assigning Equal Points & Publishing...
                   </>
+                ) : isEditingExistingResult && !canEditExistingResult ? (
+                  <>
+                    <Award className="w-4 h-4 text-slate-500" /> Result Finalized (Wing & Admin Only)
+                  </>
                 ) : (
                   <>
-                    <Award className="w-4 h-4" /> Publish Result & Assign Points (+{totalPointsAwarded} PTS)
+                    <Award className="w-4 h-4" /> {isEditingExistingResult ? "Re-Publish Result & Recalibrate Points" : "Publish Result & Assign Points"} (+{totalPointsAwarded} PTS)
                   </>
                 )}
               </button>
@@ -1583,6 +1813,7 @@ function PositionRow({
   onGradeSelect,
   calculatedPoints,
   hasGradeOptions,
+  disabled = false,
 }: {
   icon: string;
   label: string;
@@ -1596,12 +1827,17 @@ function PositionRow({
   onGradeSelect: (posKey: keyof HoldersState, grade: GradeSelection) => void;
   calculatedPoints: number;
   hasGradeOptions: boolean;
+  disabled?: boolean;
 }) {
   const currentSelection = holders[posKey].addNo;
   const currentGrade = holders[posKey].grade;
 
   return (
-    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col gap-3 hover:border-slate-300 transition">
+    <div className={`p-4 rounded-2xl border transition flex flex-col gap-3 ${
+      disabled
+        ? "border-slate-200 bg-slate-100/70 opacity-90 cursor-not-allowed"
+        : "border-slate-200 bg-slate-50/60 hover:border-slate-300"
+    }`}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         {/* Title & Icon */}
         <div className="flex items-center gap-3 md:w-5/12">
@@ -1640,11 +1876,14 @@ function PositionRow({
             /* GROUP SELECT */
             <select
               value={currentSelection}
+              disabled={disabled}
               onChange={(e) => onCandidateSelect(posKey, e.target.value)}
-              className={`w-full p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition cursor-pointer ${
-                currentSelection
-                  ? "bg-white border-indigo-400 text-indigo-950 ring-2 ring-indigo-100"
-                  : "bg-white border-slate-300 text-slate-700"
+              className={`w-full p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition ${
+                disabled
+                  ? "bg-slate-100 text-slate-500 border-slate-300 cursor-not-allowed"
+                  : currentSelection
+                  ? "bg-white border-indigo-400 text-indigo-950 ring-2 ring-indigo-100 cursor-pointer"
+                  : "bg-white border-slate-300 text-slate-700 cursor-pointer"
               }`}
             >
               <option value="">-- No Winning Group Awarded --</option>
@@ -1656,7 +1895,7 @@ function PositionRow({
                   <option
                     key={sq.squad_id}
                     value={sq.squad_id}
-                    disabled={Boolean(isAssignedElsewhere)}
+                    disabled={Boolean(isAssignedElsewhere) || disabled}
                   >
                     👥 {sq.squad_title} ({sq.members.length} Teammates: {sq.members.map((m) => m.name).join(", ")}) {isAssignedElsewhere ? " ⚠️ (Assigned)" : ""}
                   </option>
@@ -1667,11 +1906,14 @@ function PositionRow({
             /* INDIVIDUAL CANDIDATE SELECT */
             <select
               value={currentSelection}
+              disabled={disabled}
               onChange={(e) => onCandidateSelect(posKey, e.target.value)}
-              className={`w-full p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition cursor-pointer ${
-                currentSelection
-                  ? "bg-white border-indigo-400 text-indigo-950 ring-2 ring-indigo-100"
-                  : "bg-white border-slate-300 text-slate-700"
+              className={`w-full p-2.5 rounded-xl text-xs sm:text-sm font-bold border transition ${
+                disabled
+                  ? "bg-slate-100 text-slate-500 border-slate-300 cursor-not-allowed"
+                  : currentSelection
+                  ? "bg-white border-indigo-400 text-indigo-950 ring-2 ring-indigo-100 cursor-pointer"
+                  : "bg-white border-slate-300 text-slate-700 cursor-pointer"
               }`}
             >
               <option value="">-- No Candidate Awarded --</option>
@@ -1683,7 +1925,7 @@ function PositionRow({
                   <option
                     key={`${c.addNo}_${idx}`}
                     value={c.addNo}
-                    disabled={Boolean(isAssignedElsewhere)}
+                    disabled={Boolean(isAssignedElsewhere) || disabled}
                   >
                     [{c.addNo}] {c.name} {isAssignedElsewhere ? " ⚠️ (Assigned)" : ""}
                   </option>
@@ -1698,11 +1940,14 @@ function PositionRow({
               <span className="text-[10px] font-bold text-slate-400 uppercase sm:hidden">Grade:</span>
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => onGradeSelect(posKey, "none")}
-                className={`px-2 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  currentGrade === "none"
-                    ? "bg-indigo-600 text-white shadow-2xs"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                className={`px-2 py-1.5 rounded-lg text-xs font-bold transition ${
+                  disabled
+                    ? "opacity-50 cursor-not-allowed bg-slate-200 text-slate-500"
+                    : currentGrade === "none"
+                    ? "bg-indigo-600 text-white shadow-2xs cursor-pointer"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 cursor-pointer"
                 }`}
                 title="Position Only (No Grade)"
               >
@@ -1710,11 +1955,14 @@ function PositionRow({
               </button>
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => onGradeSelect(posKey, "A")}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  currentGrade === "A"
-                    ? "bg-emerald-600 text-white shadow-2xs"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  disabled
+                    ? "opacity-50 cursor-not-allowed bg-slate-200 text-slate-500"
+                    : currentGrade === "A"
+                    ? "bg-emerald-600 text-white shadow-2xs cursor-pointer"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 cursor-pointer"
                 }`}
                 title="A Grade"
               >
@@ -1722,11 +1970,14 @@ function PositionRow({
               </button>
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => onGradeSelect(posKey, "B")}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  currentGrade === "B"
-                    ? "bg-blue-600 text-white shadow-2xs"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  disabled
+                    ? "opacity-50 cursor-not-allowed bg-slate-200 text-slate-500"
+                    : currentGrade === "B"
+                    ? "bg-blue-600 text-white shadow-2xs cursor-pointer"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 cursor-pointer"
                 }`}
                 title="B Grade"
               >

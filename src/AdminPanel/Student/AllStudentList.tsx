@@ -352,12 +352,29 @@ export default function OurStudentsList() {
   };
 
   // Export Functions
+  const getCleanClassName = (s: StudentRecord) => {
+    const rawId = s.Stn_Class || s.Class;
+    if (!rawId) return "Class Not Assigned";
+    const matched = meta.classes?.find(
+      (c) => c.class_id === rawId || c.standard_name === rawId || c.class_nick_name === rawId
+    );
+    if (matched) {
+      return matched.standard_name && matched.class_nick_name
+        ? `${matched.standard_name} (${matched.class_nick_name})`
+        : matched.standard_name || matched.class_nick_name;
+    }
+    if (meta.classStandardNameMap?.[rawId]) return meta.classStandardNameMap[rawId];
+    if (meta.classMap?.[rawId]) return meta.classMap[rawId];
+    if (/^[0-9a-f-]{36}$/i.test(rawId.trim())) return "Assigned Class";
+    return rawId;
+  };
+
   const handleExportAll = () => {
     const formatted = students.map((s, idx) => ({
       "Sl No": idx + 1,
       "Admission No": s.AddNo,
       "Student Name": s.StudentName,
-      "Class": s.Class,
+      "Class": getCleanClassName(s),
       "Study Center": s.CollegeName || "",
       "Father Name": s.FatherName || "",
       "Email": s.StudentEmail || "",
@@ -381,7 +398,7 @@ export default function OurStudentsList() {
       "Sl No": idx + 1,
       "Admission No": s.AddNo,
       "Student Name": s.StudentName,
-      "Class": s.Class,
+      "Class": getCleanClassName(s),
       "Study Center": s.CollegeName || "",
       "Father Name": s.FatherName || "",
       "Email": s.StudentEmail || "",

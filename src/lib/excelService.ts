@@ -1,21 +1,33 @@
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 
+import { sanitizeExportRow, getGlobalUuidDictionary } from "./exportFormatter";
+
 /**
  * Universal Excel and CSV Export/Import Engine
  */
 
-export function exportToExcel<T extends object>(
+// Warm up the global UUID dictionary in background
+getGlobalUuidDictionary().catch(() => {});
+
+export async function exportToExcel<T extends object>(
   data: T[],
   filename: string,
-  sheetName = "Sheet1"
-): void {
+  sheetName = "Sheet1",
+  customMap?: Record<string, string>
+): Promise<void> {
   if (!data || data.length === 0) {
     alert("No data available to export.");
     return;
   }
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  // Ensure global dictionary is fully populated so all UUIDs resolve to their human names (e.g. 'Chs Library')
+  await getGlobalUuidDictionary();
+
+  // Sanitize all rows to ensure NO raw UUIDs are exported
+  const sanitizedData = data.map((row) => sanitizeExportRow(row, customMap));
+
+  const worksheet = XLSX.utils.json_to_sheet(sanitizedData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
@@ -23,13 +35,21 @@ export function exportToExcel<T extends object>(
   XLSX.writeFile(workbook, cleanFilename);
 }
 
-export function exportToCSV<T extends object>(data: T[], filename: string): void {
+export async function exportToCSV<T extends object>(
+  data: T[],
+  filename: string,
+  customMap?: Record<string, string>
+): Promise<void> {
   if (!data || data.length === 0) {
     alert("No data available to export.");
     return;
   }
 
-  const csv = Papa.unparse(data);
+  // Ensure global dictionary is fully populated
+  await getGlobalUuidDictionary();
+
+  const sanitizedData = data.map((row) => sanitizeExportRow(row, customMap));
+  const csv = Papa.unparse(sanitizedData);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

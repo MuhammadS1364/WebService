@@ -103,13 +103,25 @@ export interface TopicRecord {
 
 export interface ResultRecord {
   Result_id: string;
-  creaded_At?: string;
-  Program_Id: string;
-  First_Holder?: string;
-  Second_Holder?: string;
-  Third_Holder?: string;
-  AGrade?: string;
-  BGrade?: string;
+  creaded_At?: string | null;
+  Program_Id: string | null;
+  is_published?: boolean | null;
+  is_group?: boolean | null;
+  "1st_holder_group"?: string | null;
+  "2nd_holder_group"?: string | null;
+  "3rd_holder_group"?: string | null;
+  grade_holder_group1?: string | null;
+  grade_holder_group2?: string | null;
+  First_Holder_uuid?: string | null;
+  Second_Holder_uuid?: string | null;
+  Third_Holder_uuid?: string | null;
+  Grade1_uuid?: string | null;
+  Grade2_uuid?: string | null;
+  First_Holder?: string | null;
+  Second_Holder?: string | null;
+  Third_Holder?: string | null;
+  AGrade?: string | null;
+  BGrade?: string | null;
 }
 
 export interface CandidateRegistrationRecord {
@@ -387,9 +399,24 @@ export interface ResultBoxRecord {
   Result_id: string;
   creaded_At?: string | null;
   Program_Id: string | null;
-  First_Holder: string | null;
-  Second_Holder: string | null;
-  Third_Holder: string | null;
-  AGrade: string | null;
-  BGrade: string | null;
+  is_published?: boolean | null;
+  is_group?: boolean | null;
+  // Group columns referencing SquadMate(squad_id)
+  "1st_holder_group"?: string | null;
+  "2nd_holder_group"?: string | null;
+  "3rd_holder_group"?: string | null;
+  grade_holder_group1?: string | null;
+  grade_holder_group2?: string | null;
+  // Individual columns referencing CandidateRegistrationTable(CandidateUUiD)
+  First_Holder_uuid?: string | null;
+  Second_Holder_uuid?: string | null;
+  Third_Holder_uuid?: string | null;
+  Grade1_uuid?: string | null;
+  Grade2_uuid?: string | null;
+  // Resolved / Legacy compatibility fields
+  First_Holder?: string | null;
+  Second_Holder?: string | null;
+  Third_Holder?: string | null;
+  AGrade?: string | null;
+  BGrade?: string | null;
 }

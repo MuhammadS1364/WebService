@@ -39,6 +39,7 @@ import WingResults from './WingPanel/WingResults/WingResults';
 import WingRegistrations from './WingPanel/WingRegistrations/WingRegistrations';
 import CandidateRegistration from './PublicDashboardComp/CandidateRegistration';
 import ManageCandidateRegistrations from './AdminPanel/Registrations/ManageCandidateRegistrations';
+import GroupProgrammeManager from './AdminPanel/GroupProgrammeManager/GroupProgrammeManager';
 
 // Outreach Components
 import OutReachPanel from './OutReachPanel/DashBoard/OutReachPanel';
@@ -133,6 +134,8 @@ export default function App() {
           <Route path='create-program' element={<ProgrammeRegistration />} />
           <Route path='candidate-registration/:P_Code' element={<ManageCandidateRegistrations />} />
           <Route path='manage-registrations/:P_Code' element={<ManageCandidateRegistrations />} />
+          <Route path='group-programme-manager' element={<GroupProgrammeManager />} />
+          <Route path='group-programmes' element={<GroupProgrammeManager />} />
           <Route path='edite-student/:StnAddNo' element={<EditeStudentRecord />} />
           <Route path='all-students' element={<OurStudentsList />} />
           <Route path='new-student' element={<StudentRegistration />} />
@@ -198,6 +201,8 @@ export default function App() {
           <Route path='registrations' element={<WingRegistrations />} />
           <Route path='candidate-registration/:P_Code' element={<ManageCandidateRegistrations />} />
           <Route path='manage-registrations/:P_Code' element={<ManageCandidateRegistrations />} />
+          <Route path='group-programme-manager' element={<GroupProgrammeManager />} />
+          <Route path='group-programmes' element={<GroupProgrammeManager />} />
           <Route path='wing-results' element={<WingResults />} />
           <Route path='profile' element={<UpdateProfile />} />
           <Route path='wing-profile' element={<UpdateProfile />} />

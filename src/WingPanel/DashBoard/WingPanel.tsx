@@ -14,7 +14,8 @@ import {
   User,
   PlusCircle,
   Trophy,
-  UserCheck
+  UserCheck,
+  Users
 } from 'lucide-react';
 
 export default function WingPanel() {
@@ -132,6 +133,11 @@ export default function WingPanel() {
           <NavLink to={`/wing-panel/${actWing}/wing-registrations`} className={navLinkClasses}>
             <UserCheck size={16} className="text-teal-600" />
             <span>Registrations Hub</span>
+          </NavLink>
+
+          <NavLink to={`/wing-panel/${actWing}/group-programme-manager`} className={navLinkClasses}>
+            <Users size={16} className="text-purple-600" />
+            <span>Group & Candidates Hub</span>
           </NavLink>
 
           <NavLink to={`/wing-panel/${actWing}/wing-results`} className={navLinkClasses}>
@@ -314,6 +320,14 @@ export default function WingPanel() {
           >
             <UserCheck size={17} className="mb-0.5 text-teal-600" />
             <span>Registers</span>
+          </NavLink>
+
+          <NavLink
+            to={`/wing-panel/${actWing}/group-programme-manager`}
+            className={bottomBarLinkClasses}
+          >
+            <Users size={17} className="mb-0.5 text-purple-600" />
+            <span>Groups</span>
           </NavLink>
 
           <NavLink

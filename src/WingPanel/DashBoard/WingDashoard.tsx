@@ -105,6 +105,38 @@ export default function WingDashboard() {
         roleType="wing"
       />
 
+      {/* Wing Scoreboard & Points on Hold Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[11px] font-bold border border-amber-400/30">
+            <span>Points Policy: Strict Hold Until Resulted</span>
+          </div>
+          <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+            Official Awarded Points:{" "}
+            <span className="text-amber-400 text-2xl font-black">
+              {(wingData?.Total_Points || 0) + ((wingData as any)?.Bonus_Points || 0)} PTS
+            </span>
+          </h3>
+          <p className="text-xs text-slate-300">
+            Points are held on pending programmes and strictly awarded only when competition results are published.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="px-4 py-2 rounded-2xl bg-white/10 border border-white/15 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">Points on Hold</span>
+            <span className="text-xs font-black text-white">{Math.max(0, totalPrograms - totalResulted)} Pending Events</span>
+          </div>
+          <Link
+            to={`/wing-panel/${actWing}/create-result`}
+            className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black transition shadow-xs flex items-center gap-1.5 shrink-0"
+          >
+            <span>Declare Results</span>
+            <span>→</span>
+          </Link>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Program */}
         <OverViewClipBox

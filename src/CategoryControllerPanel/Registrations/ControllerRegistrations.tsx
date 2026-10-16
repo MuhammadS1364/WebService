@@ -4,6 +4,7 @@ import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveControllerProfile, type LoggedInControllerProfile } from "../../lib/controllerResolver";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
 import { exportToExcel } from "../../lib/excelService";
+import { useProgrammeMeta } from "../../lib/programmeMeta";
 import {
   Users,
   Search,
@@ -28,6 +29,7 @@ interface CandidateEntry {
 
 export default function ControllerRegistrations() {
   const { actController } = useParams<{ actController: string }>();
+  const meta = useProgrammeMeta();
 
   const [controller, setController] = useState<LoggedInControllerProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,9 +96,19 @@ export default function ControllerRegistrations() {
 
         if (stns) {
           stns.forEach((s) => {
+            const rawCls = s.Stn_Class || s.Class;
+            const matchedClass = meta.classes?.find(
+              (c) => c.class_id === rawCls || c.standard_name === rawCls || c.class_nick_name === rawCls
+            );
+            const resolvedClass: string = (matchedClass
+              ? (matchedClass.standard_name && matchedClass.class_nick_name
+                  ? `${matchedClass.standard_name} (${matchedClass.class_nick_name})`
+                  : matchedClass.standard_name || matchedClass.class_nick_name || "Standard Class")
+              : (rawCls ? (meta.classStandardNameMap?.[rawCls] || meta.classMap?.[rawCls] || "Standard Class") : "")) || "";
+
             studentMap[s.AddNo] = {
               StudentName: s.StudentName,
-              Class: s.Stn_Class || s.Class,
+              Class: resolvedClass,
               StudentEmail: s.StudentEmail,
             };
           });
