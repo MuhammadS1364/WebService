@@ -4,6 +4,7 @@ import { SupaBaseFunction } from "../../src/lib/SupaBase";
 import { useProgrammeMeta } from "../../src/lib/programmeMeta";
 import SafeImage from "../lib/SafeImage";
 import type { PointsTemplateRecord } from "../../src/lib/types";
+import { hydrateResultRecords, ensureCandidateRegistrationUuid } from "../lib/resultService";
 import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
 import {
   Trophy,
@@ -20,6 +21,7 @@ import {
 interface RegisteredCandidate {
   addNo: string;
   name: string;
+  candidateUuid?: string;
   photoUrl?: string | null;
   className?: string | null;
   topicTitle?: string | null;
