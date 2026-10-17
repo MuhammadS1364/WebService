@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveStudentProfile } from "../../lib/accountResolver";
 import ProgrammeResultModal from "../../components/ProgrammeResultModal";
+import { hydrateResultRecords } from "../../lib/resultService";
 import {
   Trophy,
   Medal,
@@ -57,23 +58,14 @@ export default function StudentResult() {
 
         const regCodes = Array.from(new Set((regRows || []).map((r: any) => r.Program_Code).filter(Boolean))) as string[];
 
-        // 2. Query ResultBox where student is winner OR where Program_Id is in registered codes
+        // 2. Query ResultBox for published results
         let rawResults: any[] = [];
-        if (regCodes.length > 0) {
-          const { data: resData, error: resError } = await SupaBaseFunction
-            .from("ResultBox")
-            .select("*")
-            .or(`First_Holder.eq.${addNo},Second_Holder.eq.${addNo},Third_Holder.eq.${addNo},AGrade.eq.${addNo},BGrade.eq.${addNo},Program_Id.in.(${regCodes.map((c: string) => `"${c}"`).join(",")})`);
-          if (resError) throw resError;
-          rawResults = resData || [];
-        } else {
-          const { data: resData, error: resError } = await SupaBaseFunction
-            .from("ResultBox")
-            .select("*")
-            .or(`First_Holder.eq.${addNo},Second_Holder.eq.${addNo},Third_Holder.eq.${addNo},AGrade.eq.${addNo},BGrade.eq.${addNo}`);
-          if (resError) throw resError;
-          rawResults = resData || [];
-        }
+        const { data: resData, error: resError } = await SupaBaseFunction
+          .from("ResultBox")
+          .select("*")
+          .eq("is_published", true);
+        if (resError) throw resError;
+        rawResults = await hydrateResultRecords(resData || []);
 
         // 3. Fetch Program details for all relevant codes
         const allProgCodes = Array.from(new Set([...rawResults.map((r) => r.Program_Id), ...regCodes].filter(Boolean)));

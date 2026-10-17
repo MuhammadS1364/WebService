@@ -3,6 +3,7 @@ import { SupaBaseFunction } from "../lib/SupaBase";
 import SafeImage from "../lib/SafeImage";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { exportToExcel } from "../lib/excelService";
+import { hydrateResultRecords } from "../lib/resultService";
 import {
   Trophy,
   Medal,
@@ -115,7 +116,8 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
       if (achRes.error) console.warn("StudentsAchievements notice:", achRes.error);
 
       setRawStudents(stnRes.data || []);
-      setResultsData(resRes.data || []);
+      const hydratedResults = await hydrateResultRecords(resRes.data || []);
+      setResultsData(hydratedResults);
       setProgrammesData(progRes.data || []);
       setOutreachData(outRes.data || []);
       setAchievementsData(achRes.data || []);

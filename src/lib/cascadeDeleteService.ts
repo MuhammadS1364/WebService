@@ -1,4 +1,5 @@
 import { SupaBaseFunction } from "./SupaBase";
+import { hydrateResultRecords } from "./resultService";
 import type {
   OurBatchesRecord,
   OurClassesRecord,
@@ -14,11 +15,209 @@ import type {
  * programmes, batches, classes, categories, venues, and groups without foreign-key blocks.
  */
 
+/**
+ * Automatically reverts awarded points to students, squads, and wings,
+ * and rolls back direct points for no-result-required events before deleting programmes.
+ */
+async function revertProgrammesPointsBeforeDelete(programCodes: string[]): Promise<void> {
+  const codes = programCodes.map((c) => c.trim()).filter(Boolean);
+  if (codes.length === 0) return;
+
+  try {
+    // 1. Fetch programmes details
+    const { data: progRows } = await SupaBaseFunction
+      .from("ProgrammesBox")
+      .select("Program_Code, WingCode, is_result_required, IsResulted, points_template, is_group_program")
+      .in("Program_Code", codes);
+
+    if (!progRows || progRows.length === 0) return;
+
+    // 2. Fetch associated ResultBox records
+    const { data: rawResults } = await SupaBaseFunction
+      .from("ResultBox")
+      .select("*")
+      .in("Program_Id", codes);
+
+    const hydratedResults = rawResults && rawResults.length > 0 ? await hydrateResultRecords(rawResults) : [];
+    const resultMap = new Map<string, any>();
+    hydratedResults.forEach((r) => {
+      if (r.Program_Id) resultMap.set(r.Program_Id, r);
+    });
+
+    // 3. Fetch Points_Templates if referenced
+    const templateIds = Array.from(new Set(progRows.map((p) => p.points_template).filter(Boolean))) as string[];
+    let templatesMap: Record<string, any> = {};
+    if (templateIds.length > 0) {
+      const { data: tmplData } = await SupaBaseFunction
+        .from("Points_Templates")
+        .select("*")
+        .in("p_template_id", templateIds);
+      (tmplData || []).forEach((t: any) => {
+        templatesMap[t.p_template_id] = t;
+      });
+    }
+
+    const defaultTmpl = {
+      first_only: 5,
+      first_A_grade: 10,
+      first_B_grade: 8,
+      second_only: 3,
+      second_A_grade: 8,
+      second_B_grade: 6,
+      third_only: 1,
+      third_A_grade: 6,
+      third_B_grade: 4,
+      A_grade: 5,
+      B_grade: 3,
+    };
+
+    // Wing deductions tracker
+    const wingDeductions: Record<string, { points: number; resultedCount: number; regCount: number }> = {};
+    const ensureWing = (wCode: string) => {
+      if (!wingDeductions[wCode]) {
+        wingDeductions[wCode] = { points: 0, resultedCount: 0, regCount: 0 };
+      }
+      return wingDeductions[wCode];
+    };
+
+    for (const prog of progRows) {
+      const wCode = prog.WingCode;
+      if (wCode) {
+        const tracker = ensureWing(wCode);
+        tracker.regCount += 1;
+
+        // If programme was created with NO result required, +1 point was awarded -> revert it!
+        if (prog.is_result_required === false) {
+          tracker.points += 1;
+        }
+      }
+
+      // If results were declared, revert student, squad, and wing points
+      const result = resultMap.get(prog.Program_Code);
+      if (result) {
+        if (wCode) {
+          const tracker = ensureWing(wCode);
+          tracker.resultedCount += 1;
+        }
+
+        const tmpl = (prog.points_template && templatesMap[prog.points_template]) || defaultTmpl;
+        const isGroup = Boolean(prog.is_group_program || result.is_group);
+
+        const posConfigs = [
+          { addNos: result.firstHolderAddNos || (result.First_Holder ? [result.First_Holder] : []), pts: tmpl.first_A_grade || 10 },
+          { addNos: result.secondHolderAddNos || (result.Second_Holder ? [result.Second_Holder] : []), pts: tmpl.second_A_grade || 8 },
+          { addNos: result.thirdHolderAddNos || (result.Third_Holder ? [result.Third_Holder] : []), pts: tmpl.third_A_grade || 6 },
+          { addNos: result.aGradeAddNos || (result.AGrade ? [result.AGrade] : []), pts: tmpl.A_grade || 5 },
+          { addNos: result.bGradeAddNos || (result.BGrade ? [result.BGrade] : []), pts: tmpl.B_grade || 3 },
+        ];
+
+        let progTotalPts = 0;
+
+        for (const cfg of posConfigs) {
+          for (const rawAddNo of cfg.addNos) {
+            const addNo = String(rawAddNo).trim();
+            if (!addNo || addNo.toLowerCase() === "none" || addNo.toLowerCase() === "no grade") continue;
+
+            progTotalPts += cfg.pts;
+
+            try {
+              const { data: stn } = await SupaBaseFunction
+                .from("StudentsBox")
+                .select("AddNo, Resluted_Count, Total_Point_Anjuman, Grand_Total_Points")
+                .eq("AddNo", addNo)
+                .maybeSingle();
+
+              if (stn) {
+                await SupaBaseFunction
+                  .from("StudentsBox")
+                  .update({
+                    Resluted_Count: Math.max(0, Number(stn.Resluted_Count || 0) - 1),
+                    Total_Point_Anjuman: Math.max(0, Number(stn.Total_Point_Anjuman || 0) - cfg.pts),
+                    Grand_Total_Points: Math.max(0, Number(stn.Grand_Total_Points || 0) - cfg.pts),
+                  })
+                  .eq("AddNo", addNo);
+              }
+            } catch (stnErr) {
+              console.warn("Could not revert student points on delete:", addNo, stnErr);
+            }
+          }
+        }
+
+        if (isGroup) {
+          const squadIds = [
+            result["1st_holder_group"],
+            result["2nd_holder_group"],
+            result["3rd_holder_group"],
+            result.grade_holder_group1,
+            result.grade_holder_group2,
+          ].filter(Boolean);
+
+          for (const sId of squadIds) {
+            try {
+              const { data: sq } = await SupaBaseFunction
+                .from("SquadMate")
+                .select("squad_id, total_points, winning_rate")
+                .eq("squad_id", sId)
+                .maybeSingle();
+
+              if (sq) {
+                await SupaBaseFunction
+                  .from("SquadMate")
+                  .update({
+                    total_points: Math.max(0, Number(sq.total_points || 0) - 10),
+                    winning_rate: Math.max(0, Number(sq.winning_rate || 0) - 1),
+                  })
+                  .eq("squad_id", sId);
+              }
+            } catch (sqErr) {
+              console.warn("Could not revert squad points on delete:", sId, sqErr);
+            }
+          }
+        }
+
+        if (wCode) {
+          const tracker = ensureWing(wCode);
+          tracker.points += progTotalPts;
+        }
+      }
+    }
+
+    // 4. Update Chs-WingS with deductions
+    for (const [wCode, deduction] of Object.entries(wingDeductions)) {
+      try {
+        const { data: wingRow } = await SupaBaseFunction
+          .from("Chs-WingS")
+          .select("WingCode, Total_Points, Total_Resulted, Total_Registrations")
+          .eq("WingCode", wCode)
+          .maybeSingle();
+
+        if (wingRow) {
+          await SupaBaseFunction
+            .from("Chs-WingS")
+            .update({
+              Total_Points: Math.max(0, Number(wingRow.Total_Points || 0) - deduction.points),
+              Total_Resulted: Math.max(0, Number(wingRow.Total_Resulted || 0) - deduction.resultedCount),
+              Total_Registrations: Math.max(0, Number(wingRow.Total_Registrations || 0) - deduction.regCount),
+            })
+            .eq("WingCode", wCode);
+        }
+      } catch (wErr) {
+        console.warn("Could not adjust wing metrics on programme delete:", wCode, wErr);
+      }
+    }
+  } catch (err) {
+    console.warn("Error in revertProgrammesPointsBeforeDelete:", err);
+  }
+}
+
 export async function deleteProgrammeCascade(programCode: string): Promise<void> {
   const code = programCode.trim();
   if (!code) throw new Error("Invalid program code");
 
-  // 1. Delete associated Content_Table rows (references ProgrammesBox)
+  // Revert all awarded points (students, squads, wings) before deleting
+  await revertProgrammesPointsBeforeDelete([code]);
+
+  // 1. Delete associated Content_Table rows
   try {
     const { error } = await SupaBaseFunction.from("Content_Table").delete().eq("programe_code", code);
     if (error) console.warn("Could not delete from Content_Table:", error);
@@ -26,7 +225,7 @@ export async function deleteProgrammeCascade(programCode: string): Promise<void>
     console.warn("Could not delete from Content_Table:", err);
   }
 
-  // 2. Delete associated ResultBox rows (references ProgrammesBox)
+  // 2. Delete associated ResultBox rows
   try {
     const { error } = await SupaBaseFunction.from("ResultBox").delete().eq("Program_Id", code);
     if (error) console.warn("Could not delete from ResultBox:", error);
@@ -50,7 +249,7 @@ export async function deleteProgrammeCascade(programCode: string): Promise<void>
     console.warn("Could not delete from FeedBack:", err);
   }
 
-  // 4b. Delete Topics_Box rows (references ProgrammesBox with RESTRICT)
+  // 4b. Delete Topics_Box rows
   try {
     const { error } = await SupaBaseFunction.from("Topics_Box").delete().eq("program_code", code);
     if (error) console.warn("Could not delete from Topics_Box:", error);
@@ -70,6 +269,9 @@ export async function deleteProgrammeCascade(programCode: string): Promise<void>
 export async function deleteProgrammesBulkCascade(programCodes: string[]): Promise<void> {
   const codes = programCodes.filter(Boolean);
   if (codes.length === 0) return;
+
+  // Revert all awarded points (students, squads, wings) before deleting
+  await revertProgrammesPointsBeforeDelete(codes);
 
   // 1. Content_Table
   try {

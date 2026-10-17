@@ -83,6 +83,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import SafeImage from "../../lib/SafeImage";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
+import { hydrateResultRecords } from "../../lib/resultService";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -384,26 +385,29 @@ export default function StudentsAnalyticsGeneral() {
         .select("Program_Code, Program_Title, WingCode, Category, Group, Date, Venue, IsConducted")
         .in("Program_Code", progCodes);
 
-      // 3. Fetch ResultBox for this student
-      const { data: results } = await SupaBaseFunction
-        .from("ResultBox")
-        .select("*")
-        .or(
-          `First_Holder.eq.${student.AddNo},Second_Holder.eq.${student.AddNo},Third_Holder.eq.${student.AddNo},AGrade.eq.${student.AddNo},BGrade.eq.${student.AddNo}`
-        );
+      // 3. Fetch ResultBox for these programmes
+      let results: any[] = [];
+      if (progCodes.length > 0) {
+        const { data: rawRes } = await SupaBaseFunction
+          .from("ResultBox")
+          .select("*")
+          .in("Program_Id", progCodes);
+        results = await hydrateResultRecords(rawRes || []);
+      }
 
       const resultMap = new Map<string, { position: string; points: number }>();
       (results || []).forEach((r: any) => {
         if (!r.Program_Id) return;
-        if (r.First_Holder === student.AddNo) {
+        const addNo = student.AddNo;
+        if (r.firstHolderAddNos?.includes(addNo) || r.First_Holder === addNo) {
           resultMap.set(r.Program_Id, { position: "1st Place Winner", points: 10 });
-        } else if (r.Second_Holder === student.AddNo) {
+        } else if (r.secondHolderAddNos?.includes(addNo) || r.Second_Holder === addNo) {
           resultMap.set(r.Program_Id, { position: "2nd Runner-Up", points: 7 });
-        } else if (r.Third_Holder === student.AddNo) {
+        } else if (r.thirdHolderAddNos?.includes(addNo) || r.Third_Holder === addNo) {
           resultMap.set(r.Program_Id, { position: "3rd Place", points: 5 });
-        } else if (r.AGrade === student.AddNo) {
+        } else if (r.aGradeAddNos?.includes(addNo) || r.AGrade === addNo) {
           resultMap.set(r.Program_Id, { position: "A-Grade", points: 5 });
-        } else if (r.BGrade === student.AddNo) {
+        } else if (r.bGradeAddNos?.includes(addNo) || r.BGrade === addNo) {
           resultMap.set(r.Program_Id, { position: "B-Grade", points: 3 });
         }
       });

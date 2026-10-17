@@ -7,6 +7,7 @@ import SafeImage from "../lib/SafeImage";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { Trophy, Search, Download, Calendar, MapPin, CheckCircle2, Printer, RotateCcw } from "lucide-react";
 import type { ResultBoxRecord } from "../lib/types";
+import { hydrateResultRecords } from "../lib/resultService";
 
 interface StudentInfo {
   AddNo: string;
@@ -76,16 +77,18 @@ export default function AllResultsList() {
       setError(null);
 
       // 1. Fetch from ResultBox
-      const { data: resultRows, error: resultError } = await SupaBaseFunction
+      const { data: rawResultRows, error: resultError } = await SupaBaseFunction
         .from("ResultBox")
         .select("*")
         .order("Result_id", { ascending: false });
 
       if (resultError) throw resultError;
-      if (!resultRows || resultRows.length === 0) {
+      if (!rawResultRows || rawResultRows.length === 0) {
         setResults([]);
         return;
       }
+
+      const resultRows = await hydrateResultRecords(rawResultRows);
 
       // 2. Fetch associated ProgrammesBox
       const progCodes = Array.from(new Set(resultRows.map((r: ResultBoxRecord) => r.Program_Id).filter(Boolean))) as string[];

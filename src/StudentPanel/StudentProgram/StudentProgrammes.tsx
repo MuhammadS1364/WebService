@@ -10,6 +10,7 @@ import TopicRegistrationModal from "../../components/TopicRegistrationModal";
 import ProgrammeResultModal from "../../components/ProgrammeResultModal";
 import { resolveStudentProfile } from "../../lib/accountResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
+import { hydrateResultRecords } from "../../lib/resultService";
 import {
   MessageSquare,
   Search,
@@ -152,10 +153,12 @@ export default function StudentProgrammes() {
           }
 
           // Step 3.5: Fetch ResultBox records for these programmes to show results & winner positions
-          const { data: resData } = await SupaBaseFunction
+          const { data: rawResData } = await SupaBaseFunction
             .from("ResultBox")
             .select("*")
             .in("Program_Id", programCodes);
+
+          const resData = await hydrateResultRecords(rawResData || []);
 
           if (resData && isMounted) {
             const resMap: Record<string, { position?: string; points?: number; isWinner: boolean; isPublished: boolean; resultRow: any }> = {};

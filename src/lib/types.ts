@@ -88,6 +88,7 @@ export interface ProgrammeRecord {
   isContentRequired?: boolean;
   ContentSubmition_deadLine?: string;
   is_topic_required?: boolean;
+  is_result_required?: boolean;
 }
 
 export interface TopicRecord {
@@ -272,6 +273,8 @@ export interface ProgrammesBoxRecord {
   points_template: string | null; // uuid references Points_Templates(p_template_id)
   isContentRequired?: boolean;
   ContentSubmition_deadLine?: string | null;
+  is_topic_required?: boolean | null;
+  is_result_required?: boolean | null;
 }
 
 /**

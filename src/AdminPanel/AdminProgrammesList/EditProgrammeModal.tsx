@@ -52,6 +52,7 @@ export default function EditProgrammeModal({
         isContentRequired: Boolean((program as any).isContentRequired),
         ContentSubmition_deadLine: (program as any).ContentSubmition_deadLine || "",
         is_topic_required: Boolean((program as any).is_topic_required),
+        is_result_required: (program as any).is_result_required !== false,
       });
       setErrorMsg("");
     }
@@ -126,7 +127,13 @@ export default function EditProgrammeModal({
             ? formData.ContentSubmition_deadLine
             : null,
         is_topic_required: Boolean(formData.is_topic_required),
+        is_result_required: Boolean(formData.is_result_required),
       };
+
+      const wasResultRequired = (program as any).is_result_required !== false;
+      const isResultRequired = Boolean(formData.is_result_required);
+      const oldWing = program.WingCode;
+      const newWing = formData.WingCode || null;
 
       const { error } = await SupaBaseFunction
         .from("ProgrammesBox")
@@ -134,6 +141,67 @@ export default function EditProgrammeModal({
         .eq("Program_Code", program.Program_Code);
 
       if (error) throw error;
+
+      // Handle Wing point calibrations if result requirement changed
+      try {
+        if (wasResultRequired && !isResultRequired && newWing) {
+          // Changed to NO result required -> Award +1 point to new wing
+          const { data: wRow } = await SupaBaseFunction
+            .from("Chs-WingS")
+            .select("Total_Points")
+            .eq("WingCode", newWing)
+            .maybeSingle();
+          if (wRow) {
+            await SupaBaseFunction
+              .from("Chs-WingS")
+              .update({ Total_Points: (Number(wRow.Total_Points) || 0) + 1 })
+              .eq("WingCode", newWing);
+          }
+        } else if (!wasResultRequired && isResultRequired && oldWing) {
+          // Changed from NO result required to result required -> Revoke the +1 point from old wing
+          const { data: wRow } = await SupaBaseFunction
+            .from("Chs-WingS")
+            .select("Total_Points")
+            .eq("WingCode", oldWing)
+            .maybeSingle();
+          if (wRow) {
+            await SupaBaseFunction
+              .from("Chs-WingS")
+              .update({ Total_Points: Math.max(0, (Number(wRow.Total_Points) || 0) - 1) })
+              .eq("WingCode", oldWing);
+          }
+        } else if (!wasResultRequired && !isResultRequired && oldWing !== newWing) {
+          // Wing changed on a no-result-required programme -> transfer +1 point
+          if (oldWing) {
+            const { data: wOld } = await SupaBaseFunction
+              .from("Chs-WingS")
+              .select("Total_Points")
+              .eq("WingCode", oldWing)
+              .maybeSingle();
+            if (wOld) {
+              await SupaBaseFunction
+                .from("Chs-WingS")
+                .update({ Total_Points: Math.max(0, (Number(wOld.Total_Points) || 0) - 1) })
+                .eq("WingCode", oldWing);
+            }
+          }
+          if (newWing) {
+            const { data: wNew } = await SupaBaseFunction
+              .from("Chs-WingS")
+              .select("Total_Points")
+              .eq("WingCode", newWing)
+              .maybeSingle();
+            if (wNew) {
+              await SupaBaseFunction
+                .from("Chs-WingS")
+                .update({ Total_Points: (Number(wNew.Total_Points) || 0) + 1 })
+                .eq("WingCode", newWing);
+            }
+          }
+        }
+      } catch (wingPointErr) {
+        console.warn("Could not calibrate wing points on programme edit:", wingPointErr);
+      }
 
       onSuccess();
       onClose();
@@ -507,6 +575,32 @@ export default function EditProgrammeModal({
             </label>
             <p className="text-[11px] text-indigo-800 pl-6.5">
               If enabled, candidates must register and get their unique topic title & content (naat lyrics, speech outline) approved before competing.
+            </p>
+          </div>
+
+          {/* Competition Result Requirement Switch */}
+          <div className={`p-4 rounded-2xl border space-y-2 transition-colors ${formData.is_result_required ? 'bg-emerald-50/70 border-emerald-200' : 'bg-purple-50/70 border-purple-200'}`}>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                name="is_result_required"
+                checked={Boolean(formData.is_result_required)}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="font-bold text-slate-900 flex items-center gap-2">
+                <span>Competition Result Required (Official Result Declaration)</span>
+                {!formData.is_result_required && (
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white">
+                    +1 Wing Point Direct
+                  </span>
+                )}
+              </span>
+            </label>
+            <p className="text-[11px] text-slate-700 pl-6.5">
+              {formData.is_result_required
+                ? "Standard competitive event. Points are awarded upon official competition result declaration."
+                : "Non-competitive or direct event. No result declaration is required. 1 Point is awarded directly to the Wing."}
             </p>
           </div>
 

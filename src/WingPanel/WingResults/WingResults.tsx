@@ -4,6 +4,7 @@ import { SupaBaseFunction } from "../../lib/SupaBase";
 import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import SafeImage from "../../lib/SafeImage";
+import { hydrateResultRecords } from "../../lib/resultService";
 import {
   Trophy,
   Search,
@@ -98,10 +99,12 @@ export default function WingResults() {
         // Fetch published results for this wing's programmes
         const progCodes = (progData || []).map((p: any) => p.Program_Code);
         if (progCodes.length > 0) {
-          const { data: rData } = await SupaBaseFunction
+          const { data: rawRData } = await SupaBaseFunction
             .from("ResultBox")
             .select("*")
             .in("Program_Id", progCodes);
+
+          const rData = await hydrateResultRecords(rawRData || []);
 
           if (rData && isMounted) {
             const rMap: Record<string, any> = {};

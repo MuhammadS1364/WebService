@@ -6,6 +6,7 @@ import SafeImage from "../lib/SafeImage";
 import { Trophy, Award, Calendar, MapPin, X, ArrowRight, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { ResultBoxRecord } from "../lib/types";
+import { hydrateResultRecords } from "../lib/resultService";
 
 interface StudentInfo {
   AddNo: string;
@@ -62,16 +63,23 @@ export default function ProgrammeResultModal({
         if (resError) throw resError;
 
         if (!isMounted) return;
-        setResult(resData || null);
 
+        let hydratedRes: any = null;
         if (resData) {
+          const hydratedList = await hydrateResultRecords([resData]);
+          hydratedRes = hydratedList[0] || resData;
+        }
+
+        setResult(hydratedRes);
+
+        if (hydratedRes) {
           // 2. Collect student AddNos
           const rawCodes = [
-            resData.First_Holder,
-            resData.Second_Holder,
-            resData.Third_Holder,
-            resData.AGrade,
-            resData.BGrade,
+            hydratedRes.First_Holder,
+            hydratedRes.Second_Holder,
+            hydratedRes.Third_Holder,
+            hydratedRes.AGrade,
+            hydratedRes.BGrade,
           ].filter(Boolean) as string[];
 
           // Normalize comma-separated or whitespace

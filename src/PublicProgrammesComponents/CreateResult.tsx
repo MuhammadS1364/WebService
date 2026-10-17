@@ -71,6 +71,7 @@ interface ProgrammeDetails {
   Category?: string | null;
   IsResulted?: boolean | null;
   IsResultPublished?: boolean | null;
+  is_result_required?: boolean | null;
 }
 
 const DEFAULT_POINTS_FALLBACK: PointsTemplateRecord = {
@@ -132,6 +133,9 @@ export default function CreateResult() {
   const [_existingResultId, setExistingResultId] = useState<string | null>(null);
   const [previousPointsAwarded, setPreviousPointsAwarded] = useState<number>(0);
   const [previousAllocations, setPreviousAllocations] = useState<{ addNo: string; points: number }[]>([]);
+  const [previousSquadAllocations, setPreviousSquadAllocations] = useState<{ squadId: string; points: number }[]>([]);
+  const [candCodeToUuid, setCandCodeToUuid] = useState<Record<string, string>>({});
+  const [candUuidToCode, setCandUuidToCode] = useState<Record<string, string>>({});
   const [statusMsg, setStatusMsg] = useState<{
     type: "success" | "error" | "";
     text: string;
@@ -218,7 +222,7 @@ export default function CreateResult() {
       try {
         let query = SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Date, Venue, WingCode, Category, is_group_program, points_template, AccademicYear, IsResulted")
+          .select("Program_Code, Program_Title, Date, Venue, WingCode, Category, is_group_program, points_template, AccademicYear, IsResulted, is_result_required")
           .order("Date", { ascending: false });
 
         if (wingCode) {
@@ -286,10 +290,22 @@ export default function CreateResult() {
           // GROUP PROGRAMME: Fetch CandidateRegistrationTable with squad_uuids
           const { data: regRows, error: regError } = await SupaBaseFunction
             .from("CandidateRegistrationTable")
-            .select("Candidate_Code, squad_uuid")
+            .select("CandidateUUiD, Candidate_Code, squad_uuid")
             .eq("Program_Code", selectedProgram);
 
           if (regError) throw regError;
+
+          const localCandCodeToUuid: Record<string, string> = {};
+          const localCandUuidToCode: Record<string, string> = {};
+          (regRows || []).forEach((r: any) => {
+            if (r.Candidate_Code && r.CandidateUUiD) {
+              const code = String(r.Candidate_Code).trim();
+              localCandCodeToUuid[code] = r.CandidateUUiD;
+              localCandUuidToCode[r.CandidateUUiD] = code;
+            }
+          });
+          setCandCodeToUuid(localCandCodeToUuid);
+          setCandUuidToCode(localCandUuidToCode);
 
           const squadIds = Array.from(
             new Set(
@@ -446,10 +462,22 @@ export default function CreateResult() {
           // INDIVIDUAL PROGRAMME: Fetch individual candidate registrations
           const { data: regRows, error: regError } = await SupaBaseFunction
             .from("CandidateRegistrationTable")
-            .select("Candidate_Code")
+            .select("CandidateUUiD, Candidate_Code, squad_uuid")
             .eq("Program_Code", selectedProgram);
 
           if (regError) throw regError;
+
+          const localCandCodeToUuid: Record<string, string> = {};
+          const localCandUuidToCode: Record<string, string> = {};
+          (regRows || []).forEach((r: any) => {
+            if (r.Candidate_Code && r.CandidateUUiD) {
+              const code = String(r.Candidate_Code).trim();
+              localCandCodeToUuid[code] = r.CandidateUUiD;
+              localCandUuidToCode[r.CandidateUUiD] = code;
+            }
+          });
+          setCandCodeToUuid(localCandCodeToUuid);
+          setCandUuidToCode(localCandUuidToCode);
 
           const candidateCodes = Array.from(
             new Set(
@@ -498,6 +526,7 @@ export default function CreateResult() {
             return {
               addNo: s.AddNo,
               name: s.StudentName || "Unnamed Student",
+              candidateUuid: localCandCodeToUuid[s.AddNo] || undefined,
               photoUrl: s.Student_Photo_Urls || null,
               className:
                 matchedClass?.class_nick_name ||
@@ -514,6 +543,7 @@ export default function CreateResult() {
               mapped.push({
                 addNo: code,
                 name: `Candidate (${code})`,
+                candidateUuid: localCandCodeToUuid[code] || undefined,
                 topicTitle: candTopicMap[code] || null,
               });
             }
@@ -536,67 +566,136 @@ export default function CreateResult() {
           setIsEditingExistingResult(true);
           setExistingResultId(existingResult.Result_id);
 
-          const activeSquadsList: RegisteredSquad[] = isGroup ? loadedSquads : [];
-          const activeCandidatesList: RegisteredCandidate[] = !isGroup ? loadedCandidates : [];
+          const isGroupResult = Boolean(existingResult.is_group ?? isGroup);
+          const activeSquadsList: RegisteredSquad[] = isGroupResult ? loadedSquads : [];
+          const activeCandidatesList: RegisteredCandidate[] = !isGroupResult ? loadedCandidates : [];
 
-          const matchHolderToEntry = (holderStr?: string | null, defaultGrade: GradeSelection = "none"): HolderEntry => {
-            if (!holderStr) return { addNo: "", name: "", grade: defaultGrade };
-            const cleanStr = String(holderStr).trim();
+          // Hydrate result record to resolve any references
+          const hydratedList = await hydrateResultRecords([existingResult]);
+          const hydrated = hydratedList[0] || existingResult;
 
-            if (isGroup) {
-              const directSquad = activeSquadsList.find((s: RegisteredSquad) => s.squad_id === cleanStr);
-              if (directSquad) {
-                return {
-                  addNo: directSquad.squad_id,
-                  name: directSquad.squad_title,
-                  grade: defaultGrade,
-                  squadMembers: directSquad.members,
-                };
-              }
-              const tokens = cleanStr.split(",").map((s) => s.trim().toUpperCase());
-              const memberSquad = activeSquadsList.find((s: RegisteredSquad) =>
-                s.members.some((m: TeammateInfo) => tokens.includes(m.addNo.toUpperCase()))
-              );
-              if (memberSquad) {
-                return {
-                  addNo: memberSquad.squad_id,
-                  name: memberSquad.squad_title,
-                  grade: defaultGrade,
-                  squadMembers: memberSquad.members,
-                };
-              }
-            } else {
-              const cleanCode = cleanStr.split(",")[0].trim().toUpperCase();
-              const cand = activeCandidatesList.find((c: RegisteredCandidate) => c.addNo.toUpperCase() === cleanCode);
-              if (cand) {
-                return {
-                  addNo: cand.addNo,
-                  name: cand.name,
-                  grade: defaultGrade,
-                };
+          // For individual results, ensure all candidate UUIDs are mapped to AddNo
+          const currentCandUuidToCode = { ...candUuidToCode };
+          if (!isGroupResult) {
+            const rawCandUuids = [
+              existingResult.First_Holder_uuid,
+              existingResult.Second_Holder_uuid,
+              existingResult.Third_Holder_uuid,
+              existingResult.Grade1_uuid,
+              existingResult.Grade2_uuid,
+            ].filter((u): u is string => Boolean(u && typeof u === "string"));
+
+            const missingUuids = rawCandUuids.filter((u) => !currentCandUuidToCode[u]);
+            if (missingUuids.length > 0) {
+              try {
+                const { data: missingRows } = await SupaBaseFunction
+                  .from("CandidateRegistrationTable")
+                  .select("CandidateUUiD, Candidate_Code")
+                  .in("CandidateUUiD", missingUuids);
+
+                (missingRows || []).forEach((c: any) => {
+                  if (c.CandidateUUiD && c.Candidate_Code) {
+                    const code = String(c.Candidate_Code).trim();
+                    currentCandUuidToCode[c.CandidateUUiD] = code;
+                  }
+                });
+                setCandUuidToCode((prev) => ({ ...prev, ...currentCandUuidToCode }));
+              } catch (fetchErr) {
+                console.warn("Could not fetch missing candidate registration uuids:", fetchErr);
               }
             }
+          }
 
-            return {
-              addNo: cleanStr,
-              name: cleanStr,
-              grade: defaultGrade,
+          let initialLoadedHolders: HoldersState;
+
+          if (isGroupResult) {
+            const g1 = existingResult["1st_holder_group"];
+            const g2 = existingResult["2nd_holder_group"];
+            const g3 = existingResult["3rd_holder_group"];
+            const ga = existingResult.grade_holder_group1;
+            const gb = existingResult.grade_holder_group2;
+
+            const resolveSquadEntry = (squadId?: string | null, defGrade: GradeSelection = "none"): HolderEntry => {
+              if (!squadId) return { addNo: "", name: "", grade: defGrade };
+              const sq = activeSquadsList.find((s) => s.squad_id === squadId);
+              return {
+                addNo: squadId,
+                name: sq ? sq.squad_title : squadId,
+                grade: defGrade,
+                squadMembers: sq?.members || [],
+              };
             };
-          };
 
-          const initialLoadedHolders: HoldersState = {
-            first: matchHolderToEntry(existingResult.First_Holder, "none"),
-            second: matchHolderToEntry(existingResult.Second_Holder, "none"),
-            third: matchHolderToEntry(existingResult.Third_Holder, "none"),
-            aGrade: matchHolderToEntry(existingResult.AGrade, "A"),
-            bGrade: matchHolderToEntry(existingResult.BGrade, "B"),
-          };
+            const gradeOfG1: GradeSelection = ga === g1 ? "A" : gb === g1 ? "B" : "none";
+            const gradeOfG2: GradeSelection = ga === g2 ? "A" : gb === g2 ? "B" : "none";
+            const gradeOfG3: GradeSelection = ga === g3 ? "A" : gb === g3 ? "B" : "none";
+
+            const isSeparateA = Boolean(ga && ga !== g1 && ga !== g2 && ga !== g3);
+            const isSeparateB = Boolean(gb && gb !== g1 && gb !== g2 && gb !== g3);
+
+            initialLoadedHolders = {
+              first: resolveSquadEntry(g1, gradeOfG1),
+              second: resolveSquadEntry(g2, gradeOfG2),
+              third: resolveSquadEntry(g3, gradeOfG3),
+              aGrade: isSeparateA ? resolveSquadEntry(ga, "A") : { addNo: "", name: "", grade: "A" },
+              bGrade: isSeparateB ? resolveSquadEntry(gb, "B") : { addNo: "", name: "", grade: "B" },
+            };
+          } else {
+            const u1 = existingResult.First_Holder_uuid;
+            const u2 = existingResult.Second_Holder_uuid;
+            const u3 = existingResult.Third_Holder_uuid;
+            const ua = existingResult.Grade1_uuid;
+            const ub = existingResult.Grade2_uuid;
+
+            const resolveCandidateEntry = (
+              candUuid?: string | null,
+              defGrade: GradeSelection = "none",
+              posKey: "first" | "second" | "third" | "aGrade" | "bGrade" = "first"
+            ): HolderEntry => {
+              if (!candUuid) return { addNo: "", name: "", grade: defGrade };
+              const fallbackCode =
+                posKey === "first"
+                  ? (hydrated as any).firstHolderAddNos?.[0] || hydrated.First_Holder
+                  : posKey === "second"
+                  ? (hydrated as any).secondHolderAddNos?.[0] || hydrated.Second_Holder
+                  : posKey === "third"
+                  ? (hydrated as any).thirdHolderAddNos?.[0] || hydrated.Third_Holder
+                  : posKey === "aGrade"
+                  ? (hydrated as any).aGradeAddNos?.[0] || hydrated.AGrade
+                  : (hydrated as any).bGradeAddNos?.[0] || hydrated.BGrade;
+
+              const code = currentCandUuidToCode[candUuid] || (typeof fallbackCode === "string" ? fallbackCode : "") || "";
+              const cand = activeCandidatesList.find((c) => c.addNo.toUpperCase() === code.toUpperCase());
+              return {
+                addNo: code || candUuid,
+                name: cand ? cand.name : code ? `Student (${code})` : candUuid,
+                grade: defGrade,
+              };
+            };
+
+            const gradeOfU1: GradeSelection = (ua && ua === u1) ? "A" : (ub && ub === u1) ? "B" : "none";
+            const gradeOfU2: GradeSelection = (ua && ua === u2) ? "A" : (ub && ub === u2) ? "B" : "none";
+            const gradeOfU3: GradeSelection = (ua && ua === u3) ? "A" : (ub && ub === u3) ? "B" : "none";
+
+            const isSeparateA = Boolean(ua && ua !== u1 && ua !== u2 && ua !== u3);
+            const isSeparateB = Boolean(ub && ub !== u1 && ub !== u2 && ub !== u3);
+
+            initialLoadedHolders = {
+              first: resolveCandidateEntry(u1, gradeOfU1, "first"),
+              second: resolveCandidateEntry(u2, gradeOfU2, "second"),
+              third: resolveCandidateEntry(u3, gradeOfU3, "third"),
+              aGrade: isSeparateA ? resolveCandidateEntry(ua, "A", "aGrade") : { addNo: "", name: "", grade: "A" },
+              bGrade: isSeparateB ? resolveCandidateEntry(ub, "B", "bGrade") : { addNo: "", name: "", grade: "B" },
+            };
+          }
 
           setHolders(initialLoadedHolders);
 
           // Calculate previous points allocated to students and wing
           let prevTotalPts = 0;
           const prevAllocationsList: { addNo: string; points: number }[] = [];
+          const prevSquadList: { squadId: string; points: number }[] = [];
+
           const getPosPts = (pos: keyof HoldersState, gr: GradeSelection) => {
             const t = activeTemplate;
             if (pos === "first") return gr === "A" ? (t.first_A_grade ?? 10) : gr === "B" ? (t.first_B_grade ?? 8) : (t.first_only ?? 5);
@@ -611,7 +710,7 @@ export default function CreateResult() {
             const h = initialLoadedHolders[posKey];
             if (h.addNo) {
               const pts = getPosPts(posKey, h.grade);
-              if (isGroup) {
+              if (isGroupResult) {
                 const sq = loadedSquads.find((s: RegisteredSquad) => s.squad_id === h.addNo);
                 const members = sq?.members || h.squadMembers || [];
                 if (members.length > 0) {
@@ -623,6 +722,7 @@ export default function CreateResult() {
                   prevTotalPts += pts;
                   prevAllocationsList.push({ addNo: h.addNo, points: pts });
                 }
+                prevSquadList.push({ squadId: h.addNo, points: pts });
               } else {
                 prevTotalPts += pts;
                 prevAllocationsList.push({ addNo: h.addNo, points: pts });
@@ -632,6 +732,7 @@ export default function CreateResult() {
 
           setPreviousPointsAwarded(prevTotalPts);
           setPreviousAllocations(prevAllocationsList);
+          setPreviousSquadAllocations(prevSquadList);
 
           if (!canEditExistingResult) {
             setStatusMsg({
@@ -649,7 +750,9 @@ export default function CreateResult() {
           setExistingResultId(null);
           setPreviousPointsAwarded(0);
           setPreviousAllocations([]);
+          setPreviousSquadAllocations([]);
         }
+
       } catch (err: any) {
         console.error("Error loading candidates/squads:", err);
         setStatusMsg({ type: "error", text: "Could not load candidate registrations: " + err.message });
@@ -905,29 +1008,60 @@ export default function CreateResult() {
 
       const progWingCode = selectedProgDetails?.WingCode || wingCode;
 
-      // 1. Insert or Update ResultBox
-      const getHolderValue = (key: keyof HoldersState): string | null => {
-        const h = holders[key];
-        if (!h.addNo) return null;
-        if (isGroupProgram) {
-          const sq = registeredSquads.find((s) => s.squad_id === h.addNo);
-          if (sq && sq.members.length > 0) {
-            return sq.members.map((m) => m.addNo).join(", ");
-          }
-          return h.addNo;
+      // 1. Resolve UUIDs and Insert or Update ResultBox
+      const resolveCandidateUuid = async (candidateAddNo?: string | null): Promise<string | null> => {
+        if (!candidateAddNo || !candidateAddNo.trim()) return null;
+        const clean = candidateAddNo.trim();
+        if (candCodeToUuid[clean]) return candCodeToUuid[clean];
+        const resolved = await ensureCandidateRegistrationUuid(selectedProgram, clean);
+        if (resolved) {
+          setCandCodeToUuid((prev) => ({ ...prev, [clean]: resolved }));
+          setCandUuidToCode((prev) => ({ ...prev, [resolved]: clean }));
         }
-        return h.addNo;
+        return resolved;
       };
+
+      const firstCandUuid = !isGroupProgram ? await resolveCandidateUuid(holders.first.addNo) : null;
+      const secondCandUuid = !isGroupProgram ? await resolveCandidateUuid(holders.second.addNo) : null;
+      const thirdCandUuid = !isGroupProgram ? await resolveCandidateUuid(holders.third.addNo) : null;
+      const aGradeCandUuid = !isGroupProgram ? await resolveCandidateUuid(holders.aGrade.addNo) : null;
+      const bGradeCandUuid = !isGroupProgram ? await resolveCandidateUuid(holders.bGrade.addNo) : null;
+
+      const grade1CandUuid = aGradeCandUuid
+        || (holders.first.grade === "A" ? firstCandUuid : null)
+        || (holders.second.grade === "A" ? secondCandUuid : null)
+        || (holders.third.grade === "A" ? thirdCandUuid : null);
+
+      const grade2CandUuid = bGradeCandUuid
+        || (holders.first.grade === "B" ? firstCandUuid : null)
+        || (holders.second.grade === "B" ? secondCandUuid : null)
+        || (holders.third.grade === "B" ? thirdCandUuid : null);
+
+      const gradeSquad1 = (holders.aGrade.addNo || null)
+        || (holders.first.grade === "A" ? holders.first.addNo : null)
+        || (holders.second.grade === "A" ? holders.second.addNo : null)
+        || (holders.third.grade === "A" ? holders.third.addNo : null);
+
+      const gradeSquad2 = (holders.bGrade.addNo || null)
+        || (holders.first.grade === "B" ? holders.first.addNo : null)
+        || (holders.second.grade === "B" ? holders.second.addNo : null)
+        || (holders.third.grade === "B" ? holders.third.addNo : null);
 
       const resultPayload = {
         Program_Id: selectedProgram,
-        First_Holder: getHolderValue("first"),
-        Second_Holder: getHolderValue("second"),
-        Third_Holder: getHolderValue("third"),
-        AGrade: getHolderValue("aGrade"),
-        BGrade: getHolderValue("bGrade"),
         creaded_At: new Date().toTimeString().split(" ")[0],
         is_published: true,
+        is_group: isGroupProgram,
+        "1st_holder_group": isGroupProgram ? (holders.first.addNo || null) : null,
+        "2nd_holder_group": isGroupProgram ? (holders.second.addNo || null) : null,
+        "3rd_holder_group": isGroupProgram ? (holders.third.addNo || null) : null,
+        grade_holder_group1: isGroupProgram ? (gradeSquad1 || null) : null,
+        grade_holder_group2: isGroupProgram ? (gradeSquad2 || null) : null,
+        First_Holder_uuid: !isGroupProgram ? firstCandUuid : null,
+        Second_Holder_uuid: !isGroupProgram ? secondCandUuid : null,
+        Third_Holder_uuid: !isGroupProgram ? thirdCandUuid : null,
+        Grade1_uuid: !isGroupProgram ? grade1CandUuid : null,
+        Grade2_uuid: !isGroupProgram ? grade2CandUuid : null,
       };
 
       // Check if ResultBox already exists for this programme
@@ -975,6 +1109,31 @@ export default function CreateResult() {
         }
       }
 
+      // Revert previous squad points in SquadMate for group programmes
+      if (isEditingExistingResult && previousSquadAllocations.length > 0) {
+        for (const prevSq of previousSquadAllocations) {
+          try {
+            const { data: sq } = await SupaBaseFunction
+              .from("SquadMate")
+              .select("squad_id, total_points, winning_rate")
+              .eq("squad_id", prevSq.squadId)
+              .maybeSingle();
+
+            if (sq) {
+              await SupaBaseFunction
+                .from("SquadMate")
+                .update({
+                  total_points: Math.max(0, Number(sq.total_points || 0) - prevSq.points),
+                  winning_rate: Math.max(0, Number(sq.winning_rate || 0) - 1),
+                })
+                .eq("squad_id", prevSq.squadId);
+            }
+          } catch (revSqErr) {
+            console.warn("Could not revert previous squad points:", prevSq.squadId, revSqErr);
+          }
+        }
+      }
+
       const studentFeedbackLines: string[] = [];
       for (const allocation of allocationsSummary) {
         const { data: stn, error: stnFetchError } = await SupaBaseFunction
@@ -1013,6 +1172,7 @@ export default function CreateResult() {
       }
 
       // 3. UPDATE SQUAD TOTAL POINTS in SquadMate for group programmes
+      const newSquadAllocationsList: { squadId: string; points: number }[] = [];
       if (isGroupProgram) {
         for (const posKey of ["first", "second", "third", "aGrade", "bGrade"] as (keyof HoldersState)[]) {
           const h = holders[posKey];
@@ -1020,6 +1180,7 @@ export default function CreateResult() {
             const sq = registeredSquads.find((s) => s.squad_id === h.addNo);
             if (sq) {
               const pts = calculatePoints(posKey, h.grade);
+              newSquadAllocationsList.push({ squadId: sq.squad_id, points: pts });
               try {
                 const { data: currentSquad } = await SupaBaseFunction
                   .from("SquadMate")
@@ -1054,8 +1215,8 @@ export default function CreateResult() {
             .maybeSingle();
 
           if (wingRow) {
-            const currentPoints = wingRow.Total_Points || 0;
-            const currentResulted = wingRow.Total_Resulted || 0;
+            const currentPoints = Number(wingRow.Total_Points || 0);
+            const currentResulted = Number(wingRow.Total_Resulted || 0);
 
             const newTotalPoints = isEditingExistingResult
               ? Math.max(0, currentPoints - previousPointsAwarded + totalPointsAwarded)
@@ -1077,6 +1238,13 @@ export default function CreateResult() {
           console.warn("Could not credit wing points:", wingErr);
         }
       }
+
+      // Update state for subsequent edits in same session
+      setIsEditingExistingResult(true);
+      setPreviousPointsAwarded(totalPointsAwarded);
+      setPreviousAllocations(allocationsSummary.map((a) => ({ addNo: a.addNo, points: a.points })));
+      setPreviousSquadAllocations(newSquadAllocationsList);
+
 
       // 5. Mark ProgrammeBox as Resulted
       await SupaBaseFunction
@@ -1213,10 +1381,17 @@ export default function CreateResult() {
             <option value="">-- Choose a Programme to Declare or Edit Results --</option>
             {programmes.map((p) => (
               <option key={p.Program_Code} value={p.Program_Code}>
-                [{p.Program_Code}] {p.Program_Title || "Untitled"} {p.is_group_program ? "(Group Event)" : "(Individual)"} {p.IsResulted ? "✓ Result Declared (Editable)" : "⏳ Pending"}
+                [{p.Program_Code}] {p.Program_Title || "Untitled"} {p.is_group_program ? "(Group Event)" : "(Individual)"} {p.is_result_required === false ? "🎯 Direct Wing Pt (+1 Given, No Result Req)" : p.IsResulted ? "✓ Result Declared (Editable)" : "⏳ Pending"}
               </option>
             ))}
           </select>
+
+          {selectedProgDetails?.is_result_required === false && (
+            <div className="p-3.5 bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl text-xs font-bold flex items-center gap-2.5">
+              <CheckCircle2 size={18} className="text-teal-600 shrink-0" />
+              <span>This programme was configured with <strong>No Result Required</strong>. The organizing Wing ({meta.wingMap[selectedProgDetails.WingCode || ""] || selectedProgDetails.WingCode}) was awarded +1 Point directly upon event creation.</span>
+            </div>
+          )}
 
           {isEditingExistingResult && (
             <div className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-bold shadow-2xs border ${

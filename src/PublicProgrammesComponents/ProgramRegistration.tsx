@@ -63,6 +63,7 @@ export default function ProgrammeRegistration() {
     isContentRequired: false,
     ContentSubmition_deadLine: "",
     is_topic_required: false,
+    is_result_required: true,
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -295,6 +296,7 @@ export default function ProgrammeRegistration() {
             ? formData.ContentSubmition_deadLine
             : null,
         is_topic_required: Boolean(formData.is_topic_required),
+        is_result_required: Boolean(formData.is_result_required),
         created_at: new Date().toTimeString().split(" ")[0],
       };
 
@@ -307,20 +309,23 @@ export default function ProgrammeRegistration() {
         throw new Error(`Database Error: ${insertError.message}`);
       }
 
-      // Update Registrations Count in Wing (Hold points until the program is resulted)
+      // Update Registrations Count and Point in Wing
+      // If is_result_required is false, no result will ever be declared so award +1 Point immediately!
       try {
         const { data: wingRecord } = await SupaBaseFunction
           .from("Chs-WingS")
-          .select("Total_Registrations")
+          .select("Total_Registrations, Total_Points")
           .eq("WingCode", formData.WingCode)
           .maybeSingle();
 
         if (wingRecord) {
+          const isResultReq = Boolean(formData.is_result_required);
+          const wingPointsIncrement = !isResultReq ? 1 : 0;
           await SupaBaseFunction
             .from("Chs-WingS")
             .update({
               Total_Registrations: (wingRecord.Total_Registrations || 0) + 1,
-              // Total_Points are held until the programme results are officially declared in CreateResult
+              Total_Points: (Number(wingRecord.Total_Points) || 0) + wingPointsIncrement,
             })
             .eq("WingCode", formData.WingCode);
         }
@@ -795,6 +800,37 @@ export default function ProgrammeRegistration() {
                   </span>
                   <span className="block text-[11px] text-indigo-800 mt-0.5">
                     If enabled, candidates must register their specific topic title & lyrics/outline, which must be unique across the competition and approved by judges.
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Competition Result Requirement Switch */}
+            <div className={`rounded-2xl border p-4 space-y-3 transition-colors ${formData.is_result_required ? 'border-emerald-200 bg-emerald-50/50' : 'border-purple-200 bg-purple-50/60'}`}>
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="is_result_required"
+                  name="is_result_required"
+                  checked={Boolean(formData.is_result_required)}
+                  onChange={handleChange}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="is_result_required" className="cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900">
+                      Competition Result Required (Official Result Declaration)
+                    </span>
+                    {!formData.is_result_required && (
+                      <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white">
+                        +1 Wing Point Direct
+                      </span>
+                    )}
+                  </div>
+                  <span className="block text-[11px] text-slate-700 mt-0.5">
+                    {formData.is_result_required
+                      ? "Standard competitive event. Points will be awarded to winners and the organizing wing when the official competition result is declared."
+                      : "Non-competitive or direct event. No competition result will be declared. +1 Point is automatically awarded to the organizing Wing immediately upon creation!"}
                   </span>
                 </label>
               </div>

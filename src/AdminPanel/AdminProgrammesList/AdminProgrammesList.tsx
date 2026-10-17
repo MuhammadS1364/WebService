@@ -52,12 +52,14 @@ export interface Programme {
   IsConducted: boolean;
   AccademicYear: string | null;
   is_topic_required?: boolean;
+  is_result_required?: boolean | null;
 }
 
 export interface Wing {
   WingCode: string;
   WingTitle: string | null;
   Total_Registrations: number;
+  Total_Points?: number;
 }
 
 type ViewMode = "cards" | "calendar";
@@ -125,7 +127,7 @@ export default function AdminProgrammesList({
     AccademicYear: "", Category: controllerCategoryUuid || "", Group: "", Venue: "", WingCode: "",
   });
   const [approvalFilter, setApprovalFilter] = useState<"all" | "approved" | "pending">("all");
-  const [resultFilter, setResultFilter] = useState<"all" | "resulted" | "published" | "pending" | "unpublished">("all");
+  const [resultFilter, setResultFilter] = useState<"all" | "resulted" | "published" | "pending" | "unpublished" | "no-result-required">("all");
   const [resultModalProgram, setResultModalProgram] = useState<Programme | null>(null);
   const [openMenuProgCode, setOpenMenuProgCode] = useState<string | null>(null);
 
@@ -197,8 +199,9 @@ export default function AdminProgrammesList({
       if (approvalFilter === "pending" && p.IsApproved) return false;
       if (resultFilter === "resulted" && !p.IsResulted) return false;
       if (resultFilter === "published" && !p.IsResultPublished) return false;
-      if (resultFilter === "pending" && p.IsResulted) return false;
+      if (resultFilter === "pending" && (p.IsResulted || p.is_result_required === false)) return false;
       if (resultFilter === "unpublished" && (!p.IsResulted || p.IsResultPublished)) return false;
+      if (resultFilter === "no-result-required" && p.is_result_required !== false) return false;
       if (controllerCategoryUuid && p.Category !== controllerCategoryUuid) return false;
       return (
         (!filters.AccademicYear || p.AccademicYear === filters.AccademicYear) &&
@@ -448,14 +451,26 @@ export default function AdminProgrammesList({
         const { error: insertError } = await SupaBaseFunction.from('ProgrammesBox').insert(validPayload);
         if (insertError) throw insertError;
 
-        const wingIncrements: Record<string, number> = {};
+        const wingIncrements: Record<string, { regs: number; points: number }> = {};
         validPayload.forEach(row => {
-          if (row.WingCode) wingIncrements[row.WingCode] = (wingIncrements[row.WingCode] || 0) + 1;
+          if (row.WingCode) {
+            if (!wingIncrements[row.WingCode]) {
+              wingIncrements[row.WingCode] = { regs: 0, points: 0 };
+            }
+            wingIncrements[row.WingCode].regs += 1;
+            const isNoResult = row.is_result_required === false || row.is_result_required === 'false' || row.is_result_required === 'No';
+            if (isNoResult) {
+              wingIncrements[row.WingCode].points += 1;
+            }
+          }
         });
 
-        const updatePromises = Object.entries(wingIncrements).map(async ([wCode, amount]) => {
+        const updatePromises = Object.entries(wingIncrements).map(async ([wCode, data]) => {
            const wing = wings.find(w => w.WingCode === wCode);
-           return SupaBaseFunction.from('Chs-WingS').update({ Total_Registrations: (wing?.Total_Registrations || 0) + amount }).eq('WingCode', wCode);
+           return SupaBaseFunction.from('Chs-WingS').update({
+             Total_Registrations: (wing?.Total_Registrations || 0) + data.regs,
+             Total_Points: (Number(wing?.Total_Points) || 0) + data.points,
+           }).eq('WingCode', wCode);
         });
         await Promise.all(updatePromises);
 
@@ -570,7 +585,8 @@ export default function AdminProgrammesList({
               <option value="published">📢 Published ({programmes.filter(p => p.IsResultPublished).length})</option>
               <option value="resulted">🏆 Resulted ({programmes.filter(p => p.IsResulted).length})</option>
               <option value="unpublished">🔒 Resulted (Unpublished) ({programmes.filter(p => p.IsResulted && !p.IsResultPublished).length})</option>
-              <option value="pending">⏳ Awaiting Result ({programmes.filter(p => !p.IsResulted).length})</option>
+              <option value="pending">⏳ Awaiting Result ({programmes.filter(p => !p.IsResulted && p.is_result_required !== false).length})</option>
+              <option value="no-result-required">🎯 Direct Wing Pt / No Result Req ({programmes.filter(p => p.is_result_required === false).length})</option>
             </select>
 
             {(['AccademicYear', 'Category', 'Group', 'Venue', 'WingCode'] as const).map((filterKey) => (
@@ -760,6 +776,11 @@ export default function AdminProgrammesList({
                         {prog.IsResultPublished && (
                           <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md flex items-center gap-1">
                             <Award size={11} /> Results
+                          </span>
+                        )}
+                        {prog.is_result_required === false && (
+                          <span className="text-[10px] font-black uppercase text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md flex items-center gap-1" title="Non-competitive / direct event. +1 Point awarded to Wing on creation.">
+                            <CheckCircle2 size={11} /> +1 Wing Pt
                           </span>
                         )}
                         {isContentReq && !prog.IsResultPublished && (
