@@ -89,6 +89,12 @@ export interface ProgrammeRecord {
   ContentSubmition_deadLine?: string;
   is_topic_required?: boolean;
   is_result_required?: boolean;
+  topic_title?: string;
+  is_topic?: boolean;
+  drive_link?: string;
+  is_limitation?: boolean;
+  individual_limit_count?: number;
+  group_limit_count?: number;
 }
 
 export interface TopicRecord {
@@ -275,6 +281,22 @@ export interface ProgrammesBoxRecord {
   ContentSubmition_deadLine?: string | null;
   is_topic_required?: boolean | null;
   is_result_required?: boolean | null;
+  topic_title?: string | null;
+  is_topic?: boolean | null;
+  drive_link?: string | null;
+  is_limitation?: boolean | null;
+  individual_limit_count?: number | null;
+  group_limit_count?: number | null;
+}
+
+/**
+ * Expected Times Table (Expected_Times)
+ */
+export interface ExpectedTimesRecord {
+  excution_id: string;
+  created_at?: string;
+  excution_title: string;
+  is_active?: boolean;
 }
 
 /**

@@ -38,7 +38,7 @@ export default function EditProgrammeModal({
         WingCode: program.WingCode || "",
         Date: program.Date || "",
         Venue: program.Venue || "",
-        Expected_Time: (program as any).Expected_Time || "10:00AM-Till Zohar",
+        Expected_Time: (program as any).Expected_Time || "",
         Collaborator: (program as any).Collaborator || "No Collaboration",
         AccademicYear: program.AccademicYear || meta.activeAcademicYearId || "",
         points_template: (program as any).points_template || meta.defaultTemplateId || "",
@@ -55,6 +55,12 @@ export default function EditProgrammeModal({
         ContentSubmition_deadLine: (program as any).ContentSubmition_deadLine || "",
         is_topic_required: Boolean((program as any).is_topic_required),
         is_result_required: (program as any).is_result_required !== false,
+        topic_title: (program as any).topic_title || "",
+        is_topic: Boolean((program as any).is_topic),
+        drive_link: (program as any).drive_link || "https://drive.google.com/drive/folders/1dXyDEtBW-0gcf1Q12JzFCS8V7L9bXIw4?usp=sharing",
+        is_limitation: Boolean((program as any).is_limitation),
+        individual_limit_count: (program as any).individual_limit_count ?? 15,
+        group_limit_count: (program as any).group_limit_count ?? 7,
       });
       setErrorMsg("");
     }
@@ -110,7 +116,7 @@ export default function EditProgrammeModal({
         WingCode: formData.WingCode || null,
         Date: formData.Date || null,
         Venue: formData.Venue || null,
-        Expected_Time: formData.Expected_Time || "Not Provided",
+        Expected_Time: formData.Expected_Time || null,
         Collaborator: formData.Collaborator || "No Collaboration",
         AccademicYear: formData.AccademicYear || null,
         points_template: formData.points_template || null,
@@ -130,6 +136,12 @@ export default function EditProgrammeModal({
             : null,
         is_topic_required: Boolean(formData.is_topic_required),
         is_result_required: Boolean(formData.is_result_required),
+        topic_title: formData.is_topic ? (formData.topic_title || "").trim() || null : null,
+        is_topic: Boolean(formData.is_topic),
+        drive_link: (formData.drive_link || "").trim() || "https://drive.google.com/drive/folders/1dXyDEtBW-0gcf1Q12JzFCS8V7L9bXIw4?usp=sharing",
+        is_limitation: Boolean(formData.is_limitation),
+        individual_limit_count: Number(formData.individual_limit_count) || 15,
+        group_limit_count: Number(formData.group_limit_count) || 7,
       };
 
       const wasResultRequired = (program as any).is_result_required !== false;
@@ -369,15 +381,20 @@ export default function EditProgrammeModal({
             </div>
 
             <div>
-              <label className="block text-gray-700 font-bold mb-1">Expected Time</label>
-              <input
-                type="text"
+              <label className="block text-gray-700 font-bold mb-1">Expected Time Slot</label>
+              <select
                 name="Expected_Time"
-                placeholder="e.g. 10:00 AM - 1:00 PM"
                 value={formData.Expected_Time || ""}
                 onChange={handleChange}
-                className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden"
-              />
+                className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden bg-white"
+              >
+                <option value="">No Time Slot / Flexible</option>
+                {meta.expectedTimes.map((t) => (
+                  <option key={t.excution_id} value={t.excution_id}>
+                    {t.excution_title} {t.is_active ? "" : "(Inactive)"}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -464,6 +481,24 @@ export default function EditProgrammeModal({
             )}
           </div>
 
+          {/* Study Material / Drive Link */}
+          <div>
+            <label className="block text-gray-700 font-bold mb-1">
+              Study Material / Google Drive Resources Link (drive_link)
+            </label>
+            <input
+              type="url"
+              name="drive_link"
+              placeholder="https://drive.google.com/drive/folders/..."
+              value={formData.drive_link || ""}
+              onChange={handleChange}
+              className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden"
+            />
+            <p className="text-[11px] text-gray-500 mt-1">
+              Provide study notes, syllabus reference, or Google Drive folder for candidates.
+            </p>
+          </div>
+
           {/* Description & Outcomes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -537,6 +572,59 @@ export default function EditProgrammeModal({
             </label>
           </div>
 
+          {/* Registration Limitation Setting */}
+          <div className="p-4 rounded-2xl bg-orange-50/70 border border-orange-200 space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                name="is_limitation"
+                checked={Boolean(formData.is_limitation)}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-500"
+              />
+              <span className="font-bold text-orange-950">
+                Enforce Registration Limitation (is_limitation)
+              </span>
+            </label>
+            <p className="text-[11px] text-orange-800 pl-6.5">
+              If enabled, only a limited number of candidate registrations or squad entries will be permitted for this programme.
+            </p>
+
+            {formData.is_limitation && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 pl-6.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-orange-900 mb-1 uppercase tracking-wide">
+                    Individual Programme Limit (Candidates)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    name="individual_limit_count"
+                    value={formData.individual_limit_count ?? 15}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-orange-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <span className="text-[10px] text-orange-700">Default: 15 candidates</span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-orange-900 mb-1 uppercase tracking-wide">
+                    Group Programme Limit (Squads)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    name="group_limit_count"
+                    value={formData.group_limit_count ?? 7}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-orange-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <span className="text-[10px] text-orange-700">Default: 7 groups</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Candidate Content Submission Requirement */}
           <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2">
             <label className="flex items-center gap-2.5 cursor-pointer">
@@ -566,6 +654,41 @@ export default function EditProgrammeModal({
                   value={formData.ContentSubmition_deadLine || ""}
                   onChange={handleChange}
                   className="p-2 border border-amber-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Common Topic Provided by Wing Creator */}
+          <div className="p-4 rounded-2xl bg-teal-50/70 border border-teal-200 space-y-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                name="is_topic"
+                checked={Boolean(formData.is_topic)}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-teal-300 text-teal-600 focus:ring-teal-500"
+              />
+              <span className="font-bold text-teal-950">
+                Common Topic Provided by Organizer / Wing Creator (Essay, Story, etc.)
+              </span>
+            </label>
+            <p className="text-[11px] text-teal-800 pl-6.5">
+              If enabled, wing creators assign a common topic (e.g. for Essay, Story, Speech) which will be displayed for all candidates to prepare.
+            </p>
+
+            {formData.is_topic && (
+              <div className="pt-2 pl-6.5">
+                <label className="block text-[11px] font-bold text-teal-900 mb-1 uppercase tracking-wide">
+                  Common Topic Title *
+                </label>
+                <input
+                  type="text"
+                  name="topic_title"
+                  placeholder="e.g. The Legacy of Baghdad / Climate Responsibility in Islam"
+                  value={formData.topic_title || ""}
+                  onChange={handleChange}
+                  className="w-full p-2.5 border border-teal-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
             )}

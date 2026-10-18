@@ -21,6 +21,9 @@ import {
   MapPin,
   FileSpreadsheet,
   X,
+  ExternalLink,
+  Clock,
+  BookOpen,
 } from "lucide-react";
 
 interface ProgrammeItem {
@@ -37,6 +40,13 @@ interface ProgrammeItem {
   IsResultPublished?: boolean;
   IsConducted?: boolean;
   points_template?: string | null;
+  Expected_Time?: string | null;
+  is_limitation?: boolean;
+  individual_limit_count?: number | null;
+  group_limit_count?: number | null;
+  is_topic?: boolean;
+  topic_title?: string | null;
+  drive_link?: string | null;
 }
 
 interface SquadItem {
@@ -157,7 +167,7 @@ export default function GroupProgrammeManager() {
 
       let progQuery = SupaBaseFunction
         .from("ProgrammesBox")
-        .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Group, Total_Registration, is_group_program, IsResulted, IsResultPublished, IsConducted, points_template")
+        .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Group, Total_Registration, is_group_program, IsResulted, IsResultPublished, IsConducted, points_template, Expected_Time, is_limitation, individual_limit_count, group_limit_count, is_topic, topic_title, drive_link")
         .order("Date", { ascending: false });
 
       // If Wing panel, filter strictly by resolved WingCode
@@ -853,6 +863,23 @@ export default function GroupProgrammeManager() {
                 }`}>
                   {selectedProgram.is_group_program ? "👥 Squad / Group Event" : "👤 Individual Event"}
                 </span>
+                {selectedProgram.Expected_Time && meta.expectedTimeMap[selectedProgram.Expected_Time] && (
+                  <span className="px-2.5 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold flex items-center gap-1">
+                    <Clock size={12} /> {meta.expectedTimeMap[selectedProgram.Expected_Time]}
+                  </span>
+                )}
+                {selectedProgram.is_limitation && (
+                  <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold border flex items-center gap-1 ${
+                    registeredEntries.length >= (selectedProgram.is_group_program ? (selectedProgram.group_limit_count || 7) : (selectedProgram.individual_limit_count || 15))
+                      ? "bg-rose-50 text-rose-700 border-rose-200"
+                      : "bg-amber-50 text-amber-800 border-amber-200"
+                  }`}>
+                    <Users size={12} />
+                    <span>
+                      Limit: {registeredEntries.length} / {selectedProgram.is_group_program ? (selectedProgram.group_limit_count || 7) : (selectedProgram.individual_limit_count || 15)}
+                    </span>
+                  </span>
+                )}
                 {selectedProgram.IsResulted ? (
                   <span className="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-xs font-black flex items-center gap-1">
                     <CheckCircle2 size={12} /> Result Declared
@@ -865,6 +892,14 @@ export default function GroupProgrammeManager() {
               </div>
 
               <h3 className="text-xl font-black text-slate-900">{selectedProgram.Program_Title}</h3>
+
+              {/* Common Assigned Topic */}
+              {selectedProgram.is_topic && selectedProgram.topic_title && (
+                <div className="p-2.5 bg-teal-50/80 border border-teal-200 rounded-xl text-xs flex items-center gap-2 text-teal-900">
+                  <BookOpen size={14} className="text-teal-600 shrink-0" />
+                  <span><strong>Assigned Topic:</strong> "{selectedProgram.topic_title}"</span>
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600">
                 <span className="flex items-center gap-1">
@@ -879,6 +914,17 @@ export default function GroupProgrammeManager() {
                   <Users size={13} className="text-slate-400" />
                   {registeredEntries.length} Candidates Registered
                 </span>
+                {selectedProgram.drive_link && (
+                  <a
+                    href={selectedProgram.drive_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-bold"
+                  >
+                    <ExternalLink size={12} />
+                    <span>Study Material Drive</span>
+                  </a>
+                )}
               </div>
             </div>
 

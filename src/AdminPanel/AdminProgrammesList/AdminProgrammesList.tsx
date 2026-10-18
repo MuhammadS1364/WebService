@@ -27,10 +27,12 @@ import {
   Printer,
   Trash2,
   MoreHorizontal,
+  UserPlus,
+  BookOpen,
+  ExternalLink,
   CheckCircle2,
   Clock,
-  Trophy,
-  UserPlus
+  Trophy
 } from "lucide-react"; 
 
 export interface Programme {
@@ -53,6 +55,18 @@ export interface Programme {
   AccademicYear: string | null;
   is_topic_required?: boolean;
   is_result_required?: boolean | null;
+  is_group_program?: boolean | null;
+  isContentRequired?: boolean | null;
+  ContentSubmition_deadLine?: string | null;
+  topic_title?: string | null;
+  is_topic?: boolean | null;
+  drive_link?: string | null;
+  is_limitation?: boolean | null;
+  individual_limit_count?: number | null;
+  group_limit_count?: number | null;
+  Expected_Time?: string | null;
+  Collaborator?: string | null;
+  points_template?: string | null;
 }
 
 export interface Wing {
@@ -181,6 +195,11 @@ export default function AdminProgrammesList({
   const getGroupName = (grpId: string | null): string => {
     if (!grpId) return "General Group";
     return meta.groupMap[grpId] || grpId;
+  };
+
+  const getExpectedTimeName = (timeId: string | null | undefined): string => {
+    if (!timeId) return "";
+    return meta.expectedTimeMap[timeId] || "";
   };
 
   const uniqueValues = useMemo(() => {
@@ -946,7 +965,7 @@ export default function AdminProgrammesList({
                         <span className="text-xs font-bold text-slate-800 truncate">{getWingName(prog.WingCode)}</span>
                       </div>
 
-                      {/* Date & Venue Grid */}
+                      {/* Date, Venue & Expected Time Grid */}
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
                         <div className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/60 truncate" title={prog.Date || "TBA"}>
                           <Calendar size={13} className="text-emerald-600 shrink-0" />
@@ -964,8 +983,30 @@ export default function AdminProgrammesList({
                         </div>
                       </div>
 
-                      {/* Registration Stats & Year Counter */}
-                      <div className="flex items-center justify-between pt-1 text-[11px]">
+                      {/* Expected Time Slot Badge */}
+                      {prog.Expected_Time && getExpectedTimeName(prog.Expected_Time) && (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 font-bold truncate">
+                          <Clock size={12} className="text-indigo-600 shrink-0" />
+                          <span className="text-[9px] uppercase text-indigo-500 font-bold shrink-0">Time:</span>
+                          <span className="truncate">{getExpectedTimeName(prog.Expected_Time)}</span>
+                        </div>
+                      )}
+
+                      {/* Common Assigned Topic Pill */}
+                      {prog.is_topic && prog.topic_title && (
+                        <div className="p-2 rounded-xl bg-teal-50 border border-teal-200/70 text-[11px] space-y-0.5">
+                          <div className="flex items-center gap-1 text-teal-800 font-bold text-[10px] uppercase">
+                            <BookOpen size={11} className="text-teal-600 shrink-0" />
+                            <span>Assigned Topic</span>
+                          </div>
+                          <p className="font-bold text-teal-950 truncate pl-3.5">
+                            "{prog.topic_title}"
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Registration Stats, Limit & Year Counter */}
+                      <div className="flex items-center justify-between pt-1 text-[11px] flex-wrap gap-2">
                         <Link
                           to={`../candidate-registration/${prog.Program_Code}`}
                           className="flex items-center gap-1.5 text-indigo-700 hover:text-indigo-900 font-extrabold hover:underline"
@@ -977,11 +1018,45 @@ export default function AdminProgrammesList({
                             Manage
                           </span>
                         </Link>
-                        {prog.AccademicYear && (
-                          <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md">
-                            {getAcademicYearName(prog.AccademicYear)}
-                          </span>
-                        )}
+
+                        <div className="flex items-center gap-1.5">
+                          {prog.is_limitation && (
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
+                                (prog.Total_Registration || 0) >=
+                                ((prog as any).is_group_program
+                                  ? (prog.group_limit_count || 7)
+                                  : (prog.individual_limit_count || 15))
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : "bg-orange-50 text-orange-800 border-orange-200"
+                              }`}
+                              title="Registration capacity limitation"
+                            >
+                              Cap: {prog.Total_Registration || 0} /{" "}
+                              {(prog as any).is_group_program
+                                ? prog.group_limit_count || 7
+                                : prog.individual_limit_count || 15}
+                            </span>
+                          )}
+
+                          {prog.drive_link && (
+                            <a
+                              href={prog.drive_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md flex items-center gap-1 transition shadow-2xs"
+                              title="Open Google Drive resources"
+                            >
+                              <ExternalLink size={10} /> Drive
+                            </a>
+                          )}
+
+                          {prog.AccademicYear && (
+                            <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md">
+                              {getAcademicYearName(prog.AccademicYear)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

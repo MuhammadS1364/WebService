@@ -7,6 +7,7 @@ import type {
   OurVenuesRecord,
   OurGroupsRecord,
   PointsTemplateRecord,
+  ExpectedTimesRecord,
 } from "./types";
 
 /**
@@ -449,3 +450,22 @@ export async function deletePointsTemplateCascade(tmpl: PointsTemplateRecord): P
     .eq("p_template_id", tmpl.p_template_id);
   if (error) throw error;
 }
+
+export async function deleteExpectedTimeCascade(time: ExpectedTimesRecord): Promise<void> {
+  if (!time.excution_id) throw new Error("Missing expected time ID");
+
+  // 1. Unlink Expected_Time from ProgrammesBox
+  try {
+    await SupaBaseFunction.from("ProgrammesBox").update({ Expected_Time: null }).eq("Expected_Time", time.excution_id);
+  } catch (err) {
+    console.warn("Could not unlink Expected_Time from ProgrammesBox:", err);
+  }
+
+  // 2. Delete from Expected_Times
+  const { error } = await SupaBaseFunction
+    .from("Expected_Times")
+    .delete()
+    .eq("excution_id", time.excution_id);
+  if (error) throw error;
+}
+

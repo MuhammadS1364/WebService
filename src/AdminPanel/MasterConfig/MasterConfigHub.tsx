@@ -10,6 +10,7 @@ import {
   deleteVenueCascade,
   deleteGroupCascade,
   deletePointsTemplateCascade,
+  deleteExpectedTimeCascade,
 } from "../../lib/cascadeDeleteService";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import type {
@@ -19,12 +20,14 @@ import type {
   OurVenuesRecord,
   OurGroupsRecord,
   PointsTemplateRecord,
+  ExpectedTimesRecord,
 } from "../../lib/types";
 import {
   GraduationCap,
   Layers,
   MapPin,
   Trophy,
+  Clock,
   Plus,
   Search,
   CheckCircle2,
@@ -40,7 +43,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export type MasterTab = "classes" | "batches" | "categories" | "groups" | "venues" | "templates";
+export type MasterTab = "classes" | "batches" | "categories" | "groups" | "venues" | "templates" | "expected_times";
 
 export default function MasterConfigHub() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -52,7 +55,7 @@ export default function MasterConfigHub() {
   // Sync state with URL params
   useEffect(() => {
     const tabParam = searchParams.get("tab") as MasterTab;
-    if (tabParam && ["classes", "batches", "categories", "groups", "venues", "templates"].includes(tabParam)) {
+    if (tabParam && ["classes", "batches", "categories", "groups", "venues", "templates", "expected_times"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -78,7 +81,7 @@ export default function MasterConfigHub() {
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
               Define and manage core campus entities: Academic Classes, Batches (Collaborators), Programme Categories, Campus
-              Venues, and Points Templates with foreign key relations.
+              Venues, Points Templates, and Dynamic Expected Execution Times with foreign key relations.
             </p>
           </div>
 
@@ -92,7 +95,7 @@ export default function MasterConfigHub() {
           </button>
         </div>
 
-        {/* 5 Tabs Navigation Bar */}
+        {/* Tabs Navigation Bar */}
         <div className="flex items-center gap-2 overflow-x-auto pt-6 border-t border-white/10 mt-6 scrollbar-none">
           <button
             type="button"
@@ -172,6 +175,19 @@ export default function MasterConfigHub() {
             Points Templates ({meta.pointsTemplates.length})
           </button>
 
+          <button
+            type="button"
+            onClick={() => handleTabChange("expected_times")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === "expected_times"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30"
+                : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <Clock size={16} />
+            Expected Times ({meta.expectedTimes.length})
+          </button>
+
           <Link
             to="../category-controllers"
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/30 border border-indigo-400/30 cursor-pointer ml-auto"
@@ -202,6 +218,7 @@ export default function MasterConfigHub() {
       {activeTab === "groups" && <GroupsManager onDataChanged={meta.refetch} />}
       {activeTab === "venues" && <VenuesManager onDataChanged={meta.refetch} />}
       {activeTab === "templates" && <PointsTemplatesManager onDataChanged={meta.refetch} />}
+      {activeTab === "expected_times" && <ExpectedTimesManager onDataChanged={meta.refetch} />}
     </div>
   );
 }
@@ -3114,3 +3131,437 @@ function PointsTemplatesManager({ onDataChanged }: { onDataChanged: () => void }
     </div>
   );
 }
+
+/* =========================================================================
+   7. EXPECTED EXECUTION TIMES MANAGER (Only Admin Can Create / Edit)
+   create table public."Expected_Times" (
+     excution_id uuid not null default gen_random_uuid (),
+     created_at timestamp with time zone not null default now(),
+     excution_title character varying null default 'excution_title'::character varying,
+     is_active boolean null default true,
+     constraint "Expected_Times_pkey" primary key (excution_id)
+   ) TABLESPACE pg_default;
+   ========================================================================= */
+function ExpectedTimesManager({ onDataChanged }: { onDataChanged: () => void }) {
+  const [times, setTimes] = useState<ExpectedTimesRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [usageMap, setUsageMap] = useState<Record<string, number>>({});
+
+  // Form Modal state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ExpectedTimesRecord | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [deletingTime, setDeletingTime] = useState<ExpectedTimesRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    excution_title: "",
+    is_active: true,
+  });
+
+  const fetchTimes = async () => {
+    try {
+      setLoading(true);
+      const [timesRes, progRes] = await Promise.all([
+        SupaBaseFunction
+          .from("Expected_Times")
+          .select("*")
+          .order("created_at", { ascending: true }),
+        SupaBaseFunction
+          .from("ProgrammesBox")
+          .select("Expected_Time"),
+      ]);
+
+      if (timesRes.error) throw timesRes.error;
+      const data = (timesRes.data as ExpectedTimesRecord[]) || [];
+      setTimes(data);
+
+      const usage: Record<string, number> = {};
+      (progRes.data || []).forEach((p: any) => {
+        if (p.Expected_Time) {
+          usage[p.Expected_Time] = (usage[p.Expected_Time] || 0) + 1;
+        }
+      });
+      setUsageMap(usage);
+    } catch (err: any) {
+      console.error("Failed to fetch Expected_Times:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTimes();
+  }, []);
+
+  const openCreateModal = () => {
+    setEditingItem(null);
+    setFormData({
+      excution_title: "",
+      is_active: true,
+    });
+    setFormError("");
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (item: ExpectedTimesRecord) => {
+    setEditingItem(item);
+    setFormData({
+      excution_title: item.excution_title || "",
+      is_active: item.is_active !== false,
+    });
+    setFormError("");
+    setIsModalOpen(true);
+  };
+
+  const handleToggleActive = async (item: ExpectedTimesRecord) => {
+    try {
+      const nextActive = !item.is_active;
+      const { error } = await SupaBaseFunction
+        .from("Expected_Times")
+        .update({ is_active: nextActive })
+        .eq("excution_id", item.excution_id);
+
+      if (error) throw error;
+      setTimes((prev) =>
+        prev.map((t) => (t.excution_id === item.excution_id ? { ...t, is_active: nextActive } : t))
+      );
+      onDataChanged();
+    } catch (err: any) {
+      alert("Failed to update status: " + err.message);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.excution_title.trim()) {
+      setFormError("Execution time title is required.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setFormError("");
+
+      const payload = {
+        excution_title: formData.excution_title.trim(),
+        is_active: Boolean(formData.is_active),
+      };
+
+      if (editingItem) {
+        const { error } = await SupaBaseFunction
+          .from("Expected_Times")
+          .update(payload)
+          .eq("excution_id", editingItem.excution_id);
+        if (error) throw error;
+      } else {
+        const { error } = await SupaBaseFunction
+          .from("Expected_Times")
+          .insert([payload]);
+        if (error) throw error;
+      }
+
+      setIsModalOpen(false);
+      await fetchTimes();
+      onDataChanged();
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save expected time slot.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmDeleteTime = async () => {
+    if (!deletingTime) return;
+    try {
+      setIsDeleting(true);
+      await deleteExpectedTimeCascade(deletingTime);
+      setDeletingTime(null);
+      await fetchTimes();
+      onDataChanged();
+    } catch (err: any) {
+      alert("Failed to delete expected time slot: " + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const filteredTimes = useMemo(() => {
+    return times.filter((t) => {
+      if (statusFilter === "active" && !t.is_active) return false;
+      if (statusFilter === "inactive" && t.is_active) return false;
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        return (t.excution_title || "").toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [times, statusFilter, searchTerm]);
+
+  return (
+    <div className="space-y-4">
+      {/* Controls Bar */}
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search time slot (e.g. 10:00AM, Fazar, Zohar)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl self-start">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("all")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                statusFilter === "all" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              All ({times.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("active")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                statusFilter === "active" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("inactive")}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                statusFilter === "inactive" ? "bg-white text-slate-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Inactive
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={openCreateModal}
+          className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white rounded-xl text-xs font-bold shadow-xs transition cursor-pointer self-start md:self-auto"
+        >
+          <Plus size={16} />
+          Create Expected Time
+        </button>
+      </div>
+
+      {/* Info notice about Admin Only permission */}
+      <div className="p-3.5 bg-indigo-50/60 border border-indigo-200/70 rounded-2xl flex items-center justify-between text-xs text-indigo-900">
+        <div className="flex items-center gap-2">
+          <Clock size={16} className="text-indigo-600 shrink-0" />
+          <span>
+            <strong>Dynamic Time Slots:</strong> Only System Administrators can configure execution time slots. Programmes link dynamically to these records via foreign key.
+          </span>
+        </div>
+        <span className="font-mono font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-md text-[11px]">
+          Expected_Times Table
+        </span>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-2">
+            <Loader2 size={24} className="animate-spin text-indigo-600" />
+            <span className="text-xs font-semibold">Loading expected execution times...</span>
+          </div>
+        ) : filteredTimes.length === 0 ? (
+          <div className="p-12 text-center text-slate-400">
+            <Clock size={36} className="mx-auto mb-2 text-slate-300" />
+            <p className="text-sm font-bold text-slate-600">No expected execution times found</p>
+            <p className="text-xs text-slate-400 mt-1">Create your campus schedule slots (e.g. 10:00AM - 1:00PM)</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                  <th className="py-3 px-4">Time Slot Title</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Linked Programmes</th>
+                  <th className="py-3 px-4">Slot UUID</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700 font-medium">
+                {filteredTimes.map((t) => {
+                  const usage = usageMap[t.excution_id] || 0;
+                  return (
+                    <tr key={t.excution_id} className="hover:bg-slate-50/70 transition">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                            <Clock size={16} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 text-sm">{t.excution_title}</p>
+                            <span className="text-[10px] text-slate-400">
+                              Created: {t.created_at ? new Date(t.created_at).toLocaleDateString() : "System Default"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleActive(t)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold cursor-pointer transition ${
+                            t.is_active
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                              : "bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200"
+                          }`}
+                        >
+                          {t.is_active ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                          <span>{t.is_active ? "Active" : "Inactive"}</span>
+                        </button>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] ${
+                          usage > 0 ? "bg-indigo-50 text-indigo-700" : "bg-slate-100 text-slate-500"
+                        }`}>
+                          {usage} {usage === 1 ? "programme" : "programmes"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[10px] text-slate-400">
+                        {t.excution_id}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(t)}
+                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                            title="Edit Title"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingTime(t)}
+                            className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition cursor-pointer"
+                            title="Delete Slot"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* CREATE / EDIT MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-md relative animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    {editingItem ? "Edit Expected Time Slot" : "Create Expected Time Slot"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Only Admin can create & configure time slots</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <XCircle size={20} />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl mb-4">
+                {formError}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Time Slot Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 10:00AM - Till Zohar, After Fazar - 7:00AM"
+                  value={formData.excution_title}
+                  onChange={(e) => setFormData({ ...formData, excution_title: e.target.value })}
+                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-white"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-800 text-xs">Active for Selection</span>
+                    <p className="text-[10px] text-slate-500">
+                      When active, this time slot appears in programme creation and edit dropdowns.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+                >
+                  {saving ? "Saving..." : editingItem ? "Update Slot" : "Create Slot"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deletingTime)}
+        title="Delete Expected Time Slot?"
+        message={`Are you sure you want to permanently delete time slot "${deletingTime?.excution_title || ''}"? Any programmes linking to this slot will be safely unlinked (set to null).`}
+        itemDescription={`Slot ID: ${deletingTime?.excution_id || ''}`}
+        isDeleting={isDeleting}
+        onConfirm={confirmDeleteTime}
+        onCancel={() => setDeletingTime(null)}
+      />
+    </div>
+  );
+}
+

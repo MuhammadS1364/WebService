@@ -15,6 +15,10 @@ import {
   Calendar,
   RefreshCw,
   Eye,
+  ExternalLink,
+  Clock,
+  BookOpen,
+  Users,
 } from "lucide-react";
 
 // Define the shape of your program data
@@ -28,6 +32,14 @@ interface ProgramDetails {
   Total_Registration?: number;
   is_topic_required?: boolean;
   IsOpenRegistration?: boolean;
+  is_group_program?: boolean;
+  is_limitation?: boolean;
+  individual_limit_count?: number;
+  group_limit_count?: number;
+  is_topic?: boolean;
+  topic_title?: string;
+  drive_link?: string;
+  Expected_Time?: string;
 }
 
 // Define the shape of your status alerts
@@ -57,6 +69,7 @@ export default function CandidateRegistration() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isDuplicate, setIsDuplicate] = useState<boolean>(false);
   const [categoryMismatch, setCategoryMismatch] = useState<boolean>(false);
+  const [isLimitReached, setIsLimitReached] = useState<boolean>(false);
   const [status, setStatus] = useState<StatusState>({ type: "", text: "" });
   const [isPrintSheetOpen, setIsPrintSheetOpen] = useState<boolean>(false);
   const [canPrintSheet, setCanPrintSheet] = useState<boolean>(false);
@@ -151,7 +164,7 @@ export default function CandidateRegistration() {
       try {
         const { data, error } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Total_Registration, is_topic_required, IsOpenRegistration")
+          .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Total_Registration, is_topic_required, IsOpenRegistration, is_group_program, is_limitation, individual_limit_count, group_limit_count, is_topic, topic_title, drive_link, Expected_Time")
           .eq("Program_Code", P_Code)
           .maybeSingle();
 
@@ -272,11 +285,30 @@ export default function CandidateRegistration() {
         if (duplicateCheck) {
           setStudentName(`⚠️ You are ALREADY registered for this event!`);
           setIsDuplicate(true);
-        } else {
-          setStudentName(`✅ ${studentData.StudentName}`);
-          setIsDuplicate(false);
-          setCategoryMismatch(false);
+          return;
         }
+
+        // Step D: Enforce is_limitation limit
+        if (programDetails?.is_limitation) {
+          const maxLimit = programDetails.is_group_program
+            ? (programDetails.group_limit_count ?? 7)
+            : (programDetails.individual_limit_count ?? 15);
+          const currentCount = programDetails.Total_Registration || 0;
+          if (currentCount >= maxLimit) {
+            setStudentName(
+              `❌ Registration Limit Reached: Maximum of ${maxLimit} ${
+                programDetails.is_group_program ? "groups" : "candidates"
+              } allowed for this event.`
+            );
+            setIsLimitReached(true);
+            return;
+          }
+        }
+
+        setStudentName(`✅ ${studentData.StudentName}`);
+        setIsDuplicate(false);
+        setCategoryMismatch(false);
+        setIsLimitReached(false);
       } catch (err) {
         console.error(err);
         setStudentName("⚠️ Validation service runtime exception");
@@ -292,8 +324,8 @@ export default function CandidateRegistration() {
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!studentName.startsWith("✅") || isDuplicate || categoryMismatch) {
-      alert("Registration blocked due to invalid candidate code, duplicate registration, or category restriction.");
+    if (!studentName.startsWith("✅") || isDuplicate || categoryMismatch || isLimitReached) {
+      alert("Registration blocked due to invalid candidate code, duplicate registration, category restriction, or event limit reached.");
       return;
     }
 
@@ -472,7 +504,7 @@ export default function CandidateRegistration() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap pt-1">
+                <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap pt-1">
                   {programDetails?.Category && (
                     <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-bold text-[11px]">
                       Category: {meta.categoryMap[programDetails.Category] || programDetails.Category}
@@ -483,13 +515,65 @@ export default function CandidateRegistration() {
                       Wing: {meta.wingMap[programDetails.WingCode] || programDetails.WingCode}
                     </span>
                   )}
+                  {programDetails?.Expected_Time && meta.expectedTimeMap[programDetails.Expected_Time] && (
+                    <span className="px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold text-[11px] flex items-center gap-1">
+                      <Clock size={11} /> {meta.expectedTimeMap[programDetails.Expected_Time]}
+                    </span>
+                  )}
                   {programDetails?.Date && (
                     <span className="text-[11px] font-medium text-slate-600">
                       Date: {programDetails.Date}
                     </span>
                   )}
+                  {programDetails?.is_limitation && (
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border flex items-center gap-1 ${
+                      (programDetails.Total_Registration || 0) >= (programDetails.individual_limit_count || 15)
+                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                        : "bg-amber-50 text-amber-800 border-amber-200"
+                    }`}>
+                      <Users size={11} />
+                      <span>
+                        Capacity: {programDetails.Total_Registration || 0} / {programDetails.individual_limit_count || 15}
+                      </span>
+                    </span>
+                  )}
                 </div>
               </div>
+
+              {/* Common Assigned Topic (Wing Creator provided topic) */}
+              {programDetails?.is_topic && programDetails?.topic_title && (
+                <div className="p-3.5 bg-teal-50/80 border border-teal-200 rounded-2xl text-xs space-y-1">
+                  <div className="flex items-center gap-2 text-teal-900 font-bold">
+                    <BookOpen size={15} className="text-teal-600 shrink-0" />
+                    <span>Official Competition Topic (Wing Assigned):</span>
+                  </div>
+                  <p className="text-teal-950 font-black pl-5.5 text-sm">
+                    "{programDetails.topic_title}"
+                  </p>
+                  <p className="text-[10px] text-teal-700 pl-5.5">
+                    All candidates competing in this event will present on this designated topic.
+                  </p>
+                </div>
+              )}
+
+              {/* Study Material / Drive Link */}
+              {programDetails?.drive_link && (
+                <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-blue-900 font-medium">
+                    <FileText size={15} className="text-blue-600 shrink-0" />
+                    <span>Study material & resources available for this event.</span>
+                  </div>
+                  <a
+                    href={programDetails.drive_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] flex items-center gap-1 shrink-0 transition shadow-xs"
+                  >
+                    <ExternalLink size={12} />
+                    <span>Open Drive</span>
+                  </a>
+                </div>
+              )}
 
               {/* Notice if Topic Registration is required */}
               {programDetails?.is_topic_required && (

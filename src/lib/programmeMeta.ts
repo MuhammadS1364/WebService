@@ -8,6 +8,7 @@ import type {
   OurClassesRecord,
   OurBatchesRecord,
   OurGroupsRecord,
+  ExpectedTimesRecord,
 } from "./types";
 
 export interface WingLookup {
@@ -24,6 +25,7 @@ export interface ProgrammeMetaState {
   classes: OurClassesRecord[];
   batches: OurBatchesRecord[];
   wings: WingLookup[];
+  expectedTimes: ExpectedTimesRecord[];
   loading: boolean;
   error: string | null;
 
@@ -37,12 +39,14 @@ export interface ProgrammeMetaState {
   classStandardNameMap: Record<string, string>;
   batchMap: Record<string, string>;
   wingMap: Record<string, string>;
+  expectedTimeMap: Record<string, string>;
 
   // Safe resolver helpers (guarantee no raw UUIDs shown)
   getCategoryName: (idOrVal?: string | null, fallback?: string) => string;
   getGroupName: (idOrVal?: string | null, fallback?: string) => string;
   getVenueName: (idOrVal?: string | null, fallback?: string) => string;
   getClassName: (idOrVal?: string | null, fallback?: string) => string;
+  getExpectedTimeTitle: (idOrVal?: string | null, fallback?: string) => string;
 
   // Defaults
   activeAcademicYearId: string;
@@ -69,6 +73,10 @@ export interface ProgrammeMetaState {
     title: string,
     values?: Partial<PointsTemplateRecord>
   ) => Promise<PointsTemplateRecord | null>;
+  addExpectedTime: (
+    title: string,
+    isActive?: boolean
+  ) => Promise<ExpectedTimesRecord | null>;
   refetch: () => Promise<void>;
 }
 
@@ -76,6 +84,17 @@ export interface ProgrammeMetaState {
 export const isUuid = (val: string | null | undefined): boolean => {
   if (!val) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+};
+
+export const resolveExpectedTimeTitle = (
+  val: string | null | undefined,
+  expectedTimeMap: Record<string, string>,
+  fallback = "Not Provided"
+): string => {
+  if (!val) return fallback;
+  if (expectedTimeMap[val]) return expectedTimeMap[val];
+  if (isUuid(val)) return fallback;
+  return val;
 };
 
 export const resolveCategoryName = (
@@ -132,6 +151,7 @@ let inMemoryMetaCache: {
   classes: OurClassesRecord[];
   batches: OurBatchesRecord[];
   wings: WingLookup[];
+  expectedTimes: ExpectedTimesRecord[];
   timestamp: number;
 } | null = null;
 
@@ -162,6 +182,9 @@ export function useProgrammeMeta(): ProgrammeMetaState {
   const [wings, setWings] = useState<WingLookup[]>(
     () => inMemoryMetaCache?.wings || []
   );
+  const [expectedTimes, setExpectedTimes] = useState<ExpectedTimesRecord[]>(
+    () => inMemoryMetaCache?.expectedTimes || []
+  );
   const [loading, setLoading] = useState<boolean>(!inMemoryMetaCache);
   const [error, setError] = useState<string | null>(null);
 
@@ -175,7 +198,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       setLoading(true);
       setError(null);
 
-      const [catRes, venRes, grpRes, acadRes, ptsRes, clsRes, batchRes, wingRes] = await Promise.all([
+      const [catRes, venRes, grpRes, acadRes, ptsRes, clsRes, batchRes, wingRes, timeRes] = await Promise.all([
         SupaBaseFunction.from("Our_Category").select("*").order("category_title"),
         SupaBaseFunction.from("Our_Venues").select("*").order("venue_title"),
         SupaBaseFunction.from("Our_Groups").select("*").order("group_title"),
@@ -184,6 +207,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         SupaBaseFunction.from("Our_Classes").select("*").order("class_serial_number"),
         SupaBaseFunction.from("Our_Batches").select("*").order("batch_name"),
         SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle").order("WingTitle"),
+        SupaBaseFunction.from("Expected_Times").select("*").order("created_at", { ascending: true }),
       ]);
 
       const catData = (catRes.data as OurCategoryRecord[]) || [];
@@ -194,6 +218,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       const clsData = (clsRes.data as OurClassesRecord[]) || [];
       const batchData = (batchRes.data as OurBatchesRecord[]) || [];
       const wingData = (wingRes.data as WingLookup[]) || [];
+      const timeData = (timeRes.data as ExpectedTimesRecord[]) || [];
 
       inMemoryMetaCache = {
         categories: catData,
@@ -204,6 +229,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         classes: clsData,
         batches: batchData,
         wings: wingData,
+        expectedTimes: timeData,
         timestamp: Date.now(),
       };
 
@@ -215,11 +241,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       setClasses(clsData);
       setBatches(batchData);
       setWings(wingData);
-      setAcademicYears(acadData);
-      setPointsTemplates(ptsData);
-      setClasses(clsData);
-      setBatches(batchData);
-      setWings(wingData);
+      setExpectedTimes(timeData);
     } catch (err: any) {
       console.error("Failed to load programme meta lookups:", err);
       setError(err.message || "Failed to load programme metadata.");
@@ -313,6 +335,14 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     });
     return map;
   }, [wings]);
+
+  const expectedTimeMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    expectedTimes.forEach((t) => {
+      if (t.excution_id) map[t.excution_id] = t.excution_title || "Time Slot";
+    });
+    return map;
+  }, [expectedTimes]);
 
   const activeAcademicYear = academicYears.find((a) => a.is_active) || academicYears[0];
   const activeAcademicYearId = activeAcademicYear?.accademic_id || "";
@@ -555,6 +585,47 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     [classMap]
   );
 
+  const getExpectedTimeTitle = useCallback(
+    (idOrVal?: string | null, fallback = "Not Provided") =>
+      resolveExpectedTimeTitle(idOrVal, expectedTimeMap, fallback),
+    [expectedTimeMap]
+  );
+
+  const addExpectedTime = async (
+    title: string,
+    isActive = true
+  ): Promise<ExpectedTimesRecord | null> => {
+    if (!title.trim()) return null;
+    try {
+      const payload: Record<string, any> = {
+        excution_title: title.trim(),
+        is_active: Boolean(isActive),
+      };
+
+      const { data, error: insertErr } = await SupaBaseFunction
+        .from("Expected_Times")
+        .insert([payload])
+        .select()
+        .single();
+
+      if (insertErr) throw insertErr;
+      if (data) {
+        setExpectedTimes((prev) => [...prev, data]);
+        if (inMemoryMetaCache) {
+          inMemoryMetaCache.expectedTimes = [
+            ...(inMemoryMetaCache.expectedTimes || []),
+            data,
+          ];
+        }
+        return data as ExpectedTimesRecord;
+      }
+    } catch (e: any) {
+      console.error("Error creating expected time:", e);
+      throw e;
+    }
+    return null;
+  };
+
   return {
     categories,
     venues,
@@ -564,6 +635,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     classes,
     batches,
     wings,
+    expectedTimes,
     loading,
     error,
     categoryMap,
@@ -575,10 +647,12 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     classStandardNameMap,
     batchMap,
     wingMap,
+    expectedTimeMap,
     getCategoryName,
     getGroupName,
     getVenueName,
     getClassName,
+    getExpectedTimeTitle,
     activeAcademicYearId,
     defaultTemplateId,
     addCategory,
@@ -587,6 +661,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     addClass,
     addBatch,
     addPointsTemplate,
+    addExpectedTime,
     refetch: () => fetchMeta(true),
   };
 }

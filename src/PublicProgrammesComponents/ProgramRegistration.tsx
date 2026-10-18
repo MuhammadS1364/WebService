@@ -55,7 +55,7 @@ export default function ProgrammeRegistration() {
     Venue: "", // uuid references Our_Venues(venue_id)
     AccademicYear: "", // uuid references Accademic_Info(accademic_id)
     points_template: "", // uuid references Points_Templates(p_template_id)
-    Expected_Time: "10:00AM-Till Zohar",
+    Expected_Time: "", // uuid references Expected_Times(excution_id)
     Collaborator: "No Collaboration",
     is_group_program: false,
     IsOpenRegistration: true,
@@ -64,22 +64,15 @@ export default function ProgrammeRegistration() {
     ContentSubmition_deadLine: "",
     is_topic_required: false,
     is_result_required: true,
+    topic_title: "",
+    is_topic: false,
+    drive_link: "https://drive.google.com/drive/folders/1dXyDEtBW-0gcf1Q12JzFCS8V7L9bXIw4?usp=sharing",
+    is_limitation: false,
+    individual_limit_count: 15,
+    group_limit_count: 7,
   };
 
   const [formData, setFormData] = useState(initialFormState);
-
-  const expectedTimeOptions = [
-    "After Fazar-7:00Am",
-    "After 7:00Am-Befor Breakfast(9:00Am)",
-    "Breakfast(9:15AM)-10:00Am",
-    "10:00AM-Till Zohar",
-    "After Zohar(1:45PM)-3:00PM",
-    "Befor Asar(4:05PM)-4:30PM",
-    "After Magirb-Ishaa",
-    "After Ishaa-10:20PM",
-    "Full Day Programme",
-    "Custom Schedule",
-  ];
 
   // Populate default foreign key selections once metadata is loaded
   useEffect(() => {
@@ -89,13 +82,19 @@ export default function ProgrammeRegistration() {
     if (!formData.points_template && meta.defaultTemplateId) {
       setFormData((prev) => ({ ...prev, points_template: meta.defaultTemplateId }));
     }
+    if (!formData.Expected_Time && meta.expectedTimes.length > 0) {
+      const activeSlot = meta.expectedTimes.find((t) => t.is_active);
+      if (activeSlot) {
+        setFormData((prev) => ({ ...prev, Expected_Time: activeSlot.excution_id }));
+      }
+    }
     if (!formData.Category && meta.categories.length > 0) {
       setFormData((prev) => ({ ...prev, Category: meta.categories[0].category_id }));
     }
     if (!formData.Venue && meta.venues.length > 0) {
       setFormData((prev) => ({ ...prev, Venue: meta.venues[0].venue_id }));
     }
-  }, [meta.activeAcademicYearId, meta.defaultTemplateId, meta.categories, meta.venues]);
+  }, [meta.activeAcademicYearId, meta.defaultTemplateId, meta.expectedTimes, meta.categories, meta.venues]);
 
   // Fetch current user details and auto-select wing
   useEffect(() => {
@@ -283,7 +282,7 @@ export default function ProgrammeRegistration() {
         IsOpenRegistration: Boolean(formData.IsOpenRegistration),
         Program_Poster: finalPosterUrl || defaultPoster,
         IsConducted: false,
-        Expected_Time: formData.Expected_Time || "Not Provided",
+        Expected_Time: formData.Expected_Time || null,
         Collaborator: formData.Collaborator || "No Collaboration",
         is_group_program: Boolean(formData.is_group_program),
         Venue: formData.Venue || null,
@@ -297,6 +296,12 @@ export default function ProgrammeRegistration() {
             : null,
         is_topic_required: Boolean(formData.is_topic_required),
         is_result_required: Boolean(formData.is_result_required),
+        topic_title: formData.is_topic ? (formData.topic_title || "").trim() || null : null,
+        is_topic: Boolean(formData.is_topic),
+        drive_link: (formData.drive_link || "").trim() || "https://drive.google.com/drive/folders/1dXyDEtBW-0gcf1Q12JzFCS8V7L9bXIw4?usp=sharing",
+        is_limitation: Boolean(formData.is_limitation),
+        individual_limit_count: Number(formData.individual_limit_count) || 15,
+        group_limit_count: Number(formData.group_limit_count) || 7,
         created_at: new Date().toTimeString().split(" ")[0],
       };
 
@@ -625,8 +630,11 @@ export default function ProgrammeRegistration() {
                   onChange={handleChange}
                   className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm font-medium bg-white text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition"
                 >
-                  {expectedTimeOptions.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  <option value="">No Time Slot / Flexible</option>
+                  {meta.expectedTimes.map((t) => (
+                    <option key={t.excution_id} value={t.excution_id}>
+                      {t.excution_title} {t.is_active ? "" : "(Inactive)"}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -834,6 +842,118 @@ export default function ProgrammeRegistration() {
                   </span>
                 </label>
               </div>
+            </div>
+
+            {/* Registration Limitation Setting */}
+            <div className="rounded-2xl border border-orange-200 bg-orange-50/60 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="is_limitation"
+                  name="is_limitation"
+                  checked={Boolean(formData.is_limitation)}
+                  onChange={handleChange}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                />
+                <label htmlFor="is_limitation" className="cursor-pointer">
+                  <span className="block text-xs font-bold text-orange-950">
+                    Enforce Registration Limitation (is_limitation)
+                  </span>
+                  <span className="block text-[11px] text-orange-800 mt-0.5">
+                    If enabled, only a limited number of candidate registrations or squad entries will be allowed for this programme.
+                  </span>
+                </label>
+              </div>
+
+              {formData.is_limitation && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-orange-200/70">
+                  <div>
+                    <label className="block text-xs font-bold text-orange-900 mb-1 uppercase tracking-wide">
+                      Individual Programme Limit (Candidates)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      name="individual_limit_count"
+                      value={formData.individual_limit_count}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-orange-300 p-2 text-xs sm:text-sm text-slate-800 bg-white focus:ring-2 focus:ring-orange-500 outline-none font-medium"
+                    />
+                    <span className="text-[10px] text-orange-700">Default: 15 candidates</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-orange-900 mb-1 uppercase tracking-wide">
+                      Group Programme Limit (Squads)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      name="group_limit_count"
+                      value={formData.group_limit_count}
+                      onChange={handleChange}
+                      className="w-full rounded-xl border border-orange-300 p-2 text-xs sm:text-sm text-slate-800 bg-white focus:ring-2 focus:ring-orange-500 outline-none font-medium"
+                    />
+                    <span className="text-[10px] text-orange-700">Default: 7 groups</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Common Topic Provided by Wing Creator */}
+            <div className="rounded-2xl border border-teal-200 bg-teal-50/60 p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="is_topic"
+                  name="is_topic"
+                  checked={Boolean(formData.is_topic)}
+                  onChange={handleChange}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                />
+                <label htmlFor="is_topic" className="cursor-pointer">
+                  <span className="block text-xs font-bold text-teal-950">
+                    Common Topic Provided by Organizer / Wing Creator (Essay, Story, etc.)
+                  </span>
+                  <span className="block text-[11px] text-teal-800 mt-0.5">
+                    If enabled, you will provide a single assigned topic for all registered candidates to prepare for.
+                  </span>
+                </label>
+              </div>
+
+              {formData.is_topic && (
+                <div className="pt-2 border-t border-teal-200/70">
+                  <label className="block text-xs font-bold text-teal-900 mb-1 uppercase tracking-wide">
+                    Common Topic Title *
+                  </label>
+                  <input
+                    type="text"
+                    name="topic_title"
+                    placeholder="e.g. Environmental Ethics in Islam / Modern Scientific Heritage"
+                    value={formData.topic_title}
+                    onChange={handleChange}
+                    className="w-full rounded-xl border border-teal-300 p-2 text-xs sm:text-sm text-slate-800 bg-white focus:ring-2 focus:ring-teal-500 outline-none font-medium"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Study Material & Resources Link */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+              <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
+                Study Material / Google Drive Resources Link (drive_link)
+              </label>
+              <input
+                type="url"
+                name="drive_link"
+                placeholder="https://drive.google.com/drive/folders/..."
+                value={formData.drive_link}
+                onChange={handleChange}
+                className="w-full rounded-xl border border-slate-300 p-2.5 text-xs sm:text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
+              />
+              <p className="text-[11px] text-slate-500">
+                Shared folder link with syllabus, reference audio/books, or speech resources for participants.
+              </p>
             </div>
 
             {isAdmin && (

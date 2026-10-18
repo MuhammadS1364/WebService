@@ -24,6 +24,8 @@ import {
   List,
   UserPlus,
   Edit3,
+  BookOpen,
+  ExternalLink,
 } from "lucide-react";
 
 // --- INTERFACES MATCHING UPDATED PROGRAMMESBOX TABLE ---
@@ -51,6 +53,13 @@ interface Programme {
   isContentRequired?: boolean;
   ContentSubmition_deadLine?: string | null;
   is_topic_required?: boolean;
+  is_result_required?: boolean;
+  topic_title?: string | null;
+  is_topic?: boolean;
+  drive_link?: string | null;
+  is_limitation?: boolean;
+  individual_limit_count?: number;
+  group_limit_count?: number;
 }
 
 interface Student {
@@ -827,15 +836,59 @@ export default function WingProgrammes() {
                         </span>
                       </div>
 
+                      {p.Expected_Time && meta.expectedTimeMap[p.Expected_Time] && (
+                        <div className="flex items-center justify-between text-slate-600">
+                          <span className="flex items-center gap-1.5 text-slate-500 font-medium">
+                            <Clock size={13} className="text-indigo-500 shrink-0" />
+                            <span>Time Slot:</span>
+                          </span>
+                          <span className="font-semibold text-slate-800">
+                            {meta.expectedTimeMap[p.Expected_Time]}
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/50">
                         <span className="flex items-center gap-1.5 text-slate-500 font-medium">
                           <Users size={13} className="text-indigo-500 shrink-0" />
-                          <span>Candidates:</span>
+                          <span>{p.is_group_program ? "Squads / Members:" : "Candidates:"}</span>
                         </span>
                         <span className="font-bold text-slate-900">
                           {p.Total_Registration || 0} Enrolled
+                          {p.is_limitation && (
+                            <span className="text-[10px] text-amber-700 ml-1 font-semibold">
+                              (Limit: {p.is_group_program ? (p.group_limit_count || 7) : (p.individual_limit_count || 15)})
+                            </span>
+                          )}
                         </span>
                       </div>
+
+                      {p.is_topic && p.topic_title && (
+                        <div className="p-2 bg-teal-50 border border-teal-200 rounded-xl text-[11px] text-teal-900 flex items-start gap-1.5">
+                          <BookOpen size={13} className="text-teal-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold">Topic: </span>
+                            <span className="italic font-medium">"{p.topic_title}"</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {p.drive_link && (
+                        <div className="flex items-center justify-between text-slate-600 pt-1">
+                          <span className="text-[11px] text-blue-700 font-bold flex items-center gap-1">
+                            <FileText size={12} /> Study Material:
+                          </span>
+                          <a
+                            href={p.drive_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-0.5"
+                          >
+                            <span>Open Drive</span>
+                            <ExternalLink size={10} />
+                          </a>
+                        </div>
+                      )}
 
                       {isTopicReq && (
                         <div className="flex items-center justify-between text-slate-600">

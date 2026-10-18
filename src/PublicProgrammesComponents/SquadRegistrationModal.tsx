@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import type { SquadMateRecord } from "../lib/types";
 import { resolveStudentProfile } from "../lib/accountResolver";
-import { Shield, CheckCircle, AlertCircle, X, Plus, Lock, LogIn } from "lucide-react";
+import { Shield, CheckCircle, AlertCircle, X, Plus, Lock, LogIn, BookOpen, FileText, ExternalLink, Users } from "lucide-react";
 
 interface SquadRegistrationModalProps {
   programCode: string;
@@ -28,6 +28,7 @@ export default function SquadRegistrationModal({
   const [selectedSquadId, setSelectedSquadId] = useState("");
   const [loadingSquads, setLoadingSquads] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [programMeta, setProgramMeta] = useState<any>(null);
   const [status, setStatus] = useState<{ type: "success" | "error" | ""; text: string }>({ type: "", text: "" });
 
   // Check if current user is logged in
@@ -71,7 +72,7 @@ export default function SquadRegistrationModal({
         setMembers([student.AddNo || "", ""]);
       }
 
-      const [squadRes, regRes] = await Promise.all([
+      const [squadRes, regRes, progRes] = await Promise.all([
         SupaBaseFunction
           .from("SquadMate")
           .select("*")
@@ -81,9 +82,17 @@ export default function SquadRegistrationModal({
           .from("CandidateRegistrationTable")
           .select("Candidate_Code, squad_uuid")
           .eq("Program_Code", programCode),
+        SupaBaseFunction
+          .from("ProgrammesBox")
+          .select("is_limitation, group_limit_count, drive_link, topic_title, is_topic")
+          .eq("Program_Code", programCode)
+          .maybeSingle(),
       ]);
 
       if (squadRes.error) throw squadRes.error;
+      if (progRes.data) {
+        setProgramMeta(progRes.data);
+      }
 
       const registeredSet = new Set<string>(
         (regRes.data || []).map((r: any) => r.squad_uuid).filter(Boolean)
@@ -167,6 +176,17 @@ export default function SquadRegistrationModal({
     if (filledMembers.length < 2) {
       setStatus({ type: "error", text: "A group squad must have at least 2 members." });
       return;
+    }
+
+    if (programMeta?.is_limitation) {
+      const maxGroups = programMeta.group_limit_count ?? 7;
+      if (registeredSquadIds.size >= maxGroups) {
+        setStatus({
+          type: "error",
+          text: `⚠️ Group Registration Limit Reached: Maximum of ${maxGroups} squads allowed for this tournament.`,
+        });
+        return;
+      }
     }
 
     try {
@@ -276,6 +296,17 @@ export default function SquadRegistrationModal({
       return;
     }
 
+    if (programMeta?.is_limitation) {
+      const maxGroups = programMeta.group_limit_count ?? 7;
+      if (registeredSquadIds.size >= maxGroups) {
+        setStatus({
+          type: "error",
+          text: `⚠️ Group Registration Limit Reached: Maximum of ${maxGroups} squads allowed for this tournament.`,
+        });
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
       const squadMembers = [
@@ -346,7 +377,51 @@ export default function SquadRegistrationModal({
           <Shield className="text-indigo-600" size={24} />
           <h3 className="text-lg font-bold text-slate-900">Group / Squad Registration</h3>
         </div>
-        <p className="text-xs text-slate-500 mb-4">{programTitle} ({programCode})</p>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <p className="text-xs text-slate-500 font-medium">{programTitle} ({programCode})</p>
+          {programMeta?.is_limitation && (
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 ${
+              registeredSquadIds.size >= (programMeta.group_limit_count || 7)
+                ? "bg-rose-50 text-rose-700 border-rose-200"
+                : "bg-indigo-50 text-indigo-700 border-indigo-200"
+            }`}>
+              <Users size={12} />
+              <span>Squad Limit: {registeredSquadIds.size} / {programMeta.group_limit_count || 7} registered</span>
+            </span>
+          )}
+        </div>
+
+        {/* Assigned Topic for Competition */}
+        {programMeta?.is_topic && programMeta?.topic_title && (
+          <div className="p-3 mb-3.5 bg-teal-50 border border-teal-200 rounded-xl text-xs space-y-1">
+            <div className="flex items-center gap-1.5 text-teal-900 font-bold">
+              <BookOpen size={14} className="text-teal-600 shrink-0" />
+              <span>Official Tournament Topic:</span>
+            </div>
+            <p className="text-teal-950 font-black pl-5 text-xs sm:text-sm">
+              "{programMeta.topic_title}"
+            </p>
+          </div>
+        )}
+
+        {/* Study Material / Drive Link */}
+        {programMeta?.drive_link && (
+          <div className="p-2.5 mb-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1.5 text-blue-900 font-medium">
+              <FileText size={14} className="text-blue-600 shrink-0" />
+              <span>Study materials provided for this tournament.</span>
+            </div>
+            <a
+              href={programMeta.drive_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 shrink-0 transition"
+            >
+              <ExternalLink size={10} />
+              <span>Drive Material</span>
+            </a>
+          </div>
+        )}
 
         {status.text && (
           <div className={`p-3 rounded-xl mb-4 text-xs font-semibold flex items-center gap-2 ${status.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
