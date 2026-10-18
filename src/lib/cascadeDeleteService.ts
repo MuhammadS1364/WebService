@@ -86,9 +86,9 @@ async function revertProgrammesPointsBeforeDelete(programCodes: string[]): Promi
         const tracker = ensureWing(wCode);
         tracker.regCount += 1;
 
-        // If programme was created with NO result required, +1 point was awarded -> revert it!
+        // If programme was created with NO result required, +2 points were awarded -> revert it!
         if (prog.is_result_required === false) {
-          tracker.points += 1;
+          tracker.points += 2;
         }
       }
 
@@ -175,10 +175,8 @@ async function revertProgrammesPointsBeforeDelete(programCodes: string[]): Promi
           }
         }
 
-        if (wCode) {
-          const tracker = ensureWing(wCode);
-          tracker.points += progTotalPts;
-        }
+        // Notice: Candidate competition points were only assigned to students/squads, not to the Wing.
+        // Therefore, we only track resultedCount for the Wing, which was already incremented above.
       }
     }
 

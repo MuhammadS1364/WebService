@@ -6,6 +6,7 @@ import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingReso
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
 import AdminTopicsManagerModal from "../../components/AdminTopicsManagerModal";
+import EditProgrammeModal from "../../AdminPanel/AdminProgrammesList/EditProgrammeModal";
 import {
   Calendar,
   Users,
@@ -22,6 +23,7 @@ import {
   LayoutGrid,
   List,
   UserPlus,
+  Edit3,
 } from "lucide-react";
 
 // --- INTERFACES MATCHING UPDATED PROGRAMMESBOX TABLE ---
@@ -96,6 +98,8 @@ export default function WingProgrammes() {
   const [selectedTopicProg, setSelectedTopicProg] = useState<string | null>(null);
   const [isTopicsModalOpen, setIsTopicsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [editingProgram, setEditingProgram] = useState<Programme | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -187,7 +191,7 @@ export default function WingProgrammes() {
     };
 
     fetchAll();
-  }, [actWing]);
+  }, [actWing, refreshKey]);
 
   const toggleReg = async (code: string, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
@@ -770,22 +774,34 @@ export default function WingProgrammes() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
+                        {/* Category Name & Status Display */}
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <span className="inline-flex items-center text-[10px] font-black uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200 px-2 py-0.5 rounded-md">
+                            {categoryName || "General Category"}
+                          </span>
+                          <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                            p.IsResultPublished
+                              ? "bg-purple-50 text-purple-700 border-purple-200"
+                              : p.IsResulted
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : p.IsOpenRegistration
+                              ? "bg-teal-50 text-teal-700 border-teal-200"
+                              : "bg-slate-100 text-slate-600 border-slate-200"
+                          }`}>
+                            {p.IsResultPublished ? "Result Published" : p.IsResulted ? "Result Declared" : p.IsOpenRegistration ? "Reg Open" : "Reg Closed"}
+                          </span>
+                        </div>
                         <h3 className="font-extrabold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2">
                           {p.Program_Title || "Untitled Programme"}
                         </h3>
-                        {/* Category & Group Tags */}
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                          {categoryName && (
-                            <span className="inline-flex items-center text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md">
-                              {categoryName}
-                            </span>
-                          )}
-                          {groupName && (
+                        {/* Group Tag if available */}
+                        {groupName && (
+                          <div className="flex items-center gap-1.5 mt-1">
                             <span className="inline-flex items-center text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
                               {groupName}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -929,6 +945,16 @@ export default function WingProgrammes() {
                           <UserPlus size={12} />
                           <span>Assign +</span>
                         </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingProgram(p)}
+                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 inline-flex items-center gap-1 transition cursor-pointer"
+                          title="Edit Programme Details"
+                        >
+                          <Edit3 size={12} />
+                          <span>Edit</span>
+                        </button>
                       </div>
 
                       {/* Candidates Toggle */}
@@ -1157,6 +1183,15 @@ export default function WingProgrammes() {
                           {/* Actions */}
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setEditingProgram(p)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition-all cursor-pointer shadow-2xs"
+                                title="Edit Programme Details"
+                              >
+                                <Edit3 size={12} />
+                                <span>Edit</span>
+                              </button>
                               {p.is_topic_required && (
                                 <button
                                   type="button"
@@ -1218,6 +1253,20 @@ export default function WingProgrammes() {
             isOpen={isTopicsModalOpen}
             onClose={() => setIsTopicsModalOpen(false)}
             programCode={selectedTopicProg || undefined}
+          />
+        )}
+
+        {/* Edit Programme Modal (Wing Scoped - Only their own programmes) */}
+        {editingProgram && (
+          <EditProgrammeModal
+            isOpen={Boolean(editingProgram)}
+            program={editingProgram as any}
+            lockedWingCode={wingData?.WingCode}
+            onClose={() => setEditingProgram(null)}
+            onSuccess={() => {
+              setEditingProgram(null);
+              setRefreshKey((k) => k + 1);
+            }}
           />
         )}
 

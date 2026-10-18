@@ -812,12 +812,11 @@ export default function WingRegistrations() {
                   🌟 All Wing Programmes ({programmes.length})
                 </option>
                 {(onlyWithRegistrations ? programmesWithActions : programmes).map((p) => {
-                  const counts = programmeActionCounts[p.Program_Code];
-                  const hasActions = counts && counts.total > 0;
-                  const catName = p.Category ? (meta.categoryMap[p.Category] || p.Category) : "General";
+                  const catName = meta.getCategoryName(p.Category, "General Category");
+                  const status = p.IsOpenRegistration ? "Reg: Open" : "Reg: Closed";
                   return (
                     <option key={p.Program_Code} value={p.Program_Code}>
-                      {hasActions ? "🟢" : "⚪"} {p.Program_Title || "Untitled"}, Category({catName}) — (Cands: {counts?.candidates || 0}, Topics: {counts?.topics || 0}, Contents: {counts?.content || 0})
+                      {catName}, {p.Program_Title || "Untitled"}, {status}
                     </option>
                   );
                 })}

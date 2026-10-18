@@ -131,7 +131,7 @@ export default function CreateResult() {
   const [loadingSubmit, setLoadingSubmit] = useState<boolean>(false);
   const [isEditingExistingResult, setIsEditingExistingResult] = useState<boolean>(false);
   const [_existingResultId, setExistingResultId] = useState<string | null>(null);
-  const [previousPointsAwarded, setPreviousPointsAwarded] = useState<number>(0);
+  const [_previousPointsAwarded, setPreviousPointsAwarded] = useState<number>(0);
   const [previousAllocations, setPreviousAllocations] = useState<{ addNo: string; points: number }[]>([]);
   const [previousSquadAllocations, setPreviousSquadAllocations] = useState<{ squadId: string; points: number }[]>([]);
   const [candCodeToUuid, setCandCodeToUuid] = useState<Record<string, string>>({});
@@ -1205,23 +1205,17 @@ export default function CreateResult() {
         }
       }
 
-      // 4. MUST ASSIGN POINTS TO WING in Chs-WingS (Points strictly held until resulted)
+      // 4. UPDATE WING RESULTED METRICS (Candidate points are strictly for candidates/squads; Wing points are only awarded +2 for no-result-required events)
       if (progWingCode) {
         try {
           const { data: wingRow } = await SupaBaseFunction
             .from("Chs-WingS")
-            .select("WingCode, Total_Points, Total_Resulted")
+            .select("WingCode, Total_Resulted")
             .eq("WingCode", progWingCode)
             .maybeSingle();
 
           if (wingRow) {
-            const currentPoints = Number(wingRow.Total_Points || 0);
             const currentResulted = Number(wingRow.Total_Resulted || 0);
-
-            const newTotalPoints = isEditingExistingResult
-              ? Math.max(0, currentPoints - previousPointsAwarded + totalPointsAwarded)
-              : currentPoints + totalPointsAwarded;
-
             const newTotalResulted = isEditingExistingResult
               ? currentResulted
               : currentResulted + 1;
@@ -1229,13 +1223,12 @@ export default function CreateResult() {
             await SupaBaseFunction
               .from("Chs-WingS")
               .update({
-                Total_Points: newTotalPoints,
                 Total_Resulted: newTotalResulted,
               })
               .eq("WingCode", progWingCode);
           }
         } catch (wingErr) {
-          console.warn("Could not credit wing points:", wingErr);
+          console.warn("Could not update wing resulted count:", wingErr);
         }
       }
 
@@ -1379,17 +1372,25 @@ export default function CreateResult() {
             className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
           >
             <option value="">-- Choose a Programme to Declare or Edit Results --</option>
-            {programmes.map((p) => (
-              <option key={p.Program_Code} value={p.Program_Code}>
-                [{p.Program_Code}] {p.Program_Title || "Untitled"} {p.is_group_program ? "(Group Event)" : "(Individual)"} {p.is_result_required === false ? "🎯 Direct Wing Pt (+1 Given, No Result Req)" : p.IsResulted ? "✓ Result Declared (Editable)" : "⏳ Pending"}
-              </option>
-            ))}
+            {programmes.map((p) => {
+              const catName = meta.getCategoryName(p.Category, "General");
+              const status = p.is_result_required === false
+                ? "No Result Required (+2 Wing Pts)"
+                : p.IsResulted
+                ? "Result Declared (Editable)"
+                : "Pending Result";
+              return (
+                <option key={p.Program_Code} value={p.Program_Code}>
+                  {catName}, {p.Program_Title || "Untitled"}, {status}
+                </option>
+              );
+            })}
           </select>
 
           {selectedProgDetails?.is_result_required === false && (
             <div className="p-3.5 bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl text-xs font-bold flex items-center gap-2.5">
               <CheckCircle2 size={18} className="text-teal-600 shrink-0" />
-              <span>This programme was configured with <strong>No Result Required</strong>. The organizing Wing ({meta.wingMap[selectedProgDetails.WingCode || ""] || selectedProgDetails.WingCode}) was awarded +1 Point directly upon event creation.</span>
+              <span>This programme was configured with <strong>No Result Required</strong>. The organizing Wing ({meta.wingMap[selectedProgDetails.WingCode || ""] || selectedProgDetails.WingCode}) was awarded +2 Points directly upon event creation.</span>
             </div>
           )}
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
+import { resolveWingProfile } from "../../lib/wingResolver";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import { exportToExcel } from "../../lib/excelService";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
@@ -159,16 +160,11 @@ export default function GroupProgrammeManager() {
         .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Group, Total_Registration, is_group_program, IsResulted, IsResultPublished, IsConducted, points_template")
         .order("Date", { ascending: false });
 
-      // If Wing panel, filter by WingCode
+      // If Wing panel, filter strictly by resolved WingCode
       if (isWing && actWing) {
-        const { data: wRow } = await SupaBaseFunction
-          .from("Chs-WingS")
-          .select("WingCode")
-          .eq("WingEmail", actWing)
-          .maybeSingle();
-
-        if (wRow?.WingCode) {
-          progQuery = progQuery.eq("WingCode", wRow.WingCode);
+        const wing = await resolveWingProfile(actWing);
+        if (wing?.WingCode) {
+          progQuery = progQuery.eq("WingCode", wing.WingCode);
         }
       }
 
@@ -804,11 +800,21 @@ export default function GroupProgrammeManager() {
               {filteredProgrammes.length === 0 ? (
                 <option value="">No programmes match the filter</option>
               ) : (
-                filteredProgrammes.map((p) => (
-                  <option key={p.Program_Code} value={p.Program_Code}>
-                    [{p.Program_Code}] {p.Program_Title} {p.is_group_program ? "👥 (Group Event)" : "👤"} {p.IsResulted ? "✓ Resulted" : "⏳ Pending"}
-                  </option>
-                ))
+                filteredProgrammes.map((p) => {
+                  const catName = meta.getCategoryName(p.Category, "General");
+                  const status = p.IsResultPublished
+                    ? "Result Published"
+                    : p.IsResulted
+                    ? "Result Declared"
+                    : p.is_group_program
+                    ? "Group Event (Pending)"
+                    : "Pending";
+                  return (
+                    <option key={p.Program_Code} value={p.Program_Code}>
+                      {catName}, {p.Program_Title || "Untitled"}, {status}
+                    </option>
+                  );
+                })
               )}
             </select>
           </div>

@@ -10,7 +10,8 @@ interface EditProgrammeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  wings: { WingCode: string; WingTitle: string | null }[];
+  wings?: { WingCode: string; WingTitle: string | null }[];
+  lockedWingCode?: string;
 }
 
 export default function EditProgrammeModal({
@@ -19,6 +20,7 @@ export default function EditProgrammeModal({
   onClose,
   onSuccess,
   wings,
+  lockedWingCode,
 }: EditProgrammeModalProps) {
   const meta = useProgrammeMeta();
 
@@ -142,10 +144,10 @@ export default function EditProgrammeModal({
 
       if (error) throw error;
 
-      // Handle Wing point calibrations if result requirement changed
+      // Handle Wing point calibrations if result requirement changed (+2 points for no-result-required events)
       try {
         if (wasResultRequired && !isResultRequired && newWing) {
-          // Changed to NO result required -> Award +1 point to new wing
+          // Changed to NO result required -> Award +2 points to new wing
           const { data: wRow } = await SupaBaseFunction
             .from("Chs-WingS")
             .select("Total_Points")
@@ -154,11 +156,11 @@ export default function EditProgrammeModal({
           if (wRow) {
             await SupaBaseFunction
               .from("Chs-WingS")
-              .update({ Total_Points: (Number(wRow.Total_Points) || 0) + 1 })
+              .update({ Total_Points: (Number(wRow.Total_Points) || 0) + 2 })
               .eq("WingCode", newWing);
           }
         } else if (!wasResultRequired && isResultRequired && oldWing) {
-          // Changed from NO result required to result required -> Revoke the +1 point from old wing
+          // Changed from NO result required to result required -> Revoke the +2 points from old wing
           const { data: wRow } = await SupaBaseFunction
             .from("Chs-WingS")
             .select("Total_Points")
@@ -167,11 +169,11 @@ export default function EditProgrammeModal({
           if (wRow) {
             await SupaBaseFunction
               .from("Chs-WingS")
-              .update({ Total_Points: Math.max(0, (Number(wRow.Total_Points) || 0) - 1) })
+              .update({ Total_Points: Math.max(0, (Number(wRow.Total_Points) || 0) - 2) })
               .eq("WingCode", oldWing);
           }
         } else if (!wasResultRequired && !isResultRequired && oldWing !== newWing) {
-          // Wing changed on a no-result-required programme -> transfer +1 point
+          // Wing changed on a no-result-required programme -> transfer 2 points
           if (oldWing) {
             const { data: wOld } = await SupaBaseFunction
               .from("Chs-WingS")
@@ -181,7 +183,7 @@ export default function EditProgrammeModal({
             if (wOld) {
               await SupaBaseFunction
                 .from("Chs-WingS")
-                .update({ Total_Points: Math.max(0, (Number(wOld.Total_Points) || 0) - 1) })
+                .update({ Total_Points: Math.max(0, (Number(wOld.Total_Points) || 0) - 2) })
                 .eq("WingCode", oldWing);
             }
           }
@@ -194,7 +196,7 @@ export default function EditProgrammeModal({
             if (wNew) {
               await SupaBaseFunction
                 .from("Chs-WingS")
-                .update({ Total_Points: (Number(wNew.Total_Points) || 0) + 1 })
+                .update({ Total_Points: (Number(wNew.Total_Points) || 0) + 2 })
                 .eq("WingCode", newWing);
             }
           }
@@ -256,19 +258,29 @@ export default function EditProgrammeModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-gray-700 font-bold mb-1">Organizing Wing</label>
-              <select
-                name="WingCode"
-                value={formData.WingCode || ""}
-                onChange={handleChange}
-                className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden bg-white"
-              >
-                <option value="">Select Wing</option>
-                {wings.map((w) => (
-                  <option key={w.WingCode} value={w.WingCode}>
-                    {w.WingTitle || w.WingCode} ({w.WingCode})
-                  </option>
-                ))}
-              </select>
+              {lockedWingCode ? (
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={`${lockedWingCode} (Organizing Wing)`}
+                  className="w-full p-2.5 rounded-xl border border-gray-200 text-sm bg-slate-100 text-slate-700 font-bold cursor-not-allowed"
+                />
+              ) : (
+                <select
+                  name="WingCode"
+                  value={formData.WingCode || ""}
+                  onChange={handleChange}
+                  className="w-full p-2.5 rounded-xl border border-gray-200 text-sm focus:border-emerald-500 focus:outline-hidden bg-white"
+                >
+                  <option value="">Select Wing</option>
+                  {(wings || meta.wings).map((w: any) => (
+                    <option key={w.WingCode} value={w.WingCode}>
+                      {w.WingTitle || w.WingCode} ({w.WingCode})
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div>
@@ -592,7 +604,7 @@ export default function EditProgrammeModal({
                 <span>Competition Result Required (Official Result Declaration)</span>
                 {!formData.is_result_required && (
                   <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white">
-                    +1 Wing Point Direct
+                    +2 Wing Points Direct
                   </span>
                 )}
               </span>
@@ -600,7 +612,7 @@ export default function EditProgrammeModal({
             <p className="text-[11px] text-slate-700 pl-6.5">
               {formData.is_result_required
                 ? "Standard competitive event. Points are awarded upon official competition result declaration."
-                : "Non-competitive or direct event. No result declaration is required. 1 Point is awarded directly to the Wing."}
+                : "Non-competitive or direct event. No result declaration is required. 2 Points are awarded directly to the Wing."}
             </p>
           </div>
 

@@ -460,7 +460,7 @@ export default function AdminProgrammesList({
             wingIncrements[row.WingCode].regs += 1;
             const isNoResult = row.is_result_required === false || row.is_result_required === 'false' || row.is_result_required === 'No';
             if (isNoResult) {
-              wingIncrements[row.WingCode].points += 1;
+              wingIncrements[row.WingCode].points += 2;
             }
           }
         });
@@ -779,8 +779,8 @@ export default function AdminProgrammesList({
                           </span>
                         )}
                         {prog.is_result_required === false && (
-                          <span className="text-[10px] font-black uppercase text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md flex items-center gap-1" title="Non-competitive / direct event. +1 Point awarded to Wing on creation.">
-                            <CheckCircle2 size={11} /> +1 Wing Pt
+                          <span className="text-[10px] font-black uppercase text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md flex items-center gap-1" title="Non-competitive / direct event. +2 Points awarded to Wing on creation.">
+                            <CheckCircle2 size={11} /> +2 Wing Pt
                           </span>
                         )}
                         {isContentReq && !prog.IsResultPublished && (

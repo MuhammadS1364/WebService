@@ -320,7 +320,7 @@ export default function ProgrammeRegistration() {
 
         if (wingRecord) {
           const isResultReq = Boolean(formData.is_result_required);
-          const wingPointsIncrement = !isResultReq ? 1 : 0;
+          const wingPointsIncrement = !isResultReq ? 2 : 0;
           await SupaBaseFunction
             .from("Chs-WingS")
             .update({
@@ -823,14 +823,14 @@ export default function ProgrammeRegistration() {
                     </span>
                     {!formData.is_result_required && (
                       <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-600 text-white">
-                        +1 Wing Point Direct
+                        +2 Wing Points Direct
                       </span>
                     )}
                   </div>
                   <span className="block text-[11px] text-slate-700 mt-0.5">
                     {formData.is_result_required
-                      ? "Standard competitive event. Points will be awarded to winners and the organizing wing when the official competition result is declared."
-                      : "Non-competitive or direct event. No competition result will be declared. +1 Point is automatically awarded to the organizing Wing immediately upon creation!"}
+                      ? "Standard competitive event. Points will be awarded to winners and squads when the official competition result is declared."
+                      : "Non-competitive or direct event. No competition result will be declared. +2 Points are automatically awarded to the organizing Wing immediately upon creation!"}
                   </span>
                 </label>
               </div>
