@@ -626,7 +626,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     return null;
   };
 
-  return {
+  return useMemo(() => ({
     categories,
     venues,
     groups,
@@ -663,5 +663,35 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     addPointsTemplate,
     addExpectedTime,
     refetch: () => fetchMeta(true),
-  };
+  }), [
+    categories,
+    venues,
+    groups,
+    academicYears,
+    pointsTemplates,
+    classes,
+    batches,
+    wings,
+    expectedTimes,
+    loading,
+    error,
+    categoryMap,
+    venueMap,
+    groupMap,
+    academicMap,
+    templateMap,
+    classMap,
+    classStandardNameMap,
+    batchMap,
+    wingMap,
+    expectedTimeMap,
+    getCategoryName,
+    getGroupName,
+    getVenueName,
+    getClassName,
+    getExpectedTimeTitle,
+    activeAcademicYearId,
+    defaultTemplateId,
+    fetchMeta,
+  ]);
 }

@@ -366,7 +366,7 @@ export default function PrintCandidateSheetModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, programCode, meta.classes, meta.classMap]);
+  }, [isOpen, programCode, meta.classes.length]);
 
   // Derived metadata names
   const wingName = useMemo(() => {

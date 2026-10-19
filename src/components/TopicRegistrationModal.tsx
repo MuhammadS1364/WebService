@@ -130,7 +130,7 @@ export default function TopicRegistrationModal({
     }, 450);
 
     return () => clearTimeout(timer);
-  }, [topicTitle, existingTopic]);
+  }, [topicTitle, existingTopic?.topic_id, existingTopic?.topic_title]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

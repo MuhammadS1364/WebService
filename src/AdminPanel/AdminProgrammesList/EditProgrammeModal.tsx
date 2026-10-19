@@ -64,7 +64,7 @@ export default function EditProgrammeModal({
       });
       setErrorMsg("");
     }
-  }, [program, isOpen, meta.activeAcademicYearId, meta.defaultTemplateId]);
+  }, [program?.Program_Code, isOpen, meta.activeAcademicYearId, meta.defaultTemplateId]);
 
   if (!isOpen || !program) return null;
 

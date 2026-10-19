@@ -5,12 +5,11 @@ import { SupaBaseFunction } from "../lib/SupaBase";
 import formatResultDate from "./DateFormatConvertor";
 import { exportToExcel } from "../lib/excelService";
 import SafeImage from "../lib/SafeImage";
-import ProgrammeFeedbackModal from "./ProgrammeFeedbackModal";
 import SquadRegistrationModal from "./SquadRegistrationModal";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { resolveStudentProfile } from "../lib/accountResolver";
-import { Download, MessageSquare, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User } from "lucide-react";
+import { Download, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User, BookOpen, ExternalLink, Clock } from "lucide-react";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -31,6 +30,13 @@ interface ProgramData {
   IsOpenRegistration: boolean;
   IsConducted?: boolean;
   is_group_program?: boolean;
+  topic_title?: string | null;
+  is_topic?: boolean | null;
+  drive_link?: string | null;
+  Expected_Time?: string | null;
+  is_limitation?: boolean | null;
+  individual_limit_count?: number | null;
+  group_limit_count?: number | null;
 }
 
 export default function PublicProgrammesList() {
@@ -68,12 +74,6 @@ export default function PublicProgrammesList() {
   };
 
   // Modal States
-  const [feedbackModal, setFeedbackModal] = useState<{ isOpen: boolean; code: string; title: string }>({
-    isOpen: false,
-    code: "",
-    title: "",
-  });
-
   const [squadModal, setSquadModal] = useState<{ isOpen: boolean; code: string; title: string }>({
     isOpen: false,
     code: "",
@@ -239,8 +239,7 @@ export default function PublicProgrammesList() {
       "Format": p.is_group_program ? "Squad / Group Event" : "Individual Event",
       "Status": p.IsConducted ? "Conducted" : "Upcoming",
       "Registration": p.IsOpenRegistration ? "Open" : "Closed",
-      "Description": p.Description || "",
-      "Expected Outcomes": p.OutComes || ""
+      "Description": p.Description || ""
     }));
 
     exportToExcel(exportRows, `Programmes_Catalog_${new Date().toISOString().split("T")[0]}.xlsx`, "Programmes");
@@ -340,12 +339,11 @@ export default function PublicProgrammesList() {
 
               <div
                 key={program.Program_Code || index}
-                className="w-full max-w-90 mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden font-sans hover:shadow-md transition-shadow"
+                className="w-full bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-xl hover:border-indigo-200 transition-all duration-300 flex flex-col overflow-hidden group"
               >
-
                 {/* --- Image Section with Click-to-Preview and Download --- */}
                 <div 
-                  className="relative h-48 w-full bg-slate-900 overflow-hidden cursor-pointer group"
+                  className="relative h-52 w-full bg-slate-950 overflow-hidden cursor-pointer group"
                   onClick={() => {
                     if (program.Program_Poster) {
                       setFullscreenImage({
@@ -365,15 +363,16 @@ export default function PublicProgrammesList() {
                   />
                   {/* Hover Hint Overlay */}
                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                    <div className="bg-black/70 text-white text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
+                    <div className="bg-black/75 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
                       <Maximize2 size={13} />
                       <span>View & Download</span>
                     </div>
                   </div>
+
                   {/* Result Published Badge */}
                   {(program.IsResulted || program.IsResultPublished) && (
                     <div 
-                      className="absolute top-3 left-3 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1 z-10 cursor-pointer transition"
+                      className="absolute top-3 left-3 bg-amber-500 hover:bg-amber-600 text-white text-xs font-black px-3 py-1 rounded-full shadow-md flex items-center gap-1 z-10 cursor-pointer transition"
                       onClick={(e) => {
                         e.stopPropagation();
                         setResultModal({ isOpen: true, program });
@@ -393,16 +392,17 @@ export default function PublicProgrammesList() {
                     const hasResultBadge = Boolean(program.IsResulted || program.IsResultPublished);
                     return grpName && !isUuid(grpName) ? (
                       <div 
-                        className={`absolute ${hasResultBadge ? "top-11" : "top-3"} left-3 bg-[#1d4ed8] text-white text-xs font-semibold px-4 py-1.5 rounded-full shadow-sm`}
+                        className={`absolute ${hasResultBadge ? "top-11" : "top-3"} left-3 bg-blue-700 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-sm`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {grpName}
                       </div>
                     ) : null;
                   })()}
+
                   {program.is_group_program && (
                     <div 
-                      className="absolute top-3 right-3 bg-purple-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm flex items-center gap-1"
+                      className="absolute top-3 right-3 bg-purple-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-sm flex items-center gap-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Users size={12} /> Squad Event
@@ -411,80 +411,109 @@ export default function PublicProgrammesList() {
                 </div>
 
                 {/* --- Body Section --- */}
-                <div className="p-5 flex flex-col gap-4 grow">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 leading-tight line-clamp-2">
-                      {program.Program_Title || "Untitled Program"}
-                    </h2>
-                    <p className="text-sm text-gray-400 mt-1">{program.Program_Code}</p>
-                  </div>
-
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-2">
+                <div className="p-5 flex flex-col gap-3.5 grow">
+                  {/* Category, Wing & Academic Year Badges */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {program.WingCode && (
-                      <span className="px-3 py-1 bg-green-50 text-green-700 border border-green-200 text-xs font-semibold rounded-md">
+                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[11px] font-bold rounded-lg">
                         {getWingName(program.WingCode)}
                       </span>
                     )}
                     {program.Category && (
-                      <span className="px-3 py-1 bg-purple-50 text-purple-700 border border-purple-200 text-xs font-semibold rounded-md">
+                      <span className="px-2.5 py-0.5 bg-purple-50 text-purple-800 border border-purple-200/80 text-[11px] font-bold rounded-lg">
                         {getCategoryName(program.Category)}
                       </span>
                     )}
                     {program.AccademicYear && (
-                      <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold rounded-md">
+                      <span className="px-2.5 py-0.5 bg-blue-50 text-blue-800 border border-blue-200/80 text-[11px] font-bold rounded-lg">
                         {getAcademicYearName(program.AccademicYear)}
                       </span>
                     )}
+                    <span className="ml-auto font-mono text-[11px] font-bold text-slate-400">
+                      {program.Program_Code}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900 leading-snug line-clamp-2">
+                      {program.Program_Title || "Untitled Program"}
+                    </h2>
                   </div>
 
                   {/* Description */}
-                  <p className="text-[15px] text-gray-600 leading-relaxed line-clamp-3">
-                    {program.Description || "No registration details supplied."}
+                  <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
+                    {program.Description || "Official tournament and competitive event details."}
                   </p>
 
-                  {/* Expected Outcome */}
-                  {program.OutComes && (
-                    <div className="mt-1">
-                      <h3 className="text-xs font-bold text-gray-500 tracking-wide uppercase mb-1">
-                        Expected Outcome
-                      </h3>
-                      <p className="text-[15px] text-gray-700 line-clamp-2">{program.OutComes}</p>
+                  {/* Common Assigned Topic (if organizer provided) */}
+                  {program.is_topic && program.topic_title && (
+                    <div className="p-2.5 rounded-2xl bg-teal-50 border border-teal-200 text-xs space-y-0.5">
+                      <div className="flex items-center gap-1.5 text-teal-800 font-extrabold text-[10px] uppercase">
+                        <BookOpen size={12} className="text-teal-600 shrink-0" />
+                        <span>Official Assigned Topic:</span>
+                      </div>
+                      <p className="font-extrabold text-teal-950 truncate pl-4">
+                        "{program.topic_title}"
+                      </p>
                     </div>
                   )}
 
-                  {/* Date & Venue Box */}
-                  <div className="flex bg-[#f8f9fa] border border-gray-100 rounded-xl p-4 mt-2">
-                    <div className="flex flex-col w-1/2 border-r border-gray-200/60 pr-2">
-                      <span className="text-xs font-medium text-gray-500 mb-1">Date</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatResultDate(program.Date)}
-                      </span>
+                  {/* Date, Venue & Expected Time Box */}
+                  <div className="space-y-2 mt-auto pt-2">
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200/70 rounded-2xl p-3">
+                      <div className="flex flex-col border-r border-slate-200 pr-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Date</span>
+                        <span className="text-xs font-black text-slate-900 truncate">
+                          {formatResultDate(program.Date)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col pl-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Venue</span>
+                        <span className="text-xs font-black text-slate-900 truncate" title={getVenueName(program.Venue)}>
+                          {getVenueName(program.Venue)}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-col w-1/2 pl-4">
-                      <span className="text-xs font-medium text-gray-500 mb-1">Venue</span>
-                      <span className="text-sm font-semibold text-gray-900 truncate" title={getVenueName(program.Venue)}>
-                        {getVenueName(program.Venue)}
-                      </span>
+
+                    {/* Time Slot & Drive Link Pill Grid */}
+                    <div className="flex items-center justify-between gap-2 text-xs flex-wrap">
+                      {program.Expected_Time && meta.expectedTimeMap[program.Expected_Time] ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-xl">
+                          <Clock size={11} className="text-indigo-600" />
+                          <span>{meta.expectedTimeMap[program.Expected_Time]}</span>
+                        </span>
+                      ) : <span />}
+
+                      {program.drive_link && (
+                        <a
+                          href={program.drive_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-xl transition shadow-2xs"
+                          title="Open syllabus and study materials"
+                        >
+                          <ExternalLink size={11} /> Study Material
+                        </a>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* --- Footer Buttons --- */}
-                <div className="p-4 pt-0 mt-auto flex flex-col gap-2">
+                <div className="p-5 pt-0 mt-auto flex flex-col gap-2">
                   {/* If result is published, show the requested Show Result button */}
                   {(program.IsResulted || program.IsResultPublished) && (
                     <button
                       type="button"
                       onClick={() => setResultModal({ isOpen: true, program })}
-                      className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20 active:scale-[0.99]"
+                      className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-amber-500/20 active:scale-[0.99]"
                     >
                       <Trophy size={14} className="text-yellow-200" /> Show Result
                     </button>
                   )}
 
                   {registeredMap[program.Program_Code] ? (
-                    <div className="w-full py-2.5 px-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs">
+                    <div className="w-full py-2.5 px-3 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200/90 text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs">
                       <CheckCircle2 size={14} className="text-emerald-600" />
                       <span>Already Registered</span>
                     </div>
@@ -493,27 +522,23 @@ export default function PublicProgrammesList() {
                       <button
                         type="button"
                         onClick={() => setSquadModal({ isOpen: true, code: program.Program_Code, title: program.Program_Title || "Program" })}
-                        className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        className="w-full py-2.5 px-3 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <Shield size={14} /> Join / Form Squad
                       </button>
                     ) : (
                       <Link
                         to={currentUser ? `/student-panel/${currentUser.AddNo}/candidate-registration/${program.Program_Code}` : `/login`}
-                        className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs text-center"
+                        className="w-full py-2.5 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs text-center"
                       >
                         <User size={14} /> Register Candidate
                       </Link>
                     )
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={() => setFeedbackModal({ isOpen: true, code: program.Program_Code, title: program.Program_Title || "Program" })}
-                    className="w-full py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <MessageSquare size={14} /> Participant Reviews & Feedback
-                  </button>
+                  ) : (
+                    <div className="w-full py-2.5 px-3 rounded-2xl bg-slate-100 text-slate-500 text-xs font-bold text-center border border-slate-200">
+                      Registration Closed
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -521,13 +546,6 @@ export default function PublicProgrammesList() {
         )}
 
         {/* Modal Dialogs */}
-        <ProgrammeFeedbackModal
-          isOpen={feedbackModal.isOpen}
-          programCode={feedbackModal.code}
-          programTitle={feedbackModal.title}
-          onClose={() => setFeedbackModal({ isOpen: false, code: "", title: "" })}
-        />
-
         <SquadRegistrationModal
           isOpen={squadModal.isOpen}
           programCode={squadModal.code}

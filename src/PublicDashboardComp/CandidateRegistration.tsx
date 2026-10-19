@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
@@ -56,6 +56,8 @@ export default function CandidateRegistration() {
   // Core Data States
   const [programDetails, setProgramDetails] = useState<ProgramDetails | null>(null);
   const [candidateCode, setCandidateCode] = useState<string>("");
+  const [verifiedStudent, setVerifiedStudent] = useState<any>(null);
+  const [studentSuggestions, setStudentSuggestions] = useState<any[]>([]);
   const [studentName, setStudentName] = useState<string>("");
   const [isStudent, setIsStudent] = useState<boolean>(true);
   const [loggedInStudent, setLoggedInStudent] = useState<{
@@ -188,10 +190,22 @@ export default function CandidateRegistration() {
   // ----------------------------------------
   // 3. Real-time Student Lookup Validation
   // ----------------------------------------
+  const contextRef = useRef({ programDetails, meta });
+  contextRef.current = { programDetails, meta };
+
   useEffect(() => {
-    if (!candidateCode.trim()) {
+    const clean = candidateCode.trim();
+    if (!clean) {
       setStudentName("");
       setIsDuplicate(false);
+      setCategoryMismatch(false);
+      setStudentSuggestions([]);
+      setVerifiedStudent(null);
+      return;
+    }
+
+    // Prevent re-querying if this exact student is already verified
+    if (verifiedStudent && verifiedStudent.AddNo.toUpperCase() === clean.toUpperCase()) {
       return;
     }
 
@@ -200,23 +214,51 @@ export default function CandidateRegistration() {
         setStudentName("Checking system registry...");
         setIsDuplicate(false);
         setCategoryMismatch(false);
+        setStudentSuggestions([]);
 
-        // Step A: Check if the student exists in StudentsBox
-        const { data: studentData, error: studentError } = await SupaBaseFunction
+        const { programDetails: curProg, meta: curMeta } = contextRef.current;
+
+        // Step A: Check if the student exists in StudentsBox by exact AddNo first
+        let studentData: any = null;
+        const { data: byAddNo } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("StudentName, Stn_Class")
-          .ilike("AddNo", candidateCode.trim())
+          .select("AddNo, StudentName, Stn_Class")
+          .ilike("AddNo", clean)
           .maybeSingle();
 
-        if (studentError || !studentData) {
-          setStudentName("❌ Student record not found");
+        if (byAddNo) {
+          studentData = byAddNo;
+        } else {
+          // Search by student name or partial AddNo
+          const { data: searchResults } = await SupaBaseFunction
+            .from("StudentsBox")
+            .select("AddNo, StudentName, Stn_Class")
+            .or(`StudentName.ilike.%${clean}%,AddNo.ilike.%${clean}%`)
+            .limit(6);
+
+          if (searchResults && searchResults.length === 1) {
+            studentData = searchResults[0];
+          } else if (searchResults && searchResults.length > 1) {
+            setStudentSuggestions(searchResults);
+            setVerifiedStudent(null);
+            setStudentName(`ℹ️ Found ${searchResults.length} matching students. Please select below:`);
+            return;
+          }
+        }
+
+        if (!studentData) {
+          setVerifiedStudent(null);
+          setStudentName("❌ Student record not found (search by AddNo or Student Name)");
           return;
         }
 
+        const resolvedAddNo = studentData.AddNo.toUpperCase();
+        setVerifiedStudent(studentData);
+
         // Step B: Category Bonding Check
-        if (programDetails?.Category) {
-          const progCatId = programDetails.Category;
-          const progCatTitle = meta.categoryMap[progCatId] || progCatId;
+        if (curProg?.Category) {
+          const progCatId = curProg.Category;
+          const progCatTitle = curMeta.categoryMap[progCatId] || progCatId;
 
           if (
             progCatTitle &&
@@ -225,7 +267,7 @@ export default function CandidateRegistration() {
           ) {
             // Find student's category
             const classId = studentData.Stn_Class;
-            const matchedClass = meta.classes.find(
+            const matchedClass = curMeta.classes.find(
               (c) =>
                 (classId && c.class_id === classId) ||
                 (classId && (c.standard_name === classId || c.class_nick_name === classId))
@@ -236,7 +278,7 @@ export default function CandidateRegistration() {
             let studentCatTitle = "";
             let studentCatId = "";
             if (resolvedClassId) {
-              const cat = meta.categories.find(
+              const cat = curMeta.categories.find(
                 (c) =>
                   c.class_1 === resolvedClassId ||
                   c.class_2 === resolvedClassId ||
@@ -249,7 +291,7 @@ export default function CandidateRegistration() {
             }
 
             if (!studentCatTitle && className) {
-              const cat = meta.categories.find(
+              const cat = curMeta.categories.find(
                 (c) => c.category_title.toLowerCase().trim() === className.toLowerCase().trim()
               );
               if (cat) {
@@ -277,7 +319,7 @@ export default function CandidateRegistration() {
           .from("CandidateRegistrationTable")
           .select("CandidateUUiD")
           .eq("Program_Code", P_Code)
-          .ilike("Candidate_Code", candidateCode.trim())
+          .ilike("Candidate_Code", resolvedAddNo)
           .maybeSingle();
 
         if (duplicateError && duplicateError.code !== "PGRST116") throw duplicateError;
@@ -289,15 +331,15 @@ export default function CandidateRegistration() {
         }
 
         // Step D: Enforce is_limitation limit
-        if (programDetails?.is_limitation) {
-          const maxLimit = programDetails.is_group_program
-            ? (programDetails.group_limit_count ?? 7)
-            : (programDetails.individual_limit_count ?? 15);
-          const currentCount = programDetails.Total_Registration || 0;
+        if (curProg?.is_limitation) {
+          const maxLimit = curProg.is_group_program
+            ? (curProg.group_limit_count ?? 7)
+            : (curProg.individual_limit_count ?? 15);
+          const currentCount = curProg.Total_Registration || 0;
           if (currentCount >= maxLimit) {
             setStudentName(
               `❌ Registration Limit Reached: Maximum of ${maxLimit} ${
-                programDetails.is_group_program ? "groups" : "candidates"
+                curProg.is_group_program ? "groups" : "candidates"
               } allowed for this event.`
             );
             setIsLimitReached(true);
@@ -305,7 +347,7 @@ export default function CandidateRegistration() {
           }
         }
 
-        setStudentName(`✅ ${studentData.StudentName}`);
+        setStudentName(`✅ ${studentData.StudentName} (#${resolvedAddNo})`);
         setIsDuplicate(false);
         setCategoryMismatch(false);
         setIsLimitReached(false);
@@ -316,7 +358,7 @@ export default function CandidateRegistration() {
     }, 350);
 
     return () => clearTimeout(delayDebounce);
-  }, [candidateCode, P_Code, programDetails, meta]);
+  }, [candidateCode, P_Code]);
 
   // ----------------------------------------
   // 4. Process the Registration
@@ -333,12 +375,14 @@ export default function CandidateRegistration() {
     setStatus({ type: "", text: "" });
 
     try {
+      const finalCandidateCode = (verifiedStudent?.AddNo || candidateCode).trim().toUpperCase();
+
       // Step A: Insert record into CandidateRegistrationTable
       const { error: insertError } = await SupaBaseFunction
         .from("CandidateRegistrationTable")
         .insert([{
           Program_Code: P_Code,
-          Candidate_Code: candidateCode.trim()
+          Candidate_Code: finalCandidateCode
         }]);
 
       if (insertError) throw insertError;
@@ -355,18 +399,17 @@ export default function CandidateRegistration() {
       const { data: currentStudent } = await SupaBaseFunction
         .from("StudentsBox")
         .select("Registration_Count")
-        .ilike("AddNo", candidateCode.trim())
+        .ilike("AddNo", finalCandidateCode)
         .maybeSingle();
 
       if (currentStudent) {
         await SupaBaseFunction
           .from("StudentsBox")
           .update({ Registration_Count: (currentStudent.Registration_Count || 0) + 1 })
-          .ilike("AddNo", candidateCode.trim());
+          .ilike("AddNo", finalCandidateCode);
       }
 
-      const registeredCode = candidateCode.trim();
-      setLastRegisteredStudent(registeredCode);
+      setLastRegisteredStudent(finalCandidateCode);
       setStatus({
         type: "success",
         text: programDetails?.is_topic_required
@@ -609,7 +652,7 @@ export default function CandidateRegistration() {
                   type="text"
                   required
                   readOnly={isStudent}
-                  placeholder="e.g. U1476"
+                  placeholder="e.g. U1476, or search student name..."
                   value={candidateCode}
                   onChange={(e) => {
                     if (!isStudent) setCandidateCode(e.target.value.toUpperCase());
@@ -626,6 +669,38 @@ export default function CandidateRegistration() {
                   </div>
                 )}
               </div>
+
+              {/* Matching Student Suggestions Dropdown */}
+              {!isStudent && studentSuggestions.length > 0 && (
+                <div className="mt-2 p-2 bg-white rounded-2xl border border-indigo-200 shadow-xl max-h-52 overflow-y-auto space-y-1 z-20">
+                  <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider px-2 py-1 block">
+                    Matching Students ({studentSuggestions.length}) - Click to Select:
+                  </span>
+                  {studentSuggestions.map((s: any) => (
+                    <button
+                      type="button"
+                      key={s.AddNo}
+                      onClick={() => {
+                        setCandidateCode(s.AddNo.toUpperCase());
+                        setStudentSuggestions([]);
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl hover:bg-indigo-50 transition flex items-center justify-between gap-2 cursor-pointer border border-transparent hover:border-indigo-100"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-xs text-slate-900 block truncate">
+                          {s.StudentName}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Class: {s.Stn_Class || "N/A"}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 shrink-0">
+                        #{s.AddNo}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {isStudent && loggedInStudent && (
                 <p className="text-[11px] text-slate-500 font-semibold flex items-center gap-1 mt-0.5">

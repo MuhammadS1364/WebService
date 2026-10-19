@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
@@ -84,6 +84,7 @@ export default function ManageCandidateRegistrations() {
   // New Candidate Assignment Form State
   const [inputAddNo, setInputAddNo] = useState<string>("");
   const [verifiedStudent, setVerifiedStudent] = useState<StudentSearchResult | null>(null);
+  const [studentSuggestions, setStudentSuggestions] = useState<StudentSearchResult[]>([]);
   const [isLookingUp, setIsLookingUp] = useState<boolean>(false);
   const [lookupFeedback, setLookupFeedback] = useState<{ type: "success" | "warning" | "error" | "info"; text: string } | null>(null);
   const [isSubmittingAssign, setIsSubmittingAssign] = useState<boolean>(false);
@@ -243,13 +244,99 @@ export default function ManageCandidateRegistrations() {
     loadData();
   }, [loadData]);
 
-  // 2. Debounced Student AddNo Lookup for Assign Form
+  const validationContextRef = useRef({ programme, registeredCandidates, meta });
+  validationContextRef.current = { programme, registeredCandidates, meta };
+
+  // Helper to validate and select a student
+  const validateAndSelectStudent = (stn: StudentSearchResult) => {
+    setVerifiedStudent(stn);
+    setStudentSuggestions([]);
+
+    const { programme: curProg, registeredCandidates: curRegs, meta: curMeta } = validationContextRef.current;
+
+    // Check if ALREADY registered in this programme
+    const isAlready = curRegs.some(
+      (c) => c.Candidate_Code.toUpperCase() === stn.AddNo.toUpperCase()
+    );
+
+    if (isAlready) {
+      setLookupFeedback({
+        type: "warning",
+        text: `⚠️ ${stn.StudentName} (#${stn.AddNo}) is ALREADY registered in this programme.`,
+      });
+      return;
+    }
+
+    // Category Bonding Check
+    if (curProg?.Category) {
+      const progCatId = curProg.Category;
+      const progCatTitle = curMeta.categoryMap[progCatId] || progCatId;
+
+      if (
+        progCatTitle &&
+        progCatTitle.toLowerCase() !== "general" &&
+        progCatTitle.toLowerCase() !== "all"
+      ) {
+        // Find student's category
+        const classId = stn.Stn_Class;
+        const matchedClass = curMeta.classes.find(
+          (c) =>
+            (classId && c.class_id === classId) ||
+            (classId && (c.standard_name === classId || c.class_nick_name === classId))
+        );
+        const resolvedClassId = matchedClass?.class_id || classId;
+
+        let studentCatTitle = "";
+        let studentCatId = "";
+        if (resolvedClassId) {
+          const cat = curMeta.categories.find(
+            (c) =>
+              c.class_1 === resolvedClassId ||
+              c.class_2 === resolvedClassId ||
+              c.class_3 === resolvedClassId
+          );
+          if (cat) {
+            studentCatTitle = cat.category_title;
+            studentCatId = cat.category_id;
+          }
+        }
+
+        const isMatch =
+          studentCatId === progCatId ||
+          (studentCatTitle && studentCatTitle.toLowerCase().trim() === progCatTitle.toLowerCase().trim());
+
+        if (!isMatch && studentCatTitle) {
+          setIsCategoryMismatch(true);
+          setLookupFeedback({
+            type: "warning",
+            text: `⚠️ Category Mismatch: Programme is for "${progCatTitle}". ${stn.StudentName} is in "${studentCatTitle}". (Admin override available)`,
+          });
+          return;
+        }
+      }
+    }
+
+    // Verified and eligible!
+    setIsCategoryMismatch(false);
+    setLookupFeedback({
+      type: "success",
+      text: `✅ Verified: ${stn.StudentName} (#${stn.AddNo} - ${stn.Stn_Class || "No class"}) is eligible to be assigned.`,
+    });
+  };
+
+  // 2. Debounced Student Lookup (both AddNo or Student Name are valid)
   useEffect(() => {
     const cleanCode = inputAddNo.trim();
     if (!cleanCode) {
       setVerifiedStudent(null);
+      setStudentSuggestions([]);
       setLookupFeedback(null);
       setIsCategoryMismatch(false);
+      return;
+    }
+
+    // If input already exactly matches current verified student AddNo, don't re-trigger
+    if (verifiedStudent && verifiedStudent.AddNo.toUpperCase() === cleanCode.toUpperCase()) {
       return;
     }
 
@@ -259,92 +346,50 @@ export default function ManageCandidateRegistrations() {
       setIsCategoryMismatch(false);
 
       try {
-        // Query StudentsBox
-        const { data: stn, error: stnErr } = await SupaBaseFunction
+        // Step A: Search StudentsBox by exact AddNo first
+        const { data: stnByAddNo } = await SupaBaseFunction
           .from("StudentsBox")
           .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
           .ilike("AddNo", cleanCode)
           .maybeSingle();
 
-        if (stnErr) throw stnErr;
+        if (stnByAddNo) {
+          validateAndSelectStudent(stnByAddNo as StudentSearchResult);
+          return;
+        }
 
-        if (!stn) {
+        // Step B: Search by StudentName or partial AddNo
+        const { data: searchResults, error: searchErr } = await SupaBaseFunction
+          .from("StudentsBox")
+          .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
+          .or(`StudentName.ilike.%${cleanCode}%,AddNo.ilike.%${cleanCode}%`)
+          .limit(8);
+
+        if (searchErr) throw searchErr;
+
+        const results = (searchResults as StudentSearchResult[]) || [];
+
+        if (results.length === 0) {
           setVerifiedStudent(null);
+          setStudentSuggestions([]);
           setLookupFeedback({
             type: "error",
-            text: `No student found with admission code: "${cleanCode}".`,
+            text: `No student found matching "${cleanCode}" by AddNo or Student Name.`,
           });
           return;
         }
 
-        setVerifiedStudent(stn as StudentSearchResult);
-
-        // Check if ALREADY registered in this programme
-        const isAlready = registeredCandidates.some(
-          (c) => c.Candidate_Code.toUpperCase() === stn.AddNo.toUpperCase()
-        );
-
-        if (isAlready) {
-          setLookupFeedback({
-            type: "warning",
-            text: `⚠️ ${stn.StudentName} (#${stn.AddNo}) is ALREADY registered in this programme.`,
-          });
+        if (results.length === 1) {
+          validateAndSelectStudent(results[0]);
           return;
         }
 
-        // Category Bonding Check
-        if (programme?.Category) {
-          const progCatId = programme.Category;
-          const progCatTitle = meta.categoryMap[progCatId] || progCatId;
-
-          if (
-            progCatTitle &&
-            progCatTitle.toLowerCase() !== "general" &&
-            progCatTitle.toLowerCase() !== "all"
-          ) {
-            // Find student's category
-            const classId = stn.Stn_Class;
-            const matchedClass = meta.classes.find(
-              (c) =>
-                (classId && c.class_id === classId) ||
-                (classId && (c.standard_name === classId || c.class_nick_name === classId))
-            );
-            const resolvedClassId = matchedClass?.class_id || classId;
-
-            let studentCatTitle = "";
-            let studentCatId = "";
-            if (resolvedClassId) {
-              const cat = meta.categories.find(
-                (c) =>
-                  c.class_1 === resolvedClassId ||
-                  c.class_2 === resolvedClassId ||
-                  c.class_3 === resolvedClassId
-              );
-              if (cat) {
-                studentCatTitle = cat.category_title;
-                studentCatId = cat.category_id;
-              }
-            }
-
-            const isMatch =
-              studentCatId === progCatId ||
-              (studentCatTitle && studentCatTitle.toLowerCase().trim() === progCatTitle.toLowerCase().trim());
-
-            if (!isMatch && studentCatTitle) {
-              setIsCategoryMismatch(true);
-              setLookupFeedback({
-                type: "warning",
-                text: `⚠️ Category Mismatch: Programme is for "${progCatTitle}". ${stn.StudentName} is in "${studentCatTitle}". (Admin override available)`,
-              });
-              return;
-            }
-          }
-        }
-
-        // Verified and eligible!
+        // Multiple matches: show suggestions dropdown
+        setStudentSuggestions(results);
+        setVerifiedStudent(null);
         setLookupFeedback({
-          type: "success",
-          text: `✅ Verified: ${stn.StudentName} (${stn.Stn_Class || "No class"}) is eligible to be assigned.`,
+          type: "info",
+          text: `Found ${results.length} students matching "${cleanCode}". Select a candidate below:`,
         });
       } catch (err: any) {
         console.error("Lookup error:", err);
@@ -358,7 +403,7 @@ export default function ManageCandidateRegistrations() {
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [inputAddNo, programme, registeredCandidates, meta]);
+  }, [inputAddNo]);
 
   // 3. Main Assign Candidate Action
   const handleAssignCandidate = async (e: React.FormEvent) => {
@@ -373,9 +418,10 @@ export default function ManageCandidateRegistrations() {
 
     setIsSubmittingAssign(true);
     try {
+      // ALL input values provided to DB are in UPPERCASE
       const payload = {
-        Program_Code: programme.Program_Code,
-        Candidate_Code: verifiedStudent.AddNo,
+        Program_Code: programme.Program_Code.trim().toUpperCase(),
+        Candidate_Code: verifiedStudent.AddNo.trim().toUpperCase(),
       };
 
       const { data: inserted, error: insertErr } = await SupaBaseFunction
@@ -391,7 +437,7 @@ export default function ManageCandidateRegistrations() {
       await SupaBaseFunction
         .from("ProgrammesBox")
         .update({ Total_Registration: newTotal })
-        .eq("Program_Code", programme.Program_Code);
+        .eq("Program_Code", programme.Program_Code.trim().toUpperCase());
 
       // Add to local state
       const newReg: RegisteredCandidate = {
@@ -651,27 +697,27 @@ export default function ManageCandidateRegistrations() {
               <span>Manager Tool</span>
             </div>
             <h2 className="text-lg font-black text-slate-900 tracking-tight">
-              Assign Candidate by AddNo
+              Assign Candidate by AddNo or Name
             </h2>
             <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
-              Administrators and Wing managers can assign any student to this event by typing their Admission Number.
+              Administrators and Wing managers can assign any student to this event by searching their Admission Number or Student Name.
             </p>
           </div>
 
           <form onSubmit={handleAssignCandidate} className="space-y-4">
-            {/* Input AddNo */}
+            {/* Input AddNo or Student Name */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Candidate Admission No (AddNo) <span className="text-rose-500">*</span>
+                Candidate Admission No (AddNo) or Student Name <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="text"
                   required
-                  placeholder="e.g. U1476, U1541, U1604..."
+                  placeholder="e.g. U1476, or search student name..."
                   value={inputAddNo}
                   onChange={(e) => setInputAddNo(e.target.value.toUpperCase())}
-                  className="w-full rounded-2xl border border-slate-300 p-3.5 pl-4 pr-10 text-slate-900 font-mono font-bold text-sm placeholder-slate-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 outline-none transition bg-white"
+                  className="w-full rounded-2xl border border-slate-300 p-3.5 pl-4 pr-10 text-slate-900 font-bold text-sm placeholder-slate-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/10 outline-none transition bg-white"
                 />
                 {isLookingUp && (
                   <div className="absolute right-3.5 top-3.5">
@@ -679,6 +725,38 @@ export default function ManageCandidateRegistrations() {
                   </div>
                 )}
               </div>
+
+              {/* Matching Student Suggestions Dropdown */}
+              {studentSuggestions.length > 0 && (
+                <div className="mt-2 p-2 bg-white rounded-2xl border border-indigo-200 shadow-xl max-h-56 overflow-y-auto space-y-1 z-20">
+                  <span className="text-[10px] font-bold text-indigo-900 uppercase tracking-wider px-2 py-1 block">
+                    Matching Students ({studentSuggestions.length}) - Click to Select:
+                  </span>
+                  {studentSuggestions.map((s) => (
+                    <button
+                      type="button"
+                      key={s.AddNo}
+                      onClick={() => {
+                        setInputAddNo(s.AddNo.toUpperCase());
+                        validateAndSelectStudent(s);
+                      }}
+                      className="w-full text-left p-2.5 rounded-xl hover:bg-indigo-50/80 transition flex items-center justify-between gap-2 cursor-pointer border border-transparent hover:border-indigo-100"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-xs text-slate-900 block truncate">
+                          {s.StudentName}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          Class: {s.Stn_Class || "N/A"} • {s.CollegeName || ""}
+                        </span>
+                      </div>
+                      <span className="font-mono font-bold text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 shrink-0">
+                        #{s.AddNo}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Live Verification Box */}

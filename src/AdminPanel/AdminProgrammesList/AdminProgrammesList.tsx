@@ -27,12 +27,12 @@ import {
   Printer,
   Trash2,
   MoreHorizontal,
-  UserPlus,
   BookOpen,
   ExternalLink,
   CheckCircle2,
   Clock,
-  Trophy
+  Trophy,
+  Image as ImageIcon
 } from "lucide-react"; 
 
 export interface Programme {
@@ -200,6 +200,34 @@ export default function AdminProgrammesList({
   const getExpectedTimeName = (timeId: string | null | undefined): string => {
     if (!timeId) return "";
     return meta.expectedTimeMap[timeId] || "";
+  };
+
+  const formatCardDate = (dateVal: string | null | undefined): string => {
+    if (!dateVal) return "TBA";
+    try {
+      const parts = dateVal.split("-");
+      if (parts.length === 3) {
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+        }
+      }
+      const d = new Date(dateVal);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      }
+    } catch {
+      // fallback
+    }
+    return dateVal;
   };
 
   const uniqueValues = useMemo(() => {
@@ -683,420 +711,333 @@ export default function AdminProgrammesList({
               const isSelected = selectedPrograms.has(prog.Program_Code);
               const catTitle = getCategoryName(prog.Category);
               const isGroup = Boolean((prog as any).is_group_program);
-              const isContentReq = Boolean((prog as any).isContentRequired);
 
               return (
                 <div
                   key={prog.Program_Code}
-                  className={`relative flex flex-col bg-white rounded-3xl overflow-hidden transition-all duration-300 group ${
+                  className={`relative flex flex-col bg-white rounded-3xl p-4 sm:p-5 transition-all duration-200 group ${
                     isSelected
-                      ? "ring-2 ring-emerald-500 shadow-xl border-transparent"
-                      : "border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-emerald-300"
+                      ? "ring-2 ring-emerald-500 shadow-lg border-transparent"
+                      : "border border-slate-200 hover:border-slate-300 hover:shadow-md"
                   }`}
                 >
-                  {/* MULTIPLE SELECTION CHECKBOX */}
-                  <div className="absolute top-3 left-3 z-20 bg-slate-900/60 backdrop-blur-md p-1.5 rounded-xl border border-white/20 shadow-md">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer block"
-                      checked={isSelected}
-                      onChange={() => {
-                        const next = new Set(selectedPrograms);
-                        if (next.has(prog.Program_Code)) next.delete(prog.Program_Code);
-                        else next.add(prog.Program_Code);
-                        setSelectedPrograms(next);
-                      }}
-                    />
-                  </div>
-
-                  {/* POSTER BANNER */}
-                  <div className="h-52 w-full bg-slate-950 relative overflow-hidden group/img">
-                    <SafeImage
-                      src={prog.Program_Poster}
-                      alt={prog.Program_Title || "Program"}
-                      fallbackCategory="programme"
-                      fallbackText={prog.Program_Title || prog.Program_Code}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    />
-
-                    {/* Gradient Overlay for badge contrast */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
-
-                    {/* Top-Right Status Pills */}
-                    <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border ${
-                          prog.IsApproved
-                            ? "bg-emerald-500/90 text-white border-emerald-400/30"
-                            : "bg-amber-500/90 text-slate-950 border-amber-300/30"
-                        }`}
-                      >
-                        {prog.IsApproved ? "Approved" : "Pending"}
-                      </span>
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border ${
-                          prog.IsOpenRegistration
-                            ? "bg-teal-500/90 text-white border-teal-300/30 animate-pulse"
-                            : "bg-rose-500/90 text-white border-rose-300/30"
-                        }`}
-                      >
-                        {prog.IsOpenRegistration ? "Reg Open" : "Reg Closed"}
+                  {/* TOP ROW: Checkbox & Code on left, Approval Status on right */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => {
+                          const next = new Set(selectedPrograms);
+                          if (next.has(prog.Program_Code)) next.delete(prog.Program_Code);
+                          else next.add(prog.Program_Code);
+                          setSelectedPrograms(next);
+                        }}
+                        title="Select programme for bulk actions"
+                      />
+                      <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                        {prog.Program_Code}
                       </span>
                     </div>
 
-                    {/* Bottom Badges on Image */}
-                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* Category Badge */}
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wide bg-slate-900/80 text-emerald-300 backdrop-blur-md border border-emerald-500/30 shadow-xs flex items-center gap-1">
-                          <Layers size={11} className="text-emerald-400" />
-                          {catTitle || "General"}
+                    <div className="flex items-center gap-1.5">
+                      {prog.IsApproved ? (
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                          Approved
                         </span>
-                        {/* Group Badge */}
-                        {prog.Group && (
-                          <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-indigo-900/80 text-indigo-200 backdrop-blur-md border border-indigo-400/30 shadow-xs flex items-center gap-1">
-                            <Users size={10} className="text-indigo-300" />
-                            {getGroupName(prog.Group)}
-                          </span>
-                        )}
-                        {/* Group/Individual format */}
-                        <span className="px-2 py-1 rounded-lg text-[10px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/20 shadow-xs">
-                          {isGroup ? "Squad" : "Individual"}
+                      ) : (
+                        <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md">
+                          Pending
                         </span>
-                      </div>
+                      )}
+                    </div>
+                  </div>
 
-                      {/* Poster Expand Button */}
-                      {prog.Program_Poster && (
+                  {/* PROGRAMME ARTWORK */}
+                  <div 
+                    className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-100 border border-slate-200/70 my-3.5 flex items-center justify-center group/art cursor-pointer"
+                    onClick={() => {
+                      if (prog.Program_Poster) {
+                        setFullscreenPoster({
+                          url: prog.Program_Poster,
+                          title: prog.Program_Title || prog.Program_Code,
+                        });
+                      }
+                    }}
+                    title={prog.Program_Poster ? "Click to view full poster" : "Programme artwork"}
+                  >
+                    {prog.Program_Poster ? (
+                      <>
+                        <SafeImage
+                          src={prog.Program_Poster}
+                          alt={prog.Program_Title || "Program"}
+                          fallbackCategory="programme"
+                          fallbackText={prog.Program_Title || prog.Program_Code}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover/art:scale-105"
+                        />
                         <button
                           type="button"
-                          onClick={() =>
+                          className="absolute bottom-2.5 right-2.5 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white backdrop-blur-xs transition opacity-0 group-hover/art:opacity-100 shadow-xs cursor-pointer"
+                          title="Preview Full Poster"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setFullscreenPoster({
                               url: prog.Program_Poster!,
                               title: prog.Program_Title || prog.Program_Code,
-                            })
-                          }
-                          className="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition shadow-xs cursor-pointer"
-                          title="Preview Full Poster"
+                            });
+                          }}
                         >
                           <Maximize2 size={13} />
                         </button>
-                      )}
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-1.5 text-slate-400 select-none">
+                        <ImageIcon size={32} className="stroke-[1.5] text-slate-300" />
+                        <span className="text-xs font-medium text-slate-400">Programme artwork</span>
+                      </div>
+                    )}
+
+                    {isGroup && (
+                      <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900/80 text-white backdrop-blur-xs border border-white/10 shadow-xs">
+                        Squad
+                      </span>
+                    )}
+                  </div>
+
+                  {/* TITLE & SUB-METADATA */}
+                  <div>
+                    <h3 
+                      className="font-bold text-slate-900 text-lg leading-snug line-clamp-2 group-hover:text-indigo-600 transition-colors"
+                      title={prog.Program_Title || "Untitled Programme"}
+                    >
+                      {prog.Program_Title || "Untitled Programme"}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-500 font-medium truncate mt-1">
+                      {[getWingName(prog.WingCode), catTitle, prog.Group ? getGroupName(prog.Group) : null]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+
+                  {/* ASSIGNED TOPIC (IF CONFIGURED) */}
+                  {prog.is_topic && prog.topic_title && (
+                    <div className="mt-2.5 px-2.5 py-1.5 rounded-xl bg-teal-50 border border-teal-200/80 text-xs text-teal-900 flex items-center gap-1.5 font-medium">
+                      <BookOpen size={13} className="text-teal-600 shrink-0" />
+                      <span className="font-bold shrink-0">Topic:</span>
+                      <span className="truncate">"{prog.topic_title}"</span>
+                    </div>
+                  )}
+
+                  {/* DATE & VENUE ROW (2 Columns) */}
+                  <div className="grid grid-cols-2 gap-4 py-3.5 border-t border-slate-100 mt-3.5">
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Calendar size={16} className="text-slate-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          DATE
+                        </span>
+                        <span className="font-bold text-slate-900 text-sm truncate block" title={prog.Date || "TBA"}>
+                          {formatCardDate(prog.Date)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <MapPin size={16} className="text-slate-400 mt-0.5 shrink-0" />
+                      <div className="min-w-0">
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          VENUE
+                        </span>
+                        <span className="font-bold text-slate-900 text-sm truncate block" title={getVenueName(prog.Venue)}>
+                          {getVenueName(prog.Venue)}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* CARD BODY */}
-                  <div className="p-5 flex flex-col flex-grow bg-white space-y-3.5 relative">
-                    {/* Header with Code & Action (...) Dropdown Button */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          #{prog.Program_Code}
-                        </span>
-                        {prog.IsResultPublished && (
-                          <span className="text-[10px] font-black uppercase text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <Award size={11} /> Results
-                          </span>
-                        )}
-                        {prog.is_result_required === false && (
-                          <span className="text-[10px] font-black uppercase text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-md flex items-center gap-1" title="Non-competitive / direct event. +2 Points awarded to Wing on creation.">
-                            <CheckCircle2 size={11} /> +2 Wing Pt
-                          </span>
-                        )}
-                        {isContentReq && !prog.IsResultPublished && (
-                          <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                            <FileText size={11} /> Content
-                          </span>
-                        )}
-                      </div>
-
-                      {/* (...) Consolidated Actions Dropdown Menu */}
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setOpenMenuProgCode(openMenuProgCode === prog.Program_Code ? null : prog.Program_Code)}
-                          className="px-2.5 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 hover:border-slate-300 transition cursor-pointer shadow-2xs flex items-center gap-1 text-xs"
-                          title="Actions menu"
-                        >
-                          <MoreHorizontal size={16} />
-                        </button>
-
-                        {/* Dropdown Menu Popup */}
-                        {openMenuProgCode === prog.Program_Code && (
-                          <div className="absolute right-0 top-9 z-30 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 space-y-0.5 text-xs font-semibold animate-in fade-in zoom-in-95">
-                            <button
-                              type="button"
-                              onClick={() => { setEditingProgram(prog); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-slate-800 transition cursor-pointer"
-                            >
-                              <Edit3 size={14} className="text-indigo-600" /> Edit Details
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setPrintSheetProgram(prog); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-violet-700 transition cursor-pointer"
-                            >
-                              <Printer size={14} className="text-violet-600" /> Candidate Sheet (A4)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setSelectedTopicProg(prog); setIsTopicsManagerOpen(true); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-indigo-700 transition cursor-pointer"
-                            >
-                              <FileText size={14} className="text-indigo-600" /> Topics Registry
-                            </button>
-
-                            {/* Declare or Edit Result Link */}
-                            <Link
-                              to={isControllerMode ? `/controller-panel/${activeUser}/create-result?program=${prog.Program_Code}` : `/admin-panel/${activeUser}/create-result?program=${prog.Program_Code}`}
-                              onClick={() => setOpenMenuProgCode(null)}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 transition cursor-pointer font-bold"
-                            >
-                              <Trophy size={14} className="text-amber-600" />
-                              <span>{prog.IsResulted ? "Edit Official Result" : "Declare Official Result"}</span>
-                            </Link>
-
-                            {/* Display Result in Dropdown */}
-                            {prog.IsResultPublished && (
-                              <button
-                                type="button"
-                                onClick={() => { setResultModalProgram(prog); setOpenMenuProgCode(null); }}
-                                className="w-full px-3 py-2 rounded-xl text-left hover:bg-purple-50 flex items-center gap-2 text-purple-800 transition cursor-pointer font-bold"
-                              >
-                                <Award size={14} className="text-purple-600" /> Display Published Result
-                              </button>
-                            )}
-
-                            {/* Toggle Result Publication */}
-                            <button
-                              type="button"
-                              disabled={isLoading.action}
-                              onClick={() => { handleSingleAction(prog.Program_Code, "TogglePublish"); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-purple-50 flex items-center gap-2 text-purple-800 transition cursor-pointer font-semibold"
-                            >
-                              <Award size={14} className="text-purple-600" />
-                              {prog.IsResultPublished ? "Unpublish Result" : "Publish Result"}
-                            </button>
-
-                            {/* Direct Result Editor / Declaration (Admin & Wing Only) */}
-                            <Link
-                              to={`../create-result?code=${prog.Program_Code}`}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-amber-50 flex items-center gap-2 text-amber-900 transition cursor-pointer font-semibold"
-                            >
-                              <Trophy size={14} className="text-amber-600" />
-                              <span>{prog.IsResulted ? "Edit Result & Points" : "Declare Result"}</span>
-                            </Link>
-
-                            {/* Manage Groups / Candidates */}
-                            <Link
-                              to={`../group-programme-manager`}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-indigo-50 flex items-center gap-2 text-indigo-900 transition cursor-pointer font-semibold"
-                            >
-                              <Users size={14} className="text-indigo-600" />
-                              <span>Group & Candidate Hub</span>
-                            </Link>
-                            
-                            <div className="h-px bg-slate-100 my-1" />
-                            
-                            <button
-                              type="button"
-                              disabled={isLoading.action}
-                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleApprove"); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-emerald-800 transition cursor-pointer"
-                            >
-                              <CheckCircle2 size={14} className="text-emerald-600" />
-                              {prog.IsApproved ? "Mark as Pending" : "Approve Programme"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isLoading.action}
-                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleReg"); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-teal-800 transition cursor-pointer"
-                            >
-                              <Clock size={14} className="text-teal-600" />
-                              {prog.IsOpenRegistration ? "Close Registration" : "Open Registration"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isLoading.action}
-                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleContent"); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-amber-800 transition cursor-pointer"
-                            >
-                              <FileText size={14} className="text-amber-600" />
-                              Content: {(prog as any).isContentRequired ? "Disable (ON)" : "Enable (OFF)"}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isLoading.action}
-                              onClick={() => { handleSingleAction(prog.Program_Code, "ToggleTopic"); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-indigo-800 transition cursor-pointer"
-                            >
-                              <Layers size={14} className="text-indigo-600" />
-                              Topic: {prog.is_topic_required ? "Disable (ON)" : "Enable (OFF)"}
-                            </button>
-                            
-                            <div className="h-px bg-slate-100 my-1" />
-                            
-                            <button
-                              type="button"
-                              disabled={isLoading.action}
-                              onClick={() => { handleSingleDelete(prog.Program_Code, prog.Program_Title); setOpenMenuProgCode(null); }}
-                              className="w-full px-3 py-2 rounded-xl text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 transition cursor-pointer"
-                            >
-                              <Trash2 size={14} /> Delete Programme
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Programme Title */}
-                    <div>
-                      <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-2 group-hover:text-emerald-700 transition-colors">
-                        {prog.Program_Title || "Untitled Programme"}
-                      </h3>
-                    </div>
-
-                    {/* Programme Details Card: WingName, Date, Venue */}
-                    <div className="space-y-2 pt-2 border-t border-slate-100">
-                      {/* Wing Name */}
-                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200/60">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                        <span className="text-xs text-slate-500 font-bold shrink-0">Wing:</span>
-                        <span className="text-xs font-bold text-slate-800 truncate">{getWingName(prog.WingCode)}</span>
-                      </div>
-
-                      {/* Date, Venue & Expected Time Grid */}
-                      <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/60 truncate" title={prog.Date || "TBA"}>
-                          <Calendar size={13} className="text-emerald-600 shrink-0" />
-                          <div className="truncate">
-                            <span className="block text-[9px] uppercase font-bold text-slate-400">Date</span>
-                            <span className="font-bold text-slate-700 truncate">{prog.Date || "TBA"}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200/60 truncate" title={getVenueName(prog.Venue)}>
-                          <MapPin size={13} className="text-rose-500 shrink-0" />
-                          <div className="truncate">
-                            <span className="block text-[9px] uppercase font-bold text-slate-400">Venue</span>
-                            <span className="font-bold text-slate-700 truncate">{getVenueName(prog.Venue)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Expected Time Slot Badge */}
+                  {/* EXPECTED TIME SLOT & DRIVE LINK (SUBTLE SECONDARY ROW IF PRESENT) */}
+                  {(prog.Expected_Time && getExpectedTimeName(prog.Expected_Time)) || prog.drive_link ? (
+                    <div className="flex items-center justify-between gap-2 pb-2 text-[11px] text-slate-500 flex-wrap">
                       {prog.Expected_Time && getExpectedTimeName(prog.Expected_Time) && (
-                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50/70 border border-indigo-100 text-[11px] text-indigo-900 font-bold truncate">
-                          <Clock size={12} className="text-indigo-600 shrink-0" />
-                          <span className="text-[9px] uppercase text-indigo-500 font-bold shrink-0">Time:</span>
+                        <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50/70 border border-indigo-100 px-2 py-0.5 rounded-md truncate max-w-[200px]">
+                          <Clock size={11} className="text-indigo-500 shrink-0" />
                           <span className="truncate">{getExpectedTimeName(prog.Expected_Time)}</span>
-                        </div>
+                        </span>
                       )}
-
-                      {/* Common Assigned Topic Pill */}
-                      {prog.is_topic && prog.topic_title && (
-                        <div className="p-2 rounded-xl bg-teal-50 border border-teal-200/70 text-[11px] space-y-0.5">
-                          <div className="flex items-center gap-1 text-teal-800 font-bold text-[10px] uppercase">
-                            <BookOpen size={11} className="text-teal-600 shrink-0" />
-                            <span>Assigned Topic</span>
-                          </div>
-                          <p className="font-bold text-teal-950 truncate pl-3.5">
-                            "{prog.topic_title}"
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Registration Stats, Limit & Year Counter */}
-                      <div className="flex items-center justify-between pt-1 text-[11px] flex-wrap gap-2">
-                        <Link
-                          to={`../candidate-registration/${prog.Program_Code}`}
-                          className="flex items-center gap-1.5 text-indigo-700 hover:text-indigo-900 font-extrabold hover:underline"
-                          title="Manage registered candidates & assign other candidates"
+                      {prog.drive_link && (
+                        <a
+                          href={prog.drive_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-bold text-blue-700 hover:text-blue-900 ml-auto transition"
+                          title="Open Google Drive resources"
                         >
-                          <Users size={13} className="text-indigo-600" />
-                          <span>{prog.Total_Registration || 0} Registered</span>
-                          <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">
-                            Manage
-                          </span>
-                        </Link>
+                          <ExternalLink size={11} /> Drive
+                        </a>
+                      )}
+                    </div>
+                  ) : null}
 
-                        <div className="flex items-center gap-1.5">
+                  {/* REGISTERED & REGISTRATION STATUS ROW */}
+                  <div className="flex items-center justify-between pt-3 pb-1 border-t border-slate-100 mt-auto">
+                    <div className="flex items-center gap-2.5">
+                      <Users size={18} className="text-slate-400 shrink-0" />
+                      <div>
+                        <div className="font-bold text-slate-900 text-sm leading-tight flex items-center gap-1.5">
+                          <span>{prog.Total_Registration || 0} registered</span>
                           {prog.is_limitation && (
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
-                                (prog.Total_Registration || 0) >=
-                                ((prog as any).is_group_program
-                                  ? (prog.group_limit_count || 7)
-                                  : (prog.individual_limit_count || 15))
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : "bg-orange-50 text-orange-800 border-orange-200"
-                              }`}
-                              title="Registration capacity limitation"
-                            >
-                              Cap: {prog.Total_Registration || 0} /{" "}
-                              {(prog as any).is_group_program
-                                ? prog.group_limit_count || 7
-                                : prog.individual_limit_count || 15}
-                            </span>
-                          )}
-
-                          {prog.drive_link && (
-                            <a
-                              href={prog.drive_link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md flex items-center gap-1 transition shadow-2xs"
-                              title="Open Google Drive resources"
-                            >
-                              <ExternalLink size={10} /> Drive
-                            </a>
-                          )}
-
-                          {prog.AccademicYear && (
-                            <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded-md">
-                              {getAcademicYearName(prog.AccademicYear)}
+                            <span className="text-[11px] font-semibold text-slate-400">
+                              / {isGroup ? prog.group_limit_count || 7 : prog.individual_limit_count || 15} max
                             </span>
                           )}
                         </div>
+                        <span
+                          className={`text-xs font-medium block leading-tight ${
+                            prog.IsOpenRegistration ? "text-emerald-600" : "text-rose-600"
+                          }`}
+                        >
+                          {prog.IsOpenRegistration ? "Registration open" : "Registration closed"}
+                        </span>
                       </div>
                     </div>
 
-                    {/* IF RESULT PUBLISHED, PROMINENT BUTTON TO DISPLAY THE RESULT */}
-                    {prog.IsResultPublished && (
-                      <button
-                        type="button"
-                        onClick={() => setResultModalProgram(prog)}
-                        className="w-full py-2.5 px-3 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-white transition flex items-center justify-center gap-2 shadow-md shadow-amber-500/20 active:scale-[0.98] cursor-pointer"
-                        title="Display official published competition result with podium, winners, and grades"
-                      >
-                        <Trophy size={15} className="text-yellow-200" />
-                        <span>Display Result</span>
-                      </button>
-                    )}
+                    {/* Candidates button */}
+                    <Link
+                      to={`../candidate-registration/${prog.Program_Code}`}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition shadow-2xs hover:border-slate-300"
+                      title="Manage and assign candidates"
+                    >
+                      Candidates
+                    </Link>
+                  </div>
 
-                    {/* ACTION BUTTONS (CANDIDATES, EDIT & SHEET) */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-auto">
-                      <Link
-                        to={`../candidate-registration/${prog.Program_Code}`}
-                        className="py-2 px-2.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition flex items-center justify-center gap-1 shadow-2xs"
-                        title="Assign and manage candidates"
-                      >
-                        <UserPlus size={13} /> Candidates
-                      </Link>
+                  {/* BOTTOM ACTION BUTTONS: Edit Programme (Primary) & ··· More (Secondary) */}
+                  <div className="flex items-center gap-2 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditingProgram(prog)}
+                      className="flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold bg-[#111827] hover:bg-slate-800 text-white transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-[0.99]"
+                    >
+                      Edit programme
+                    </button>
+
+                    {/* ··· More Options Dropdown */}
+                    <div className="relative">
                       <button
                         type="button"
-                        onClick={() => setEditingProgram(prog)}
-                        className="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                        onClick={() => setOpenMenuProgCode(openMenuProgCode === prog.Program_Code ? null : prog.Program_Code)}
+                        className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-center ${
+                          openMenuProgCode === prog.Program_Code
+                            ? "border-slate-400 bg-slate-100 text-slate-900"
+                            : "border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900"
+                        }`}
+                        title="More options"
                       >
-                        <Edit3 size={13} /> Edit
+                        <MoreHorizontal size={18} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setPrintSheetProgram(prog)}
-                        className="py-2 px-2.5 rounded-xl text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                        title="Print Official A4 Candidate Attendance & Evaluation Sheet"
-                      >
-                        <Printer size={13} /> Sheet
-                      </button>
+
+                      {/* Dropdown Menu Popup (positioned upward above bottom action bar) */}
+                      {openMenuProgCode === prog.Program_Code && (
+                        <div className="absolute right-0 bottom-12 z-40 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 space-y-0.5 text-xs font-semibold animate-in fade-in zoom-in-95">
+                          <button
+                            type="button"
+                            onClick={() => { setPrintSheetProgram(prog); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-violet-700 transition cursor-pointer"
+                          >
+                            <Printer size={14} className="text-violet-600" /> Candidate Sheet (A4)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedTopicProg(prog); setIsTopicsManagerOpen(true); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-indigo-700 transition cursor-pointer"
+                          >
+                            <FileText size={14} className="text-indigo-600" /> Topics Registry
+                          </button>
+
+                          {/* Declare or Edit Result Link */}
+                          <Link
+                            to={isControllerMode ? `/controller-panel/${activeUser}/create-result?program=${prog.Program_Code}` : `/admin-panel/${activeUser}/create-result?program=${prog.Program_Code}`}
+                            onClick={() => setOpenMenuProgCode(null)}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-amber-50 flex items-center gap-2 text-amber-800 transition cursor-pointer font-bold"
+                          >
+                            <Trophy size={14} className="text-amber-600" />
+                            <span>{prog.IsResulted ? "Edit Official Result" : "Declare Official Result"}</span>
+                          </Link>
+
+                          {/* Toggle Result Publication */}
+                          <button
+                            type="button"
+                            disabled={isLoading.action}
+                            onClick={() => { handleSingleAction(prog.Program_Code, "TogglePublish"); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-purple-50 flex items-center gap-2 text-purple-800 transition cursor-pointer font-semibold"
+                          >
+                            <Award size={14} className="text-purple-600" />
+                            {prog.IsResultPublished ? "Unpublish Result" : "Publish Result"}
+                          </button>
+
+                          {/* Registration Hub */}
+                          <Link
+                            to={`../group-programme-manager`}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-indigo-50 flex items-center gap-2 text-indigo-900 transition cursor-pointer font-semibold"
+                          >
+                            <Users size={14} className="text-indigo-600" />
+                            <span>Registration Hub</span>
+                          </Link>
+
+                          <div className="h-px bg-slate-100 my-1" />
+
+                          <button
+                            type="button"
+                            disabled={isLoading.action}
+                            onClick={() => { handleSingleAction(prog.Program_Code, "ToggleApprove"); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-emerald-800 transition cursor-pointer"
+                          >
+                            <CheckCircle2 size={14} className="text-emerald-600" />
+                            {prog.IsApproved ? "Mark as Pending" : "Approve Programme"}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isLoading.action}
+                            onClick={() => { handleSingleAction(prog.Program_Code, "ToggleReg"); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-teal-800 transition cursor-pointer"
+                          >
+                            <Clock size={14} className="text-teal-600" />
+                            {prog.IsOpenRegistration ? "Close Registration" : "Open Registration"}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isLoading.action}
+                            onClick={() => { handleSingleAction(prog.Program_Code, "ToggleContent"); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-amber-800 transition cursor-pointer"
+                          >
+                            <FileText size={14} className="text-amber-600" />
+                            Content: {(prog as any).isContentRequired ? "Disable (ON)" : "Enable (OFF)"}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={isLoading.action}
+                            onClick={() => { handleSingleAction(prog.Program_Code, "ToggleTopic"); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-slate-100 flex items-center gap-2 text-indigo-800 transition cursor-pointer"
+                          >
+                            <Layers size={14} className="text-indigo-600" />
+                            Topic: {prog.is_topic_required ? "Disable (ON)" : "Enable (OFF)"}
+                          </button>
+
+                          <div className="h-px bg-slate-100 my-1" />
+
+                          <button
+                            type="button"
+                            disabled={isLoading.action}
+                            onClick={() => { handleSingleDelete(prog.Program_Code, prog.Program_Title); setOpenMenuProgCode(null); }}
+                            className="w-full px-3 py-2 rounded-xl text-left hover:bg-rose-50 flex items-center gap-2 text-rose-600 transition cursor-pointer"
+                          >
+                            <Trash2 size={14} /> Delete Programme
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1148,16 +1089,6 @@ export default function AdminProgrammesList({
                         <div className="flex items-center gap-3"><span className="w-12 font-bold text-emerald-400 text-[10px] uppercase tracking-widest">Venue</span><span className="font-semibold text-gray-800 text-xs">{prog.Venue || 'TBA'}</span></div>
                       </div>
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        {prog.IsResultPublished && (
-                          <button
-                            type="button"
-                            onClick={() => setResultModalProgram(prog)}
-                            className="py-1.5 px-3 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                            title="Display published result"
-                          >
-                            <Trophy size={12} className="text-yellow-200" /> Display Result
-                          </button>
-                        )}
                         <button
                           type="button"
                           onClick={() => setEditingProgram(prog)}

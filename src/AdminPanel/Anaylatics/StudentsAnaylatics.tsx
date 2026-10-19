@@ -208,9 +208,7 @@ export default function StudentsAnalyticsGeneral() {
     startDate: "", endDate: ""
   });
 
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    classes: [], categories: [], states: [], districts: [], colleges: []
-  });
+
 
   // Helper to resolve student class name from Our_Classes
   const getResolvedClassName = (s: Student): string => {
@@ -323,8 +321,8 @@ export default function StudentsAnalyticsGeneral() {
     }));
   }, [students, meta.classMap, meta.classes, meta.categories]);
 
-  // Extract filter options - ONLY from available student records in the table
-  useEffect(() => {
+  // Extract filter options - ONLY from available student records in the table (memoized)
+  const filterOptions = useMemo((): FilterOptions => {
     const classNames = Array.from(
       new Set(
         hydratedStudents
@@ -348,13 +346,13 @@ export default function StudentsAnalyticsGeneral() {
       return Array.from(new Set(values)).sort();
     };
 
-    setFilterOptions({
+    return {
       classes: classNames,
       categories: catNames,
       states: extractUnique("StnState"),
       districts: extractUnique("StnDistrict"),
       colleges: extractUnique("CollegeName"),
-    });
+    };
   }, [hydratedStudents]);
 
   // When a student is selected, fetch their enrolled programmes & result positions

@@ -162,7 +162,7 @@ export default function ProgrammesAnalytics() {
       }
     };
     fetchData();
-  }, [meta.batches]);
+  }, []);
 
   // Academic Year Options - ONLY from programmes in the table
   const availableAcademicYears = useMemo(() => {
@@ -408,13 +408,13 @@ export default function ProgrammesAnalytics() {
 
   const categoryData = useMemo(() => {
     const map = filteredData.reduce<Record<string, { name: string; value: number }>>((acc, curr) => {
-      const cat = curr.Category || "General";
+      const cat = getCategoryName(curr.Category);
       if (!acc[cat]) acc[cat] = { name: cat, value: 0 };
       acc[cat].value += 1;
       return acc;
     }, {});
     return Object.values(map);
-  }, [filteredData]);
+  }, [filteredData, meta]);
 
   const timelineData = useMemo(() => {
     const map = filteredData.reduce<Record<string, { name: string; programs: number }>>((acc, curr) => {

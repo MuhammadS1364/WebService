@@ -203,17 +203,20 @@ export default function GroupProgrammeManager() {
       setAllSquads(squads);
 
       // Pre-select first program if not selected
-      if (!selectedProgramCode && progs.length > 0) {
-        const firstGroup = progs.find((p) => p.is_group_program);
-        setSelectedProgramCode(firstGroup ? firstGroup.Program_Code : progs[0].Program_Code);
-      }
+      setSelectedProgramCode((prev) => {
+        if (!prev && progs.length > 0) {
+          const firstGroup = progs.find((p) => p.is_group_program);
+          return firstGroup ? firstGroup.Program_Code : progs[0].Program_Code;
+        }
+        return prev;
+      });
     } catch (err) {
       console.error("Error loading programmes/squads:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isWing, actWing, isController, actController, selectedProgramCode]);
+  }, [isWing, actWing, isController, actController]);
 
   useEffect(() => {
     fetchProgrammesAndSquads();
@@ -349,16 +352,31 @@ export default function GroupProgrammeManager() {
     }
 
     try {
-      const { data } = await SupaBaseFunction
+      let student = null;
+      // Step A: exact AddNo
+      const { data: byAddNo } = await SupaBaseFunction
         .from("StudentsBox")
         .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
         .ilike("AddNo", cleanAddNo)
         .maybeSingle();
 
-      if (data) {
+      if (byAddNo) {
+        student = byAddNo;
+      } else {
+        // Step B: search by student name or partial AddNo
+        const { data: byName } = await SupaBaseFunction
+          .from("StudentsBox")
+          .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
+          .or(`StudentName.ilike.%${cleanAddNo}%,AddNo.ilike.%${cleanAddNo}%`)
+          .limit(1)
+          .maybeSingle();
+        if (byName) student = byName;
+      }
+
+      if (student) {
         const hydrated: StudentInfo = {
-          ...data,
-          resolvedClass: resolveStudentClass(data),
+          ...student,
+          resolvedClass: resolveStudentClass(student),
         };
         setMemberLookupMap((prev) => ({ ...prev, [index]: hydrated }));
       } else {
@@ -516,25 +534,40 @@ export default function GroupProgrammeManager() {
     }
   };
 
-  // Lookup Individual Candidate
-  const handleLookupIndividual = async (addNo: string) => {
-    const clean = addNo.trim().toUpperCase();
+  // Lookup Individual Candidate (supports both AddNo and Student Name)
+  const handleLookupIndividual = async (inputVal: string) => {
+    const clean = inputVal.trim().toUpperCase();
     setIndividualAddNo(clean);
     setIndividualStudent(null);
     if (!clean) return;
 
     setIsLookingUpIndividual(true);
     try {
-      const { data } = await SupaBaseFunction
+      let student = null;
+      // Step A: exact AddNo
+      const { data: byAddNo } = await SupaBaseFunction
         .from("StudentsBox")
         .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
         .ilike("AddNo", clean)
         .maybeSingle();
 
-      if (data) {
+      if (byAddNo) {
+        student = byAddNo;
+      } else {
+        // Step B: search by student name or partial AddNo
+        const { data: byName } = await SupaBaseFunction
+          .from("StudentsBox")
+          .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
+          .or(`StudentName.ilike.%${clean}%,AddNo.ilike.%${clean}%`)
+          .limit(1)
+          .maybeSingle();
+        if (byName) student = byName;
+      }
+
+      if (student) {
         setIndividualStudent({
-          ...data,
-          resolvedClass: resolveStudentClass(data),
+          ...student,
+          resolvedClass: resolveStudentClass(student),
         });
       }
     } finally {
@@ -1345,7 +1378,7 @@ export default function GroupProgrammeManager() {
                             required
                             value={addNo}
                             onChange={(e) => handleLookupMember(index, e.target.value)}
-                            placeholder="Student Admission No (e.g. U1448)"
+                            placeholder="AddNo or Student Name (e.g. U1448)"
                             className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500"
                           />
                           {squadMemberAddNos.length > 2 && (
@@ -1419,12 +1452,12 @@ export default function GroupProgrammeManager() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Student Admission Number</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Candidate Admission Number or Student Name</label>
                   <input
                     type="text"
                     value={individualAddNo}
                     onChange={(e) => handleLookupIndividual(e.target.value)}
-                    placeholder="Enter AddNo (e.g. U1448)"
+                    placeholder="Enter AddNo or search student name (e.g. U1448)..."
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   />
                 </div>

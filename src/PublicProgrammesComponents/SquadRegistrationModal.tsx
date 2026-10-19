@@ -55,14 +55,6 @@ export default function SquadRegistrationModal({
   const [squadTitle, setSquadTitle] = useState("");
   const [members, setMembers] = useState<string[]>(["", ""]);
 
-  useEffect(() => {
-    if (isOpen) {
-      void (async () => {
-        await loadSquads();
-      })();
-    }
-  }, [isOpen, programCode]);
-
   const loadSquads = async () => {
     try {
       setLoadingSquads(true);
@@ -134,6 +126,12 @@ export default function SquadRegistrationModal({
     }
   };
 
+  useEffect(() => {
+    if (isOpen) {
+      void loadSquads();
+    }
+  }, [isOpen, programCode]);
+
   if (!isOpen) return null;
 
   const handleMemberChange = (index: number, value: string) => {
@@ -192,31 +190,43 @@ export default function SquadRegistrationModal({
     try {
       setSubmitting(true);
 
-      // Verify that all member AddNos exist in StudentsBox
-      const { data: validStudents, error: stnError } = await SupaBaseFunction
-        .from("StudentsBox")
-        .select("AddNo, StudentName")
-        .in("AddNo", filledMembers);
+      // Verify and resolve that all member AddNos or Names exist in StudentsBox
+      const resolvedMembers: string[] = [];
+      for (const m of filledMembers) {
+        const { data: stnByAddNo } = await SupaBaseFunction
+          .from("StudentsBox")
+          .select("AddNo")
+          .ilike("AddNo", m)
+          .maybeSingle();
 
-      if (stnError) throw stnError;
+        if (stnByAddNo) {
+          resolvedMembers.push(stnByAddNo.AddNo.toUpperCase());
+        } else {
+          const { data: stnByName } = await SupaBaseFunction
+            .from("StudentsBox")
+            .select("AddNo")
+            .ilike("StudentName", `%${m}%`)
+            .limit(1)
+            .maybeSingle();
 
-      const foundIds = new Set((validStudents || []).map((s) => s.AddNo));
-      const missing = filledMembers.filter((id) => !foundIds.has(id));
-
-      if (missing.length > 0) {
-        throw new Error(`The following student IDs were not found in StudentsBox: ${missing.join(", ")}`);
+          if (stnByName) {
+            resolvedMembers.push(stnByName.AddNo.toUpperCase());
+          } else {
+            throw new Error(`Student record not found for "${m}" by AddNo or Student Name.`);
+          }
+        }
       }
 
       // Prepare SquadMate Payload
       const squadPayload: any = {
         squad_title: trimmedTitle,
-        member1_uuid: filledMembers[0],
-        member2_uuid: filledMembers[1],
-        member3_uuid: filledMembers[2] || null,
-        member4_uuid: filledMembers[3] || null,
-        member5_uuid: filledMembers[4] || null,
-        member6_uuid: filledMembers[5] || null,
-        member7_uuid: filledMembers[6] || null,
+        member1_uuid: resolvedMembers[0],
+        member2_uuid: resolvedMembers[1],
+        member3_uuid: resolvedMembers[2] || null,
+        member4_uuid: resolvedMembers[3] || null,
+        member5_uuid: resolvedMembers[4] || null,
+        member6_uuid: resolvedMembers[5] || null,
+        member7_uuid: resolvedMembers[6] || null,
         is_active: true,
         total_particiations: 1,
         total_points: 0,

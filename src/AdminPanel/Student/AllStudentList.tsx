@@ -124,7 +124,7 @@ export default function OurStudentsList() {
   useEffect(() => {
     fetchStudents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta.classes]);
+  }, [meta.classes.length]);
 
   // Persist View Mode
   const handleViewModeChange = (mode: "table" | "cards") => {

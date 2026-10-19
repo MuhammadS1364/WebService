@@ -92,7 +92,7 @@ export default function ResultedLeaderboard({ isAdmin = false }: ResultedLeaderb
 
   useEffect(() => {
     fetchLeaderboardData();
-  }, [meta.classMap]);
+  }, []);
 
   const fetchLeaderboardData = async () => {
     try {

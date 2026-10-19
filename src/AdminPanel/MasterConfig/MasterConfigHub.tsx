@@ -53,12 +53,12 @@ export default function MasterConfigHub() {
   const meta = useProgrammeMeta();
 
   // Sync state with URL params
+  const tabParam = searchParams.get("tab") as MasterTab;
   useEffect(() => {
-    const tabParam = searchParams.get("tab") as MasterTab;
     if (tabParam && ["classes", "batches", "categories", "groups", "venues", "templates", "expected_times"].includes(tabParam)) {
-      setActiveTab(tabParam);
+      setActiveTab((prev) => (prev !== tabParam ? tabParam : prev));
     }
-  }, [searchParams]);
+  }, [tabParam]);
 
   const handleTabChange = (tab: MasterTab) => {
     setActiveTab(tab);

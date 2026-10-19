@@ -127,7 +127,7 @@ export default function EditStudentRecord() {
         }));
       }
     }
-  }, [meta.classes, formData.Stn_Class, formData.Class]);
+  }, [meta.classes.length, formData.Stn_Class, formData.Class]);
 
   // Canonical and DB-backed list of all standard class names strictly from Our_Classes
   const standardClassesOptions = useMemo(() => {

@@ -118,7 +118,13 @@ export default function CreateResult() {
   // Points Template State
   const [allTemplates, setAllTemplates] = useState<PointsTemplateRecord[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [activeTemplate, setActiveTemplate] = useState<PointsTemplateRecord>(DEFAULT_POINTS_FALLBACK);
+  const activeTemplate = useMemo((): PointsTemplateRecord => {
+    if (selectedTemplateId) {
+      const match = allTemplates.find((t) => t.p_template_id === selectedTemplateId);
+      if (match) return match;
+    }
+    return allTemplates[0] || DEFAULT_POINTS_FALLBACK;
+  }, [selectedTemplateId, allTemplates]);
 
   // Registered candidates & squads
   const [registeredCandidates, setRegisteredCandidates] = useState<RegisteredCandidate[]>([]);
@@ -267,15 +273,8 @@ export default function CreateResult() {
 
       if (prog?.points_template) {
         setSelectedTemplateId(prog.points_template);
-        const match = allTemplates.find((t) => t.p_template_id === prog.points_template);
-        if (match) {
-          setActiveTemplate(match);
-        }
       } else if (allTemplates.length > 0) {
         setSelectedTemplateId(allTemplates[0].p_template_id);
-        setActiveTemplate(allTemplates[0]);
-      } else {
-        setActiveTemplate(DEFAULT_POINTS_FALLBACK);
       }
 
       setLoadingCandidates(true);
@@ -764,14 +763,7 @@ export default function CreateResult() {
     onProgramChange();
   }, [selectedProgram, programmes, allTemplates]);
 
-  // When selectedTemplateId changes, update activeTemplate
-  useEffect(() => {
-    if (!selectedTemplateId) return;
-    const match = allTemplates.find((t) => t.p_template_id === selectedTemplateId);
-    if (match) {
-      setActiveTemplate(match);
-    }
-  }, [selectedTemplateId, allTemplates]);
+
 
   // Calculate points for each position dynamically
   const calculatePoints = (pos: keyof HoldersState, grade: GradeSelection): number => {

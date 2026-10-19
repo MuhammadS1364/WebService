@@ -71,7 +71,7 @@ export default function EditWingModal({
       setErrorMsg("");
       setSuccessMsg("");
     }
-  }, [wing, isOpen]);
+  }, [wing?.WingCode, isOpen]);
 
   if (!isOpen || !wing) return null;
 

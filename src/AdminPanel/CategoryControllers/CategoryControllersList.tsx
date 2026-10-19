@@ -114,7 +114,7 @@ export default function CategoryControllersList() {
 
   useEffect(() => {
     fetchControllers();
-  }, [meta.categories]);
+  }, []);
 
   // Set default category when categories load
   useEffect(() => {

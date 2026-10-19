@@ -94,7 +94,7 @@ export default function ProgrammeRegistration() {
     if (!formData.Venue && meta.venues.length > 0) {
       setFormData((prev) => ({ ...prev, Venue: meta.venues[0].venue_id }));
     }
-  }, [meta.activeAcademicYearId, meta.defaultTemplateId, meta.expectedTimes, meta.categories, meta.venues]);
+  }, [meta.activeAcademicYearId, meta.defaultTemplateId, meta.expectedTimes.length, meta.categories.length, meta.venues.length]);
 
   // Fetch current user details and auto-select wing
   useEffect(() => {
@@ -189,7 +189,7 @@ export default function ProgrammeRegistration() {
     };
 
     fetchUserRole();
-  }, [loggedInEmail, meta.wings, actController]);
+  }, [loggedInEmail, meta.wings.length, actController]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>

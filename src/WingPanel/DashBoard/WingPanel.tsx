@@ -137,7 +137,7 @@ export default function WingPanel() {
 
           <NavLink to={`/wing-panel/${actWing}/group-programme-manager`} className={navLinkClasses}>
             <Users size={16} className="text-purple-600" />
-            <span>Group & Candidates Hub</span>
+            <span>Registration Hub</span>
           </NavLink>
 
           <NavLink to={`/wing-panel/${actWing}/wing-results`} className={navLinkClasses}>
