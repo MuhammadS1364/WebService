@@ -32,7 +32,8 @@ import {
   CheckCircle2,
   Clock,
   Trophy,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Lock,
 } from "lucide-react"; 
 
 export interface Programme {
@@ -64,6 +65,9 @@ export interface Programme {
   is_limitation?: boolean | null;
   individual_limit_count?: number | null;
   group_limit_count?: number | null;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
   Expected_Time?: string | null;
   Collaborator?: string | null;
   points_template?: string | null;
@@ -466,6 +470,7 @@ export default function AdminProgrammesList({
       );
       showToast(`Exported ${dataToExport.length} rows with resolved facilities.`, "success");
     } catch (error) {
+      console.error(error);
       showToast("Failed to generate Excel export.", "error");
     } finally {
       setIsLoading(prev => ({ ...prev, export: false }));
@@ -741,7 +746,13 @@ export default function AdminProgrammesList({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {prog.is_freezed && (
+                        <span className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md inline-flex items-center gap-1">
+                          <Lock size={11} className="text-rose-600" />
+                          Frozen
+                        </span>
+                      )}
                       {prog.IsApproved ? (
                         <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
                           Approved
@@ -818,6 +829,13 @@ export default function AdminProgrammesList({
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
+                    {isGroup && (prog.max_count_cadidate_group || prog.max_count_candidate_group) && (
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                          <Users size={10} className="text-purple-600" /> Max {prog.max_count_cadidate_group || prog.max_count_candidate_group} members/group
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* ASSIGNED TOPIC (IF CONFIGURED) */}

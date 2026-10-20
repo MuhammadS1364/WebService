@@ -9,7 +9,7 @@ import SquadRegistrationModal from "./SquadRegistrationModal";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { resolveStudentProfile } from "../lib/accountResolver";
-import { Download, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User, BookOpen, ExternalLink, Clock } from "lucide-react";
+import { Download, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User, BookOpen, ExternalLink, Clock, Lock } from "lucide-react";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -37,6 +37,9 @@ interface ProgramData {
   is_limitation?: boolean | null;
   individual_limit_count?: number | null;
   group_limit_count?: number | null;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
 }
 
 export default function PublicProgrammesList() {
@@ -427,6 +430,16 @@ export default function PublicProgrammesList() {
                     {program.AccademicYear && (
                       <span className="px-2.5 py-0.5 bg-blue-50 text-blue-800 border border-blue-200/80 text-[11px] font-bold rounded-lg">
                         {getAcademicYearName(program.AccademicYear)}
+                      </span>
+                    )}
+                    {program.is_freezed && (
+                      <span className="px-2.5 py-0.5 bg-rose-50 text-rose-800 border border-rose-200 text-[11px] font-bold rounded-lg flex items-center gap-1">
+                        <Lock size={11} className="text-rose-600" /> Frozen
+                      </span>
+                    )}
+                    {program.is_group_program && (program.max_count_cadidate_group || program.max_count_candidate_group) && (
+                      <span className="px-2.5 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 text-[11px] font-bold rounded-lg flex items-center gap-1">
+                        <Users size={11} className="text-purple-600" /> Max {program.max_count_cadidate_group || program.max_count_candidate_group}/group
                       </span>
                     )}
                     <span className="ml-auto font-mono text-[11px] font-bold text-slate-400">

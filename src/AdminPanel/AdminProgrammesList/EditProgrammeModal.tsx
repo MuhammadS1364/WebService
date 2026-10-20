@@ -3,7 +3,7 @@ import { SupaBaseFunction } from "../../lib/SupaBase";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import type { Programme } from "./AdminProgrammesList";
-import { X, Upload, Save, Loader2 } from "lucide-react";
+import { X, Upload, Save, Loader2, Lock } from "lucide-react";
 
 interface EditProgrammeModalProps {
   program: Programme | null;
@@ -61,6 +61,8 @@ export default function EditProgrammeModal({
         is_limitation: Boolean((program as any).is_limitation),
         individual_limit_count: (program as any).individual_limit_count ?? 15,
         group_limit_count: (program as any).group_limit_count ?? 7,
+        max_count_cadidate_group: (program as any).max_count_cadidate_group ?? (program as any).max_count_candidate_group ?? 7,
+        is_freezed: Boolean((program as any).is_freezed),
       });
       setErrorMsg("");
     }
@@ -108,6 +110,12 @@ export default function EditProgrammeModal({
     setSaving(true);
     setErrorMsg("");
 
+    if (lockedWingCode && (program as any).is_freezed) {
+      setErrorMsg("🔒 Plz, Inform Admin: Programme info is frozen because result has been declared. Edit function is not available for wings.");
+      setSaving(false);
+      return;
+    }
+
     try {
       const payload: Record<string, any> = {
         Program_Title: formData.Program_Title ? formData.Program_Title.trim() : null,
@@ -142,6 +150,9 @@ export default function EditProgrammeModal({
         is_limitation: Boolean(formData.is_limitation),
         individual_limit_count: Number(formData.individual_limit_count) || 15,
         group_limit_count: Number(formData.group_limit_count) || 7,
+        max_count_cadidate_group: formData.max_count_cadidate_group ? Number(formData.max_count_cadidate_group) : null,
+        max_count_candidate_group: formData.max_count_cadidate_group ? Number(formData.max_count_cadidate_group) : null,
+        is_freezed: Boolean(formData.is_freezed),
       };
 
       const wasResultRequired = (program as any).is_result_required !== false;
@@ -245,6 +256,18 @@ export default function EditProgrammeModal({
             <p className="text-xs text-emerald-600 font-mono font-bold">{program.Program_Code}</p>
           </div>
         </div>
+
+        {lockedWingCode && (program as any).is_freezed && (
+          <div className="mt-4 p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 flex items-start gap-3 shadow-2xs">
+            <Lock size={20} className="text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-extrabold text-sm text-rose-950">Plz, Inform Admin</h4>
+              <p className="text-xs text-rose-800 font-medium mt-1 leading-relaxed">
+                This programme is frozen because the result has been declared. The edit function is not available for wings. Please inform the Admin if any updates are needed.
+              </p>
+            </div>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-xs font-semibold border border-red-200">
@@ -572,6 +595,29 @@ export default function EditProgrammeModal({
             </label>
           </div>
 
+          {/* Group Squad Member Limit Setting */}
+          {formData.is_group_program && (
+            <div className="p-4 rounded-2xl bg-purple-50/70 border border-purple-200 space-y-2">
+              <label className="block text-[11px] font-bold text-purple-950 uppercase tracking-wide">
+                Max Members Per Group (max_count_cadidate_group)
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  name="max_count_cadidate_group"
+                  value={formData.max_count_cadidate_group ?? 7}
+                  onChange={handleChange}
+                  className="w-28 p-2 border border-purple-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-purple-500 font-bold"
+                />
+                <span className="text-xs text-purple-800 font-medium">
+                  Maximum candidates allowed in each squad (default: 7). Registration is prevented if a squad exceeds this size.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Registration Limitation Setting */}
           <div className="p-4 rounded-2xl bg-orange-50/70 border border-orange-200 space-y-2">
             <label className="flex items-center gap-2.5 cursor-pointer">
@@ -620,6 +666,22 @@ export default function EditProgrammeModal({
                     className="w-full p-2 border border-orange-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-orange-500"
                   />
                   <span className="text-[10px] text-orange-700">Default: 7 groups</span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-orange-900 mb-1 uppercase tracking-wide">
+                    Max Members Per Group (max_count_cadidate_group)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    name="max_count_cadidate_group"
+                    value={formData.max_count_cadidate_group ?? 7}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-orange-300 rounded-xl text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <span className="text-[10px] text-orange-700">Max members allowed in each group squad (stops registration if exceeded)</span>
                 </div>
               </div>
             )}
@@ -739,6 +801,28 @@ export default function EditProgrammeModal({
             </p>
           </div>
 
+          {/* Admin Freeze Toggle (Admin can freeze or unfreeze anytime, but wings cannot change) */}
+          {!lockedWingCode && (
+            <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 space-y-2">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="is_freezed"
+                  checked={Boolean(formData.is_freezed)}
+                  onChange={handleChange}
+                  className="h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                />
+                <span className="font-bold text-rose-950 flex items-center gap-1.5">
+                  <Lock size={14} className="text-rose-600" />
+                  <span>Freeze Programme Info (is_freezed)</span>
+                </span>
+              </label>
+              <p className="text-[11px] text-rose-800 pl-6.5">
+                When checked, wings cannot edit this programme ("Plz, Inform Admin"). Admin can update anytime.
+              </p>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
@@ -750,12 +834,20 @@ export default function EditProgrammeModal({
             </button>
             <button
               type="submit"
-              disabled={saving}
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-xs"
+              disabled={saving || Boolean(lockedWingCode && (program as any).is_freezed)}
+              className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 cursor-pointer shadow-xs ${
+                lockedWingCode && (program as any).is_freezed
+                  ? "bg-rose-600 text-white cursor-not-allowed"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white"
+              }`}
             >
               {saving ? (
                 <>
                   <Loader2 size={16} className="animate-spin" /> Saving...
+                </>
+              ) : lockedWingCode && (program as any).is_freezed ? (
+                <>
+                  <Lock size={16} /> Plz, Inform Admin
                 </>
               ) : (
                 <>

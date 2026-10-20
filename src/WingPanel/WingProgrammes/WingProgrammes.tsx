@@ -26,6 +26,7 @@ import {
   Edit3,
   BookOpen,
   ExternalLink,
+  Lock,
 } from "lucide-react";
 
 // --- INTERFACES MATCHING UPDATED PROGRAMMESBOX TABLE ---
@@ -60,6 +61,9 @@ interface Programme {
   is_limitation?: boolean;
   individual_limit_count?: number;
   group_limit_count?: number;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
 }
 
 interface Student {
@@ -799,6 +803,16 @@ export default function WingProgrammes() {
                           }`}>
                             {p.IsResultPublished ? "Result Published" : p.IsResulted ? "Result Declared" : p.IsOpenRegistration ? "Reg Open" : "Reg Closed"}
                           </span>
+                          {p.is_freezed && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-md">
+                              <Lock size={10} className="text-rose-600" /> Frozen
+                            </span>
+                          )}
+                          {p.is_group_program && (p.max_count_cadidate_group || p.max_count_candidate_group) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                              <Users size={10} className="text-purple-600" /> Max {p.max_count_cadidate_group || p.max_count_candidate_group}/group
+                            </span>
+                          )}
                         </div>
                         <h3 className="font-extrabold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2">
                           {p.Program_Title || "Untitled Programme"}
@@ -999,15 +1013,27 @@ export default function WingProgrammes() {
                           <span>Assign +</span>
                         </Link>
 
-                        <button
-                          type="button"
-                          onClick={() => setEditingProgram(p)}
-                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 inline-flex items-center gap-1 transition cursor-pointer"
-                          title="Edit Programme Details"
-                        >
-                          <Edit3 size={12} />
-                          <span>Edit</span>
-                        </button>
+                        {p.is_freezed ? (
+                          <button
+                            type="button"
+                            onClick={() => alert("Plz, Inform Admin: Programme info is frozen because result has been declared. Edit function is not available for wings. Please inform the Admin if updates are needed.")}
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 inline-flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                            title="Plz, Inform Admin - Edit function is not available"
+                          >
+                            <Lock size={12} className="text-rose-600" />
+                            <span>Plz, Inform Admin</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditingProgram(p)}
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 inline-flex items-center gap-1 transition cursor-pointer"
+                            title="Edit Programme Details"
+                          >
+                            <Edit3 size={12} />
+                            <span>Edit</span>
+                          </button>
+                        )}
                       </div>
 
                       {/* Candidates Toggle */}
@@ -1236,15 +1262,27 @@ export default function WingProgrammes() {
                           {/* Actions */}
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setEditingProgram(p)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition-all cursor-pointer shadow-2xs"
-                                title="Edit Programme Details"
-                              >
-                                <Edit3 size={12} />
-                                <span>Edit</span>
-                              </button>
+                              {p.is_freezed ? (
+                                <button
+                                  type="button"
+                                  onClick={() => alert("Plz, Inform Admin: Programme info is frozen because result has been declared. Edit function is not available for wings. Please inform the Admin if updates are needed.")}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-all cursor-pointer shadow-2xs"
+                                  title="Plz, Inform Admin - Edit function is not available"
+                                >
+                                  <Lock size={12} className="text-rose-600" />
+                                  <span>Plz, Inform Admin</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingProgram(p)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-bold text-xs bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 transition-all cursor-pointer shadow-2xs"
+                                  title="Edit Programme Details"
+                                >
+                                  <Edit3 size={12} />
+                                  <span>Edit</span>
+                                </button>
+                              )}
                               {p.is_topic_required && (
                                 <button
                                   type="button"

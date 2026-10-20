@@ -17,7 +17,8 @@ import {
   MapPin,
   LayoutGrid,
   List,
-  Award
+  Award,
+  Lock,
 } from "lucide-react";
 
 interface Programme {
@@ -34,6 +35,13 @@ interface Programme {
   is_group_program: boolean;
   IsOpenRegistration?: boolean;
   Program_Poster?: string | null;
+  Expected_Time?: string | null;
+  is_limitation?: boolean;
+  individual_limit_count?: number;
+  group_limit_count?: number;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
 }
 
 interface Candidate {
@@ -87,7 +95,7 @@ export default function WingResults() {
         // Fetch programmes for this wing including IsOpenRegistration and Program_Poster
         const { data: progData, error: progError } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program, IsOpenRegistration, Program_Poster")
+          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program, IsOpenRegistration, Program_Poster, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, max_count_candidate_group, is_freezed")
           .eq("WingCode", wing.WingCode)
           .order("Date", { ascending: false });
 
@@ -514,17 +522,25 @@ export default function WingResults() {
                         )}
                       </div>
 
-                      {/* Result Status Badge */}
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          isPub
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}
-                      >
-                        {isPub ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-                        {isPub ? "Published" : "Pending"}
-                      </span>
+                      {/* Result & Frozen Status Badges */}
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        {p.is_freezed && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                            <Lock size={11} className="text-rose-600" />
+                            Frozen
+                          </span>
+                        )}
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            isPub
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}
+                        >
+                          {isPub ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                          {isPub ? "Published" : "Pending"}
+                        </span>
+                      </div>
                     </div>
 
                     {/* Programme Title */}
@@ -543,6 +559,11 @@ export default function WingResults() {
                         {groupName && (
                           <span className="inline-flex items-center text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
                             {groupName}
+                          </span>
+                        )}
+                        {p.is_group_program && (p.max_count_cadidate_group || p.max_count_candidate_group) && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                            <Users size={10} className="text-purple-600" /> Max {p.max_count_cadidate_group || p.max_count_candidate_group}/group
                           </span>
                         )}
                       </div>
@@ -909,16 +930,23 @@ export default function WingResults() {
 
                           {/* Result Status */}
                           <td className="px-4 py-4 text-center">
-                            <span
-                              className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                isPub
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-amber-50 text-amber-700 border border-amber-200"
-                              }`}
-                            >
-                              {isPub ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-                              {isPub ? "Published" : "Pending Results"}
-                            </span>
+                            <div className="flex flex-col items-center gap-1">
+                              <span
+                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  isPub
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                                }`}
+                              >
+                                {isPub ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+                                {isPub ? "Published" : "Pending Results"}
+                              </span>
+                              {p.is_freezed && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
+                                  <Lock size={9} /> Frozen
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Actions: Publish button & Toggle */}

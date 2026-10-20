@@ -95,6 +95,9 @@ export interface ProgrammeRecord {
   is_limitation?: boolean;
   individual_limit_count?: number;
   group_limit_count?: number;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
 }
 
 export interface TopicRecord {
@@ -287,6 +290,9 @@ export interface ProgrammesBoxRecord {
   is_limitation?: boolean | null;
   individual_limit_count?: number | null;
   group_limit_count?: number | null;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
 }
 
 /**

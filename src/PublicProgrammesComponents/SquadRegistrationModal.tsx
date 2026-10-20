@@ -76,7 +76,7 @@ export default function SquadRegistrationModal({
           .eq("Program_Code", programCode),
         SupaBaseFunction
           .from("ProgrammesBox")
-          .select("is_limitation, group_limit_count, drive_link, topic_title, is_topic")
+          .select("is_limitation, group_limit_count, max_count_cadidate_group, max_count_candidate_group, is_freezed, drive_link, topic_title, is_topic")
           .eq("Program_Code", programCode)
           .maybeSingle(),
       ]);
@@ -134,6 +134,8 @@ export default function SquadRegistrationModal({
 
   if (!isOpen) return null;
 
+  const maxAllowedMembers = Number(programMeta?.max_count_cadidate_group || programMeta?.max_count_candidate_group) || 7;
+
   const handleMemberChange = (index: number, value: string) => {
     const updated = [...members];
     updated[index] = value.trim();
@@ -141,8 +143,13 @@ export default function SquadRegistrationModal({
   };
 
   const addMemberField = () => {
-    if (members.length < 7) {
+    if (members.length < maxAllowedMembers) {
       setMembers([...members, ""]);
+    } else {
+      setStatus({
+        type: "error",
+        text: `⚠️ Maximum group member count (${maxAllowedMembers}) reached for this event.`,
+      });
     }
   };
 
@@ -155,6 +162,14 @@ export default function SquadRegistrationModal({
   const handleCreateSquad = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus({ type: "", text: "" });
+
+    if (programMeta?.is_freezed) {
+      setStatus({
+        type: "error",
+        text: "🔒 Plz, Inform Admin: Programme is frozen because result is declared. Registrations and modifications are not available.",
+      });
+      return;
+    }
 
     if (!isAuthenticated) {
       setStatus({
@@ -176,12 +191,22 @@ export default function SquadRegistrationModal({
       return;
     }
 
+    // ENFORCE max_count_cadidate_group: Max members allowed per group
+    if (filledMembers.length > maxAllowedMembers) {
+      setStatus({
+        type: "error",
+        text: `⚠️ Group Member Limit Exceeded: Maximum allowed members per group is ${maxAllowedMembers}, but ${filledMembers.length} members were specified. Registration stopped.`,
+      });
+      return;
+    }
+
+    // ENFORCE group_limit_count: Max total squads allowed for this program
     if (programMeta?.is_limitation) {
       const maxGroups = programMeta.group_limit_count ?? 7;
       if (registeredSquadIds.size >= maxGroups) {
         setStatus({
           type: "error",
-          text: `⚠️ Group Registration Limit Reached: Maximum of ${maxGroups} squads allowed for this tournament.`,
+          text: `⚠️ Group Registration Limit Reached: Maximum of ${maxGroups} squads allowed for this tournament. Registration stopped.`,
         });
         return;
       }
@@ -306,12 +331,20 @@ export default function SquadRegistrationModal({
       return;
     }
 
+    if (programMeta?.is_freezed) {
+      setStatus({
+        type: "error",
+        text: "🔒 Plz, Inform Admin: Programme is frozen because result is declared. Registrations and modifications are not available.",
+      });
+      return;
+    }
+
     if (programMeta?.is_limitation) {
       const maxGroups = programMeta.group_limit_count ?? 7;
       if (registeredSquadIds.size >= maxGroups) {
         setStatus({
           type: "error",
-          text: `⚠️ Group Registration Limit Reached: Maximum of ${maxGroups} squads allowed for this tournament.`,
+          text: `⚠️ Group Registration Limit Reached: Maximum of ${maxGroups} squads allowed for this tournament. Registration stopped.`,
         });
         return;
       }
@@ -328,6 +361,15 @@ export default function SquadRegistrationModal({
         targetSquad.member6_uuid,
         targetSquad.member7_uuid,
       ].filter(Boolean) as string[];
+
+      // ENFORCE max_count_cadidate_group: Member limit for existing squad
+      if (squadMembers.length > maxAllowedMembers) {
+        setStatus({
+          type: "error",
+          text: `⚠️ Group Member Limit Exceeded: This programme allows maximum ${maxAllowedMembers} members per group, but squad "${targetSquad.squad_title}" has ${squadMembers.length} members. Registration stopped.`,
+        });
+        return;
+      }
 
       const candidateInserts = squadMembers.map((m) => ({
         Program_Code: programCode,
@@ -389,16 +431,27 @@ export default function SquadRegistrationModal({
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
           <p className="text-xs text-slate-500 font-medium">{programTitle} ({programCode})</p>
-          {programMeta?.is_limitation && (
-            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 ${
-              registeredSquadIds.size >= (programMeta.group_limit_count || 7)
-                ? "bg-rose-50 text-rose-700 border-rose-200"
-                : "bg-indigo-50 text-indigo-700 border-indigo-200"
-            }`}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-1">
               <Users size={12} />
-              <span>Squad Limit: {registeredSquadIds.size} / {programMeta.group_limit_count || 7} registered</span>
+              <span>Max {maxAllowedMembers} Members / Group</span>
             </span>
-          )}
+            {programMeta?.is_limitation && (
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 ${
+                registeredSquadIds.size >= (programMeta.group_limit_count || 7)
+                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                  : "bg-indigo-50 text-indigo-700 border-indigo-200"
+              }`}>
+                <span>Squad Limit: {registeredSquadIds.size} / {programMeta.group_limit_count || 7}</span>
+              </span>
+            )}
+            {programMeta?.is_freezed && (
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-rose-100 text-rose-800 border-rose-300 flex items-center gap-1">
+                <Lock size={12} />
+                <span>Frozen (Plz, Inform Admin)</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Assigned Topic for Competition */}

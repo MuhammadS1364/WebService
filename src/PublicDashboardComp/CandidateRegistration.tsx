@@ -40,6 +40,9 @@ interface ProgramDetails {
   topic_title?: string;
   drive_link?: string;
   Expected_Time?: string;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
 }
 
 // Define the shape of your status alerts
@@ -166,7 +169,7 @@ export default function CandidateRegistration() {
       try {
         const { data, error } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Total_Registration, is_topic_required, IsOpenRegistration, is_group_program, is_limitation, individual_limit_count, group_limit_count, is_topic, topic_title, drive_link, Expected_Time")
+          .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Total_Registration, is_topic_required, IsOpenRegistration, is_group_program, is_limitation, individual_limit_count, group_limit_count, is_topic, topic_title, drive_link, Expected_Time, max_count_cadidate_group, max_count_candidate_group, is_freezed")
           .eq("Program_Code", P_Code)
           .maybeSingle();
 
@@ -330,7 +333,16 @@ export default function CandidateRegistration() {
           return;
         }
 
-        // Step D: Enforce is_limitation limit
+        // Step D: Enforce is_freezed protection
+        if (curProg?.is_freezed) {
+          setStudentName(
+            "🔒 Plz, Inform Admin: Programme is frozen because result is declared. Registrations are closed."
+          );
+          setIsLimitReached(true);
+          return;
+        }
+
+        // Step E: Enforce is_limitation limit
         if (curProg?.is_limitation) {
           const maxLimit = curProg.is_group_program
             ? (curProg.group_limit_count ?? 7)
@@ -365,6 +377,11 @@ export default function CandidateRegistration() {
   // ----------------------------------------
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (programDetails?.is_freezed) {
+      alert("🔒 Plz, Inform Admin: Programme is frozen because result is declared. Registrations and modifications are closed.");
+      return;
+    }
 
     if (!studentName.startsWith("✅") || isDuplicate || categoryMismatch || isLimitReached) {
       alert("Registration blocked due to invalid candidate code, duplicate registration, category restriction, or event limit reached.");
@@ -568,6 +585,18 @@ export default function CandidateRegistration() {
                       Date: {programDetails.Date}
                     </span>
                   )}
+                  {programDetails?.is_freezed && (
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1">
+                      <Lock size={11} className="text-rose-600" />
+                      <span>Plz, Inform Admin (Frozen)</span>
+                    </span>
+                  )}
+                  {programDetails?.is_group_program && (programDetails.max_count_cadidate_group || programDetails.max_count_candidate_group) && (
+                    <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-1">
+                      <Users size={11} className="text-purple-600" />
+                      <span>Max {programDetails.max_count_cadidate_group || programDetails.max_count_candidate_group} members/squad</span>
+                    </span>
+                  )}
                   {programDetails?.is_limitation && (
                     <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border flex items-center gap-1 ${
                       (programDetails.Total_Registration || 0) >= (programDetails.individual_limit_count || 15)
@@ -582,6 +611,21 @@ export default function CandidateRegistration() {
                   )}
                 </div>
               </div>
+
+              {/* Frozen Banner if Programme is Freezed */}
+              {programDetails?.is_freezed && (
+                <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl flex items-start gap-3 text-rose-900 shadow-2xs">
+                  <Lock className="text-rose-600 shrink-0 mt-0.5" size={18} />
+                  <div>
+                    <h4 className="font-extrabold text-xs uppercase tracking-wider text-rose-800">
+                      Plz, Inform Admin: Programme Frozen
+                    </h4>
+                    <p className="text-xs text-rose-700 mt-0.5 font-medium leading-relaxed">
+                      This programme is frozen because the result has been declared. Candidate registrations, changes, and modifications are closed. If corrections are required, please inform the administrator.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Common Assigned Topic (Wing Creator provided topic) */}
               {programDetails?.is_topic && programDetails?.topic_title && (
@@ -754,6 +798,7 @@ export default function CandidateRegistration() {
                 type="submit"
                 disabled={
                   isSubmitting ||
+                  Boolean(programDetails?.is_freezed) ||
                   !studentName.startsWith("✅") ||
                   isDuplicate ||
                   categoryMismatch ||
@@ -761,6 +806,7 @@ export default function CandidateRegistration() {
                 }
                 className={`w-full sm:w-2/3 py-3.5 text-xs font-black rounded-2xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 ${
                   isSubmitting ||
+                  Boolean(programDetails?.is_freezed) ||
                   !studentName.startsWith("✅") ||
                   isDuplicate ||
                   categoryMismatch ||
@@ -773,6 +819,11 @@ export default function CandidateRegistration() {
                   <>
                     <RefreshCw size={14} className="animate-spin" />
                     <span>Processing Registration...</span>
+                  </>
+                ) : programDetails?.is_freezed ? (
+                  <>
+                    <Lock size={14} />
+                    <span>Plz, Inform Admin (Frozen)</span>
                   </>
                 ) : (
                   <span>Complete My Registration</span>

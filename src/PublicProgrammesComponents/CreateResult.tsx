@@ -1231,13 +1231,14 @@ export default function CreateResult() {
       setPreviousSquadAllocations(newSquadAllocationsList);
 
 
-      // 5. Mark ProgrammeBox as Resulted
+      // 5. Mark ProgrammeBox as Resulted & Freezed
       await SupaBaseFunction
         .from("ProgrammesBox")
         .update({
           IsResulted: true,
           IsResultPublished: true,
           IsConducted: true,
+          is_freezed: true,
           points_template: activeTemplate.p_template_id !== "default" ? activeTemplate.p_template_id : null,
         })
         .eq("Program_Code", selectedProgram);

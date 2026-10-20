@@ -24,6 +24,7 @@ import {
   ExternalLink,
   Clock,
   BookOpen,
+  Lock,
 } from "lucide-react";
 
 interface ProgrammeItem {
@@ -44,6 +45,9 @@ interface ProgrammeItem {
   is_limitation?: boolean;
   individual_limit_count?: number | null;
   group_limit_count?: number | null;
+  max_count_cadidate_group?: number | null;
+  max_count_candidate_group?: number | null;
+  is_freezed?: boolean | null;
   is_topic?: boolean;
   topic_title?: string | null;
   drive_link?: string | null;
@@ -167,7 +171,7 @@ export default function GroupProgrammeManager() {
 
       let progQuery = SupaBaseFunction
         .from("ProgrammesBox")
-        .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Group, Total_Registration, is_group_program, IsResulted, IsResultPublished, IsConducted, points_template, Expected_Time, is_limitation, individual_limit_count, group_limit_count, is_topic, topic_title, drive_link")
+        .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Group, Total_Registration, is_group_program, IsResulted, IsResultPublished, IsConducted, points_template, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, max_count_candidate_group, is_freezed, is_topic, topic_title, drive_link")
         .order("Date", { ascending: false });
 
       // If Wing panel, filter strictly by resolved WingCode
@@ -387,9 +391,16 @@ export default function GroupProgrammeManager() {
     }
   };
 
+  const maxMembersPerGroup = Number(selectedProgram?.max_count_cadidate_group || selectedProgram?.max_count_candidate_group) || 7;
+
   const handleAddMemberSlot = () => {
-    if (squadMemberAddNos.length < 7) {
+    if (squadMemberAddNos.length < maxMembersPerGroup) {
       setSquadMemberAddNos([...squadMemberAddNos, ""]);
+    } else {
+      setSquadFormMsg({
+        type: "error",
+        text: `⚠️ Maximum Member Limit: This programme allows maximum ${maxMembersPerGroup} members per group.`,
+      });
     }
   };
 
@@ -410,6 +421,14 @@ export default function GroupProgrammeManager() {
     e.preventDefault();
     setSquadFormMsg(null);
 
+    if (selectedProgram?.is_freezed && !isAdmin) {
+      setSquadFormMsg({
+        type: "error",
+        text: "🔒 Plz, Inform Admin: Programme is frozen because result is declared. Editing and additions are not permitted.",
+      });
+      return;
+    }
+
     const title = newSquadTitle.trim();
     if (!title) {
       setSquadFormMsg({ type: "error", text: "Please enter a valid Squad Title / Group Name." });
@@ -422,6 +441,15 @@ export default function GroupProgrammeManager() {
 
     if (validMembers.length < 2) {
       setSquadFormMsg({ type: "error", text: "A group/squad must have at least 2 member students." });
+      return;
+    }
+
+    // ENFORCE max_count_cadidate_group: Member count per squad
+    if (validMembers.length > maxMembersPerGroup) {
+      setSquadFormMsg({
+        type: "error",
+        text: `⚠️ Group Member Limit Exceeded: Maximum allowed members per group is ${maxMembersPerGroup}, but ${validMembers.length} members were provided. Registration stopped.`,
+      });
       return;
     }
 
@@ -480,6 +508,15 @@ export default function GroupProgrammeManager() {
       return;
     }
 
+    // Check if programme is frozen
+    if (selectedProgram?.is_freezed && !isAdmin) {
+      setAssignSquadMsg({
+        type: "error",
+        text: "🔒 Plz, Inform Admin: Programme is frozen because result is declared. Registrations and modifications are not available.",
+      });
+      return;
+    }
+
     const memberAddNos = [
       squad.member1_uuid,
       squad.member2_uuid,
@@ -493,6 +530,27 @@ export default function GroupProgrammeManager() {
     if (memberAddNos.length === 0) {
       setAssignSquadMsg({ type: "error", text: "This squad has no member admission numbers." });
       return;
+    }
+
+    // ENFORCE max_count_cadidate_group: Member count per squad
+    if (memberAddNos.length > maxMembersPerGroup) {
+      setAssignSquadMsg({
+        type: "error",
+        text: `⚠️ Group Member Limit Exceeded: This programme allows maximum ${maxMembersPerGroup} members per group, but squad "${squad.squad_title}" has ${memberAddNos.length} members. Registration stopped.`,
+      });
+      return;
+    }
+
+    // ENFORCE group_limit_count: Max squads allowed for this event
+    if (selectedProgram?.is_limitation) {
+      const maxGroups = selectedProgram.group_limit_count ?? 7;
+      if (registeredSquadGroups.length >= maxGroups) {
+        setAssignSquadMsg({
+          type: "error",
+          text: `⚠️ Group Limit Reached: Maximum of ${maxGroups} squads allowed for this programme. Registration stopped.`,
+        });
+        return;
+      }
     }
 
     setIsAssigningSquad(true);
@@ -911,6 +969,16 @@ export default function GroupProgrammeManager() {
                     <span>
                       Limit: {registeredEntries.length} / {selectedProgram.is_group_program ? (selectedProgram.group_limit_count || 7) : (selectedProgram.individual_limit_count || 15)}
                     </span>
+                  </span>
+                )}
+                {selectedProgram.is_group_program && (selectedProgram.max_count_cadidate_group || selectedProgram.max_count_candidate_group) && (
+                  <span className="px-2.5 py-0.5 rounded-md bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold flex items-center gap-1">
+                    <Users size={12} /> Max {selectedProgram.max_count_cadidate_group || selectedProgram.max_count_candidate_group} members/group
+                  </span>
+                )}
+                {selectedProgram.is_freezed && (
+                  <span className="px-2.5 py-0.5 rounded-md bg-rose-100 text-rose-800 text-xs font-black flex items-center gap-1">
+                    <Lock size={12} /> Frozen (Plz, Inform Admin)
                   </span>
                 )}
                 {selectedProgram.IsResulted ? (
