@@ -151,7 +151,6 @@ export default function EditProgrammeModal({
         individual_limit_count: Number(formData.individual_limit_count) || 15,
         group_limit_count: Number(formData.group_limit_count) || 7,
         max_count_cadidate_group: formData.max_count_cadidate_group ? Number(formData.max_count_cadidate_group) : null,
-        max_count_candidate_group: formData.max_count_cadidate_group ? Number(formData.max_count_cadidate_group) : null,
         is_freezed: Boolean(formData.is_freezed),
       };
 

@@ -149,6 +149,14 @@ export default function AdminProgrammesList({
   const [resultModalProgram, setResultModalProgram] = useState<Programme | null>(null);
   const [openMenuProgCode, setOpenMenuProgCode] = useState<string | null>(null);
 
+  useEffect(() => {
+    const handleOutsideClick = () => setOpenMenuProgCode(null);
+    if (openMenuProgCode) {
+      window.addEventListener("click", handleOutsideClick);
+      return () => window.removeEventListener("click", handleOutsideClick);
+    }
+  }, [openMenuProgCode]);
+
   const showToast = (message: string, type: ToastState["type"] = "info") => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -720,13 +728,13 @@ export default function AdminProgrammesList({
               return (
                 <div
                   key={prog.Program_Code}
-                  className={`relative flex flex-col bg-white rounded-3xl p-4 sm:p-5 transition-all duration-200 group ${
+                  className={`relative flex flex-col justify-between bg-white rounded-2xl p-4 transition-all duration-200 group ${
                     isSelected
                       ? "ring-2 ring-emerald-500 shadow-lg border-transparent"
-                      : "border border-slate-200 hover:border-slate-300 hover:shadow-md"
+                      : "border border-slate-200/90 hover:border-slate-300 hover:shadow-md"
                   }`}
                 >
-                  {/* TOP ROW: Checkbox & Code on left, Approval Status on right */}
+                  {/* TOP ROW: Checkbox & Code on left, Status on right */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <input
@@ -741,24 +749,24 @@ export default function AdminProgrammesList({
                         }}
                         title="Select programme for bulk actions"
                       />
-                      <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80">
                         {prog.Program_Code}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
                       {prog.is_freezed && (
-                        <span className="text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-md inline-flex items-center gap-1">
-                          <Lock size={11} className="text-rose-600" />
+                        <span className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                          <Lock size={10} className="text-rose-600" />
                           Frozen
                         </span>
                       )}
                       {prog.IsApproved ? (
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
                           Approved
                         </span>
                       ) : (
-                        <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-md">
+                        <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
                           Pending
                         </span>
                       )}
@@ -767,7 +775,7 @@ export default function AdminProgrammesList({
 
                   {/* PROGRAMME ARTWORK */}
                   <div 
-                    className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-100 border border-slate-200/70 my-3.5 flex items-center justify-center group/art cursor-pointer"
+                    className="relative w-full aspect-[16/9] rounded-xl overflow-hidden bg-slate-100/90 border border-slate-200/70 my-3 flex items-center justify-center group/art cursor-pointer"
                     onClick={() => {
                       if (prog.Program_Poster) {
                         setFullscreenPoster({
@@ -789,7 +797,7 @@ export default function AdminProgrammesList({
                         />
                         <button
                           type="button"
-                          className="absolute bottom-2.5 right-2.5 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white backdrop-blur-xs transition opacity-0 group-hover/art:opacity-100 shadow-xs cursor-pointer"
+                          className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white backdrop-blur-xs transition opacity-0 group-hover/art:opacity-100 shadow-xs cursor-pointer"
                           title="Preview Full Poster"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -803,114 +811,112 @@ export default function AdminProgrammesList({
                         </button>
                       </>
                     ) : (
-                      <div className="flex flex-col items-center justify-center gap-1.5 text-slate-400 select-none">
-                        <ImageIcon size={32} className="stroke-[1.5] text-slate-300" />
+                      <div className="flex flex-col items-center justify-center gap-1 text-slate-400 select-none">
+                        <ImageIcon size={28} className="stroke-[1.5] text-slate-300" />
                         <span className="text-xs font-medium text-slate-400">Programme artwork</span>
                       </div>
                     )}
 
                     {isGroup && (
-                      <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900/80 text-white backdrop-blur-xs border border-white/10 shadow-xs">
+                      <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900/85 text-white backdrop-blur-xs border border-white/10 shadow-xs">
                         Squad
                       </span>
                     )}
                   </div>
 
                   {/* TITLE & SUB-METADATA */}
-                  <div>
+                  <div className="space-y-1">
                     <h3 
-                      className="font-bold text-slate-900 text-lg leading-snug line-clamp-2 group-hover:text-indigo-600 transition-colors"
+                      className="font-bold text-slate-900 text-base leading-snug line-clamp-1 group-hover:text-indigo-600 transition-colors"
                       title={prog.Program_Title || "Untitled Programme"}
                     >
                       {prog.Program_Title || "Untitled Programme"}
                     </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 font-medium truncate mt-1">
-                      {[getWingName(prog.WingCode), catTitle, prog.Group ? getGroupName(prog.Group) : null]
-                        .filter(Boolean)
-                        .join(" · ")}
+                    <p className="text-xs text-slate-500 font-normal truncate">
+                      {[getWingName(prog.WingCode), catTitle].filter(Boolean).join(" · ")}
                     </p>
-                    {isGroup && (prog.max_count_cadidate_group || prog.max_count_candidate_group) && (
-                      <div className="mt-1.5 flex items-center gap-1.5">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
-                          <Users size={10} className="text-purple-600" /> Max {prog.max_count_cadidate_group || prog.max_count_candidate_group} members/group
+                    {isGroup && (prog.max_count_cadidate_group || (prog as any).max_count_candidate_group) && (
+                      <div className="pt-0.5">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md">
+                          <Users size={10} className="text-purple-600" /> Max {prog.max_count_cadidate_group || (prog as any).max_count_candidate_group} members/group
                         </span>
+                      </div>
+                    )}
+                    {prog.is_topic && prog.topic_title && (
+                      <div className="mt-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200/80 text-xs text-teal-900 flex items-center gap-1.5 font-medium">
+                        <BookOpen size={12} className="text-teal-600 shrink-0" />
+                        <span className="font-bold shrink-0">Topic:</span>
+                        <span className="truncate">"{prog.topic_title}"</span>
                       </div>
                     )}
                   </div>
 
-                  {/* ASSIGNED TOPIC (IF CONFIGURED) */}
-                  {prog.is_topic && prog.topic_title && (
-                    <div className="mt-2.5 px-2.5 py-1.5 rounded-xl bg-teal-50 border border-teal-200/80 text-xs text-teal-900 flex items-center gap-1.5 font-medium">
-                      <BookOpen size={13} className="text-teal-600 shrink-0" />
-                      <span className="font-bold shrink-0">Topic:</span>
-                      <span className="truncate">"{prog.topic_title}"</span>
+                  {/* DATE & VENUE ROW (2 Columns - Never truncate Date) */}
+                  <div className="border-t border-slate-100 pt-3 mt-3 space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex items-start gap-1.5 min-w-0">
+                        <Calendar size={15} className="text-slate-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            DATE
+                          </span>
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm whitespace-nowrap block" title={prog.Date || "TBA"}>
+                            {formatCardDate(prog.Date)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-1.5 min-w-0">
+                        <MapPin size={15} className="text-slate-400 mt-0.5 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            VENUE
+                          </span>
+                          <span className="font-bold text-slate-900 text-xs sm:text-sm truncate block" title={getVenueName(prog.Venue)}>
+                            {getVenueName(prog.Venue)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  )}
 
-                  {/* DATE & VENUE ROW (2 Columns) */}
-                  <div className="grid grid-cols-2 gap-4 py-3.5 border-t border-slate-100 mt-3.5">
-                    <div className="flex items-start gap-2 min-w-0">
-                      <Calendar size={16} className="text-slate-400 mt-0.5 shrink-0" />
-                      <div className="min-w-0">
-                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          DATE
-                        </span>
-                        <span className="font-bold text-slate-900 text-sm truncate block" title={prog.Date || "TBA"}>
-                          {formatCardDate(prog.Date)}
-                        </span>
+                    {/* EXPECTED TIME SLOT & DRIVE LINK */}
+                    {((prog.Expected_Time && getExpectedTimeName(prog.Expected_Time)) || prog.drive_link) && (
+                      <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-slate-500">
+                        {prog.Expected_Time && getExpectedTimeName(prog.Expected_Time) && (
+                          <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50/70 border border-indigo-100 px-2 py-0.5 rounded-md truncate max-w-[180px]">
+                            <Clock size={10} className="text-indigo-500 shrink-0" />
+                            <span className="truncate">{getExpectedTimeName(prog.Expected_Time)}</span>
+                          </span>
+                        )}
+                        {prog.drive_link && (
+                          <a
+                            href={prog.drive_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-bold text-blue-600 hover:text-blue-800 ml-auto transition text-[11px]"
+                            title="Open Google Drive resources"
+                          >
+                            <ExternalLink size={10} /> Drive
+                          </a>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex items-start gap-2 min-w-0">
-                      <MapPin size={16} className="text-slate-400 mt-0.5 shrink-0" />
-                      <div className="min-w-0">
-                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                          VENUE
-                        </span>
-                        <span className="font-bold text-slate-900 text-sm truncate block" title={getVenueName(prog.Venue)}>
-                          {getVenueName(prog.Venue)}
-                        </span>
-                      </div>
-                    </div>
+                    )}
                   </div>
 
-                  {/* EXPECTED TIME SLOT & DRIVE LINK (SUBTLE SECONDARY ROW IF PRESENT) */}
-                  {(prog.Expected_Time && getExpectedTimeName(prog.Expected_Time)) || prog.drive_link ? (
-                    <div className="flex items-center justify-between gap-2 pb-2 text-[11px] text-slate-500 flex-wrap">
-                      {prog.Expected_Time && getExpectedTimeName(prog.Expected_Time) && (
-                        <span className="inline-flex items-center gap-1 font-semibold text-indigo-700 bg-indigo-50/70 border border-indigo-100 px-2 py-0.5 rounded-md truncate max-w-[200px]">
-                          <Clock size={11} className="text-indigo-500 shrink-0" />
-                          <span className="truncate">{getExpectedTimeName(prog.Expected_Time)}</span>
-                        </span>
-                      )}
-                      {prog.drive_link && (
-                        <a
-                          href={prog.drive_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 font-bold text-blue-700 hover:text-blue-900 ml-auto transition"
-                          title="Open Google Drive resources"
-                        >
-                          <ExternalLink size={11} /> Drive
-                        </a>
-                      )}
-                    </div>
-                  ) : null}
-
                   {/* REGISTERED & REGISTRATION STATUS ROW */}
-                  <div className="flex items-center justify-between pt-3 pb-1 border-t border-slate-100 mt-auto">
-                    <div className="flex items-center gap-2.5">
-                      <Users size={18} className="text-slate-400 shrink-0" />
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-3">
+                    <div className="flex items-center gap-2">
+                      <Users size={16} className="text-slate-400 shrink-0" />
                       <div>
-                        <div className="font-bold text-slate-900 text-sm leading-tight flex items-center gap-1.5">
+                        <div className="font-bold text-slate-900 text-xs sm:text-sm leading-tight flex items-center gap-1">
                           <span>{prog.Total_Registration || 0} registered</span>
                           {prog.is_limitation && (
-                            <span className="text-[11px] font-semibold text-slate-400">
-                              / {isGroup ? prog.group_limit_count || 7 : prog.individual_limit_count || 15} max
+                            <span className="text-[11px] font-normal text-slate-400">
+                              / {isGroup ? prog.group_limit_count || 7 : prog.individual_limit_count || 15}
                             </span>
                           )}
                         </div>
                         <span
-                          className={`text-xs font-medium block leading-tight ${
+                          className={`text-[11px] font-normal block leading-tight ${
                             prog.IsOpenRegistration ? "text-emerald-600" : "text-rose-600"
                           }`}
                         >
@@ -919,22 +925,22 @@ export default function AdminProgrammesList({
                       </div>
                     </div>
 
-                    {/* Candidates button */}
+                    {/* Candidates button (Pill shaped, rounded-full) */}
                     <Link
                       to={`../candidate-registration/${prog.Program_Code}`}
-                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition shadow-2xs hover:border-slate-300"
+                      className="px-3.5 py-1 rounded-full text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition shadow-2xs hover:border-slate-300"
                       title="Manage and assign candidates"
                     >
                       Candidates
                     </Link>
                   </div>
 
-                  {/* BOTTOM ACTION BUTTONS: Edit Programme (Primary) & ··· More (Secondary) */}
+                  {/* BOTTOM ACTION BUTTONS: Edit Programme (Primary Pill) & ··· More (Circular Pill) */}
                   <div className="flex items-center gap-2 pt-3">
                     <button
                       type="button"
                       onClick={() => setEditingProgram(prog)}
-                      className="flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold bg-[#111827] hover:bg-slate-800 text-white transition flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-[0.99]"
+                      className="flex-1 py-2 px-4 rounded-full text-xs font-bold bg-[#0f172a] hover:bg-black text-white transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-[0.99]"
                     >
                       Edit programme
                     </button>
@@ -943,15 +949,18 @@ export default function AdminProgrammesList({
                     <div className="relative">
                       <button
                         type="button"
-                        onClick={() => setOpenMenuProgCode(openMenuProgCode === prog.Program_Code ? null : prog.Program_Code)}
-                        className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-center ${
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuProgCode(openMenuProgCode === prog.Program_Code ? null : prog.Program_Code);
+                        }}
+                        className={`w-9 h-8 rounded-full border transition cursor-pointer flex items-center justify-center ${
                           openMenuProgCode === prog.Program_Code
                             ? "border-slate-400 bg-slate-100 text-slate-900"
                             : "border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900"
                         }`}
                         title="More options"
                       >
-                        <MoreHorizontal size={18} />
+                        <MoreHorizontal size={16} />
                       </button>
 
                       {/* Dropdown Menu Popup (positioned upward above bottom action bar) */}

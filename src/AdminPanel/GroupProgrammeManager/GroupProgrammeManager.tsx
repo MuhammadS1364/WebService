@@ -171,7 +171,7 @@ export default function GroupProgrammeManager() {
 
       let progQuery = SupaBaseFunction
         .from("ProgrammesBox")
-        .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Group, Total_Registration, is_group_program, IsResulted, IsResultPublished, IsConducted, points_template, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, max_count_candidate_group, is_freezed, is_topic, topic_title, drive_link")
+        .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Group, Total_Registration, is_group_program, IsResulted, IsResultPublished, IsConducted, points_template, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, is_freezed, is_topic, topic_title, drive_link")
         .order("Date", { ascending: false });
 
       // If Wing panel, filter strictly by resolved WingCode

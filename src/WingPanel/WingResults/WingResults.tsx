@@ -95,7 +95,7 @@ export default function WingResults() {
         // Fetch programmes for this wing including IsOpenRegistration and Program_Poster
         const { data: progData, error: progError } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program, IsOpenRegistration, Program_Poster, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, max_count_candidate_group, is_freezed")
+          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program, IsOpenRegistration, Program_Poster, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, is_freezed")
           .eq("WingCode", wing.WingCode)
           .order("Date", { ascending: false });
 

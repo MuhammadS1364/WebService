@@ -76,7 +76,7 @@ export default function SquadRegistrationModal({
           .eq("Program_Code", programCode),
         SupaBaseFunction
           .from("ProgrammesBox")
-          .select("is_limitation, group_limit_count, max_count_cadidate_group, max_count_candidate_group, is_freezed, drive_link, topic_title, is_topic")
+          .select("is_limitation, group_limit_count, max_count_cadidate_group, is_freezed, drive_link, topic_title, is_topic")
           .eq("Program_Code", programCode)
           .maybeSingle(),
       ]);

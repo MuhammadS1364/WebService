@@ -169,7 +169,7 @@ export default function CandidateRegistration() {
       try {
         const { data, error } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Total_Registration, is_topic_required, IsOpenRegistration, is_group_program, is_limitation, individual_limit_count, group_limit_count, is_topic, topic_title, drive_link, Expected_Time, max_count_cadidate_group, max_count_candidate_group, is_freezed")
+          .select("Program_Code, Program_Title, Category, WingCode, Date, Venue, Total_Registration, is_topic_required, IsOpenRegistration, is_group_program, is_limitation, individual_limit_count, group_limit_count, is_topic, topic_title, drive_link, Expected_Time, max_count_cadidate_group, is_freezed")
           .eq("Program_Code", P_Code)
           .maybeSingle();
 
