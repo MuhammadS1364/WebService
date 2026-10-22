@@ -132,12 +132,12 @@ export default function WingPanel() {
 
           <NavLink to={`/wing-panel/${actWing}/wing-registrations`} className={navLinkClasses}>
             <UserCheck size={16} className="text-teal-600" />
-            <span>Registrations Hub</span>
+            <span>Candidate Registrations</span>
           </NavLink>
 
           <NavLink to={`/wing-panel/${actWing}/group-programme-manager`} className={navLinkClasses}>
             <Users size={16} className="text-purple-600" />
-            <span>Registration Hub</span>
+            <span>Squad & Group Hub</span>
           </NavLink>
 
           <NavLink to={`/wing-panel/${actWing}/wing-results`} className={navLinkClasses}>

@@ -119,8 +119,9 @@ export default function GroupProgrammeManager() {
 
   // Create Squad Form State
   const [newSquadTitle, setNewSquadTitle] = useState<string>("");
-  const [squadMemberAddNos, setSquadMemberAddNos] = useState<string[]>([""]);
+  const [squadMemberAddNos, setSquadMemberAddNos] = useState<string[]>(["", ""]);
   const [memberLookupMap, setMemberLookupMap] = useState<Record<string, StudentInfo | null>>({});
+  const [memberSuggestionsMap, setMemberSuggestionsMap] = useState<Record<number, StudentInfo[]>>({});
   const [isSubmittingSquad, setIsSubmittingSquad] = useState<boolean>(false);
   const [squadFormMsg, setSquadFormMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -132,6 +133,7 @@ export default function GroupProgrammeManager() {
   // Assign Individual Candidate State
   const [individualAddNo, setIndividualAddNo] = useState<string>("");
   const [individualStudent, setIndividualStudent] = useState<StudentInfo | null>(null);
+  const [individualSuggestions, setIndividualSuggestions] = useState<StudentInfo[]>([]);
   const [isLookingUpIndividual, setIsLookingUpIndividual] = useState<boolean>(false);
   const [isAssigningIndividual, setIsAssigningIndividual] = useState<boolean>(false);
   const [individualMsg, setIndividualMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -272,10 +274,12 @@ export default function GroupProgrammeManager() {
       const missingAddNos = addNos.filter((no) => !localStudentsMap[no]);
 
       if (missingAddNos.length > 0) {
-        const { data: stnRows } = await SupaBaseFunction
+        const { data: stnRows, error: stnErr } = await SupaBaseFunction
           .from("StudentsBox")
-          .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
+          .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
           .in("AddNo", missingAddNos);
+
+        if (stnErr) console.warn("Error fetching missing student records:", stnErr);
 
         (stnRows || []).forEach((s: any) => {
           localStudentsMap[s.AddNo] = {
@@ -345,50 +349,72 @@ export default function GroupProgrammeManager() {
 
   // Lookup student dynamically for squad creation
   const handleLookupMember = async (index: number, addNo: string) => {
+    const rawVal = addNo;
     const cleanAddNo = addNo.trim().toUpperCase();
     const updated = [...squadMemberAddNos];
-    updated[index] = cleanAddNo;
+    updated[index] = rawVal;
     setSquadMemberAddNos(updated);
 
     if (!cleanAddNo) {
       setMemberLookupMap((prev) => ({ ...prev, [index]: null }));
+      setMemberSuggestionsMap((prev) => ({ ...prev, [index]: [] }));
       return;
     }
 
     try {
-      let student = null;
-      // Step A: exact AddNo
-      const { data: byAddNo } = await SupaBaseFunction
-        .from("StudentsBox")
-        .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
-        .ilike("AddNo", cleanAddNo)
-        .maybeSingle();
-
-      if (byAddNo) {
-        student = byAddNo;
-      } else {
-        // Step B: search by student name or partial AddNo
-        const { data: byName } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
-          .or(`StudentName.ilike.%${cleanAddNo}%,AddNo.ilike.%${cleanAddNo}%`)
-          .limit(1)
-          .maybeSingle();
-        if (byName) student = byName;
+      const numericPart = cleanAddNo.replace(/^[Uu]/, "").trim();
+      let orFilter = `StudentName.ilike.%${cleanAddNo}%,AddNo.ilike.%${cleanAddNo}%`;
+      if (numericPart && numericPart !== cleanAddNo) {
+        orFilter += `,AddNo.ilike.%${numericPart}%`;
+      } else if (/^\d+$/.test(cleanAddNo)) {
+        orFilter += `,AddNo.ilike.%U${cleanAddNo}%`;
       }
 
-      if (student) {
-        const hydrated: StudentInfo = {
-          ...student,
-          resolvedClass: resolveStudentClass(student),
-        };
-        setMemberLookupMap((prev) => ({ ...prev, [index]: hydrated }));
+      const { data: matches, error: matchErr } = await SupaBaseFunction
+        .from("StudentsBox")
+        .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
+        .or(orFilter)
+        .limit(8);
+
+      if (matchErr) console.error("handleLookupMember error:", matchErr);
+
+      if (matches && matches.length > 0) {
+        const hydrated: StudentInfo[] = matches.map((m: any) => ({
+          ...m,
+          resolvedClass: resolveStudentClass(m),
+        }));
+        setMemberSuggestionsMap((prev) => ({ ...prev, [index]: hydrated }));
+
+        const exact = hydrated.find(
+          (m) =>
+            m.AddNo.toUpperCase() === cleanAddNo ||
+            (numericPart && m.AddNo.toUpperCase() === numericPart) ||
+            ("U" + m.AddNo.toUpperCase()) === cleanAddNo ||
+            m.AddNo.toUpperCase() === ("U" + cleanAddNo)
+        );
+
+        if (exact) {
+          setMemberLookupMap((prev) => ({ ...prev, [index]: exact }));
+        } else if (hydrated.length === 1 && cleanAddNo.length >= 3) {
+          setMemberLookupMap((prev) => ({ ...prev, [index]: hydrated[0] }));
+        }
       } else {
         setMemberLookupMap((prev) => ({ ...prev, [index]: null }));
+        setMemberSuggestionsMap((prev) => ({ ...prev, [index]: [] }));
       }
-    } catch {
+    } catch (err) {
+      console.error("handleLookupMember exception:", err);
       setMemberLookupMap((prev) => ({ ...prev, [index]: null }));
+      setMemberSuggestionsMap((prev) => ({ ...prev, [index]: [] }));
     }
+  };
+
+  const handleSelectMemberSuggestion = (index: number, student: StudentInfo) => {
+    const updated = [...squadMemberAddNos];
+    updated[index] = student.AddNo;
+    setSquadMemberAddNos(updated);
+    setMemberLookupMap((prev) => ({ ...prev, [index]: student }));
+    setMemberSuggestionsMap((prev) => ({ ...prev, [index]: [] }));
   };
 
   const maxMembersPerGroup = Number(selectedProgram?.max_count_cadidate_group || selectedProgram?.max_count_candidate_group) || 7;
@@ -410,18 +436,21 @@ export default function GroupProgrammeManager() {
     setSquadMemberAddNos(updated);
 
     const newMap: Record<string, StudentInfo | null> = {};
+    const newSuggs: Record<number, StudentInfo[]> = {};
     updated.forEach((_, i) => {
       newMap[i] = memberLookupMap[i] || null;
+      newSuggs[i] = memberSuggestionsMap[i] || [];
     });
     setMemberLookupMap(newMap);
+    setMemberSuggestionsMap(newSuggs);
   };
 
   // Submit Create Squad
-  const handleCreateSquad = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateSquad = async (e?: React.FormEvent, directoryOnly = false) => {
+    if (e) e.preventDefault();
     setSquadFormMsg(null);
 
-    if (selectedProgram?.is_freezed && !isAdmin) {
+    if (selectedProgram?.is_freezed && !isAdmin && !directoryOnly) {
       setSquadFormMsg({
         type: "error",
         text: "🔒 Plz, Inform Admin: Programme is frozen because result is declared. Editing and additions are not permitted.",
@@ -435,8 +464,12 @@ export default function GroupProgrammeManager() {
       return;
     }
 
+    // Resolve member inputs against lookup map or verified AddNo
     const validMembers = squadMemberAddNos
-      .map((m) => m.trim().toUpperCase())
+      .map((m, idx) => {
+        const student = memberLookupMap[idx];
+        return (student?.AddNo || m).trim().toUpperCase();
+      })
       .filter(Boolean);
 
     if (validMembers.length < 2) {
@@ -444,11 +477,11 @@ export default function GroupProgrammeManager() {
       return;
     }
 
-    // ENFORCE max_count_cadidate_group: Member count per squad
-    if (validMembers.length > maxMembersPerGroup) {
+    const maxLimit = directoryOnly ? 7 : maxMembersPerGroup;
+    if (validMembers.length > maxLimit) {
       setSquadFormMsg({
         type: "error",
-        text: `⚠️ Group Member Limit Exceeded: Maximum allowed members per group is ${maxMembersPerGroup}, but ${validMembers.length} members were provided. Registration stopped.`,
+        text: `⚠️ Group Member Limit Exceeded: Maximum allowed members for this programme is ${maxLimit}, but ${validMembers.length} members were provided.`,
       });
       return;
     }
@@ -462,6 +495,24 @@ export default function GroupProgrammeManager() {
 
     setIsSubmittingSquad(true);
     try {
+      // Validate all members exist in StudentsBox to avoid foreign key errors
+      const { data: stnRows, error: stnErr } = await SupaBaseFunction
+        .from("StudentsBox")
+        .select("AddNo")
+        .in("AddNo", validMembers);
+
+      if (stnErr) throw stnErr;
+      const validSet = new Set((stnRows || []).map((s: any) => s.AddNo.toUpperCase()));
+      const missing = validMembers.filter((no) => !validSet.has(no));
+      if (missing.length > 0) {
+        setSquadFormMsg({
+          type: "error",
+          text: `Invalid student admission number(s): ${missing.join(", ")}. Please select valid students from the list.`,
+        });
+        setIsSubmittingSquad(false);
+        return;
+      }
+
       const payload: Partial<SquadItem> = {
         squad_title: title,
         member1_uuid: validMembers[0] || null,
@@ -477,14 +528,69 @@ export default function GroupProgrammeManager() {
       const { data, error } = await SupaBaseFunction.from("SquadMate").insert([payload]).select().single();
       if (error) throw error;
 
-      setSquadFormMsg({ type: "success", text: `Squad "${title}" successfully created and saved to directory!` });
-      setNewSquadTitle("");
-      setSquadMemberAddNos(["", ""]);
-      setMemberLookupMap({});
+      const createdSquad = data as SquadItem;
+      setAllSquads((prev) => [createdSquad, ...prev]);
 
-      if (data) {
-        setAllSquads((prev) => [data as SquadItem, ...prev]);
-        setSelectedSquadIdToAssign(data.squad_id);
+      // If NOT directoryOnly and selectedProgramCode is available, directly assign to programme!
+      if (!directoryOnly && selectedProgramCode) {
+        const alreadyRegistered = validMembers.filter((no) =>
+          registeredEntries.some((r) => r.Candidate_Code.toUpperCase() === no)
+        );
+
+        if (alreadyRegistered.length > 0) {
+          setSquadFormMsg({
+            type: "error",
+            text: `Squad "${title}" created, but cannot assign directly: Member(s) [${alreadyRegistered.join(", ")}] are already registered in this programme.`,
+          });
+          setSelectedSquadIdToAssign(createdSquad.squad_id);
+          setIsSubmittingSquad(false);
+          return;
+        }
+
+        const rowsToInsert = validMembers.map((addNo) => ({
+          Program_Code: selectedProgramCode,
+          Candidate_Code: addNo,
+          squad_uuid: createdSquad.squad_id,
+        }));
+
+        const { error: insErr } = await SupaBaseFunction.from("CandidateRegistrationTable").insert(rowsToInsert);
+        if (insErr) throw insErr;
+
+        // Accurate count update
+        const { count } = await SupaBaseFunction
+          .from("CandidateRegistrationTable")
+          .select("*", { count: "exact", head: true })
+          .eq("Program_Code", selectedProgramCode);
+
+        const newTotal = count ?? ((selectedProgram?.Total_Registration || 0) + validMembers.length);
+        await SupaBaseFunction
+          .from("ProgrammesBox")
+          .update({ Total_Registration: newTotal })
+          .eq("Program_Code", selectedProgramCode);
+
+        setProgrammes((prev) =>
+          prev.map((p) => (p.Program_Code === selectedProgramCode ? { ...p, Total_Registration: newTotal } : p))
+        );
+
+        setSquadFormMsg({
+          type: "success",
+          text: `🎉 Squad "${title}" successfully created and registered into ${selectedProgram?.Program_Title || selectedProgramCode}!`,
+        });
+
+        setNewSquadTitle("");
+        setSquadMemberAddNos(["", ""]);
+        setMemberLookupMap({});
+        setMemberSuggestionsMap({});
+        fetchRegistrationsForProgram();
+        setTimeout(() => setActiveTab("registered"), 1000);
+      } else {
+        setSquadFormMsg({ type: "success", text: `Squad "${title}" successfully created and saved to directory!` });
+        setNewSquadTitle("");
+        setSquadMemberAddNos(["", ""]);
+        setMemberLookupMap({});
+        setMemberSuggestionsMap({});
+        setSelectedSquadIdToAssign(createdSquad.squad_id);
+        setActiveTab("assignSquad");
       }
     } catch (err: any) {
       setSquadFormMsg({ type: "error", text: `Failed to create squad: ${err.message}` });
@@ -532,6 +638,18 @@ export default function GroupProgrammeManager() {
       return;
     }
 
+    // Check if any member is already registered in this programme
+    const alreadyRegistered = memberAddNos.filter((no) =>
+      registeredEntries.some((r) => r.Candidate_Code.toUpperCase() === no.toUpperCase())
+    );
+    if (alreadyRegistered.length > 0) {
+      setAssignSquadMsg({
+        type: "error",
+        text: `Cannot assign squad: Member(s) [${alreadyRegistered.join(", ")}] are already registered in this programme.`,
+      });
+      return;
+    }
+
     // ENFORCE max_count_cadidate_group: Member count per squad
     if (memberAddNos.length > maxMembersPerGroup) {
       setAssignSquadMsg({
@@ -566,11 +684,16 @@ export default function GroupProgrammeManager() {
       const { error: insErr } = await SupaBaseFunction.from("CandidateRegistrationTable").insert(rowsToInsert);
       if (insErr) throw insErr;
 
-      // Update total registrations in ProgrammesBox
-      const newTotal = (selectedProgram?.Total_Registration || 0) + memberAddNos.length;
+      // Update total registrations in ProgrammesBox using exact count
+      const { count } = await SupaBaseFunction
+        .from("CandidateRegistrationTable")
+        .select("*", { count: "exact", head: true })
+        .eq("Program_Code", selectedProgramCode);
+
+      const exactTotal = count ?? ((selectedProgram?.Total_Registration || 0) + memberAddNos.length);
       await SupaBaseFunction
         .from("ProgrammesBox")
-        .update({ Total_Registration: newTotal })
+        .update({ Total_Registration: exactTotal })
         .eq("Program_Code", selectedProgramCode);
 
       setAssignSquadMsg({
@@ -580,7 +703,7 @@ export default function GroupProgrammeManager() {
 
       // Update local programmes state
       setProgrammes((prev) =>
-        prev.map((p) => (p.Program_Code === selectedProgramCode ? { ...p, Total_Registration: newTotal } : p))
+        prev.map((p) => (p.Program_Code === selectedProgramCode ? { ...p, Total_Registration: exactTotal } : p))
       );
 
       fetchRegistrationsForProgram();
@@ -592,45 +715,69 @@ export default function GroupProgrammeManager() {
     }
   };
 
-  // Lookup Individual Candidate (supports both AddNo and Student Name)
+  // Lookup Individual Candidate (supports both AddNo and Student Name with suggestions)
   const handleLookupIndividual = async (inputVal: string) => {
     const clean = inputVal.trim().toUpperCase();
-    setIndividualAddNo(clean);
+    setIndividualAddNo(inputVal);
     setIndividualStudent(null);
-    if (!clean) return;
+    if (!clean) {
+      setIndividualSuggestions([]);
+      return;
+    }
 
     setIsLookingUpIndividual(true);
     try {
-      let student = null;
-      // Step A: exact AddNo
-      const { data: byAddNo } = await SupaBaseFunction
+      const numericPart = clean.replace(/^[Uu]/, "").trim();
+      let orFilter = `StudentName.ilike.%${clean}%,AddNo.ilike.%${clean}%`;
+      if (numericPart && numericPart !== clean) {
+        orFilter += `,AddNo.ilike.%${numericPart}%`;
+      } else if (/^\d+$/.test(clean)) {
+        orFilter += `,AddNo.ilike.%U${clean}%`;
+      }
+
+      const { data: matches, error: matchErr } = await SupaBaseFunction
         .from("StudentsBox")
-        .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
-        .ilike("AddNo", clean)
-        .maybeSingle();
+        .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
+        .or(orFilter)
+        .limit(8);
 
-      if (byAddNo) {
-        student = byAddNo;
+      if (matchErr) console.error("handleLookupIndividual error:", matchErr);
+
+      if (matches && matches.length > 0) {
+        const hydrated: StudentInfo[] = matches.map((s: any) => ({
+          ...s,
+          resolvedClass: resolveStudentClass(s),
+        }));
+        setIndividualSuggestions(hydrated);
+
+        const exact = hydrated.find(
+          (s) =>
+            s.AddNo.toUpperCase() === clean ||
+            (numericPart && s.AddNo.toUpperCase() === numericPart) ||
+            ("U" + s.AddNo.toUpperCase()) === clean ||
+            s.AddNo.toUpperCase() === ("U" + clean)
+        );
+
+        if (exact) {
+          setIndividualStudent(exact);
+        } else if (hydrated.length === 1 && clean.length >= 3) {
+          setIndividualStudent(hydrated[0]);
+        }
       } else {
-        // Step B: search by student name or partial AddNo
-        const { data: byName } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("AddNo, StudentName, Stn_Class, Class, CollegeName, Student_Photo_Urls")
-          .or(`StudentName.ilike.%${clean}%,AddNo.ilike.%${clean}%`)
-          .limit(1)
-          .maybeSingle();
-        if (byName) student = byName;
+        setIndividualSuggestions([]);
       }
-
-      if (student) {
-        setIndividualStudent({
-          ...student,
-          resolvedClass: resolveStudentClass(student),
-        });
-      }
+    } catch (err) {
+      console.error("handleLookupIndividual exception:", err);
+      setIndividualSuggestions([]);
     } finally {
       setIsLookingUpIndividual(false);
     }
+  };
+
+  const handleSelectIndividualSuggestion = (student: StudentInfo) => {
+    setIndividualAddNo(student.AddNo);
+    setIndividualStudent(student);
+    setIndividualSuggestions([]);
   };
 
   // Assign Individual Candidate
@@ -638,7 +785,17 @@ export default function GroupProgrammeManager() {
     if (!selectedProgramCode) return alert("Select a programme.");
     if (!individualStudent) return alert("Please look up a valid student.");
 
-    const isAlreadyRegistered = registeredEntries.some((r) => r.Candidate_Code === individualStudent.AddNo);
+    if (selectedProgram?.is_freezed && !isAdmin) {
+      setIndividualMsg({
+        type: "error",
+        text: "🔒 Plz, Inform Admin: Programme is frozen because result is declared. Registrations are closed.",
+      });
+      return;
+    }
+
+    const isAlreadyRegistered = registeredEntries.some(
+      (r) => r.Candidate_Code.toUpperCase() === individualStudent.AddNo.toUpperCase()
+    );
     if (isAlreadyRegistered) {
       setIndividualMsg({ type: "error", text: `Student ${individualStudent.StudentName} is already registered.` });
       return;
@@ -657,10 +814,15 @@ export default function GroupProgrammeManager() {
       const { error } = await SupaBaseFunction.from("CandidateRegistrationTable").insert([payload]);
       if (error) throw error;
 
-      const newTotal = (selectedProgram?.Total_Registration || 0) + 1;
+      const { count } = await SupaBaseFunction
+        .from("CandidateRegistrationTable")
+        .select("*", { count: "exact", head: true })
+        .eq("Program_Code", selectedProgramCode);
+
+      const exactTotal = count ?? ((selectedProgram?.Total_Registration || 0) + 1);
       await SupaBaseFunction
         .from("ProgrammesBox")
-        .update({ Total_Registration: newTotal })
+        .update({ Total_Registration: exactTotal })
         .eq("Program_Code", selectedProgramCode);
 
       setIndividualMsg({
@@ -669,11 +831,12 @@ export default function GroupProgrammeManager() {
       });
 
       setProgrammes((prev) =>
-        prev.map((p) => (p.Program_Code === selectedProgramCode ? { ...p, Total_Registration: newTotal } : p))
+        prev.map((p) => (p.Program_Code === selectedProgramCode ? { ...p, Total_Registration: exactTotal } : p))
       );
 
       setIndividualAddNo("");
       setIndividualStudent(null);
+      setIndividualSuggestions([]);
       fetchRegistrationsForProgram();
       setActiveTab("registered");
     } catch (err: any) {
@@ -1398,7 +1561,7 @@ export default function GroupProgrammeManager() {
                 </div>
               )}
 
-              <form onSubmit={handleCreateSquad} className="space-y-4">
+              <form onSubmit={(e) => handleCreateSquad(e, false)} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Squad Title / Group Name <span className="text-rose-500">*</span>
@@ -1416,9 +1579,9 @@ export default function GroupProgrammeManager() {
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-700">
-                      Member Students (Min 2, Max 7) <span className="text-rose-500">*</span>
+                      Member Students (Min 2, Max {maxMembersPerGroup}) <span className="text-rose-500">*</span>
                     </label>
-                    {squadMemberAddNos.length < 7 && (
+                    {squadMemberAddNos.length < maxMembersPerGroup && (
                       <button
                         type="button"
                         onClick={handleAddMemberSlot}
@@ -1432,10 +1595,11 @@ export default function GroupProgrammeManager() {
 
                   {squadMemberAddNos.map((addNo, index) => {
                     const student = memberLookupMap[index];
+                    const suggestions = memberSuggestionsMap[index] || [];
                     return (
                       <div
                         key={index}
-                        className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2"
+                        className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-2 relative"
                       >
                         <div className="flex items-center gap-2">
                           <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 text-xs font-black flex items-center justify-center shrink-0">
@@ -1447,7 +1611,7 @@ export default function GroupProgrammeManager() {
                             value={addNo}
                             onChange={(e) => handleLookupMember(index, e.target.value)}
                             placeholder="AddNo or Student Name (e.g. U1448)"
-                            className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-mono font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                           />
                           {squadMemberAddNos.length > 2 && (
                             <button
@@ -1461,6 +1625,27 @@ export default function GroupProgrammeManager() {
                           )}
                         </div>
 
+                        {/* Interactive Suggestion Dropdown */}
+                        {suggestions.length > 0 && !student && (
+                          <div className="bg-white rounded-xl border border-indigo-200 shadow-md divide-y divide-slate-100 overflow-hidden mt-1">
+                            {suggestions.map((s) => (
+                              <div
+                                key={s.AddNo}
+                                onClick={() => handleSelectMemberSuggestion(index, s)}
+                                className="px-3 py-2 hover:bg-indigo-50 cursor-pointer flex items-center justify-between text-xs transition"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded text-[11px]">
+                                    {s.AddNo}
+                                  </span>
+                                  <span className="font-bold text-slate-800">{s.StudentName}</span>
+                                </div>
+                                <span className="text-[11px] text-slate-500">{s.resolvedClass}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         {/* Instant Lookup Preview */}
                         {student ? (
                           <div className="flex items-center gap-2.5 pl-8 text-xs">
@@ -1469,12 +1654,14 @@ export default function GroupProgrammeManager() {
                               {student.StudentName}
                             </span>
                             <span className="text-slate-400">•</span>
+                            <span className="text-slate-600 font-mono font-bold">{student.AddNo}</span>
+                            <span className="text-slate-400">•</span>
                             <span className="text-slate-600">{student.resolvedClass}</span>
                           </div>
-                        ) : addNo.trim() ? (
+                        ) : addNo.trim() && suggestions.length === 0 ? (
                           <div className="pl-8 text-[11px] text-amber-700 flex items-center gap-1">
                             <AlertCircle size={12} />
-                            Looking up student record...
+                            No matching student record found for "{addNo}"
                           </div>
                         ) : null}
                       </div>
@@ -1482,14 +1669,26 @@ export default function GroupProgrammeManager() {
                   })}
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmittingSquad}
-                  className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold transition shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmittingSquad ? <RefreshCw size={14} className="animate-spin" /> : <PlusCircle size={15} />}
-                  <span>Save Squad to Directory</span>
-                </button>
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-2.5">
+                  <button
+                    type="submit"
+                    disabled={isSubmittingSquad}
+                    className="flex-1 w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold transition shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmittingSquad ? <RefreshCw size={14} className="animate-spin" /> : <PlusCircle size={15} />}
+                    <span>Save & Register to {selectedProgram?.Program_Code || "Programme"}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleCreateSquad(e, true)}
+                    disabled={isSubmittingSquad}
+                    className="w-full sm:w-auto py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Save to directory without immediately enrolling into this programme"
+                  >
+                    <span>Save to Directory Only</span>
+                  </button>
+                </div>
               </form>
             </div>
           )}
@@ -1505,6 +1704,24 @@ export default function GroupProgrammeManager() {
                 </p>
               </div>
 
+              {selectedProgram?.is_group_program && (
+                <div className="p-3.5 rounded-2xl bg-indigo-50/90 border border-indigo-200 text-indigo-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2">
+                    <Users size={16} className="text-indigo-600 shrink-0" />
+                    <span>
+                      Notice: <strong>[{selectedProgram.Program_Code}] {selectedProgram.Program_Title}</strong> is a Squad / Group Event. If you want to enroll a group, please use <strong>Assign Squad</strong> or <strong>Create New Squad</strong>.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("assignSquad")}
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shrink-0 hover:bg-indigo-700 transition cursor-pointer"
+                  >
+                    Go to Squads
+                  </button>
+                </div>
+              )}
+
               {individualMsg && (
                 <div
                   className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2 ${
@@ -1519,15 +1736,36 @@ export default function GroupProgrammeManager() {
               )}
 
               <div className="space-y-4">
-                <div>
+                <div className="relative">
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Candidate Admission Number or Student Name</label>
                   <input
                     type="text"
                     value={individualAddNo}
                     onChange={(e) => handleLookupIndividual(e.target.value)}
                     placeholder="Enter AddNo or search student name (e.g. U1448)..."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold text-slate-800 uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs bg-white"
                   />
+
+                  {/* Autocomplete Suggestions */}
+                  {individualSuggestions.length > 0 && !individualStudent && (
+                    <div className="bg-white rounded-xl border border-indigo-200 shadow-lg divide-y divide-slate-100 overflow-hidden mt-1 z-20">
+                      {individualSuggestions.map((s) => (
+                        <div
+                          key={s.AddNo}
+                          onClick={() => handleSelectIndividualSuggestion(s)}
+                          className="px-3.5 py-2 hover:bg-indigo-50 cursor-pointer flex items-center justify-between text-xs transition"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                              {s.AddNo}
+                            </span>
+                            <span className="font-bold text-slate-900">{s.StudentName}</span>
+                          </div>
+                          <span className="text-[11px] text-slate-500">{s.resolvedClass}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {isLookingUpIndividual && (

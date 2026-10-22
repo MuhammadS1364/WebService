@@ -155,7 +155,7 @@ export default function AdminPanel() {
                   All Programmes
                 </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/group-programme-manager`} className={desktopNavLinkClasses}>
-                  Registration Hub
+                  Squad & Group Hub
                 </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/our-results`} className={desktopNavLinkClasses}>
                   Results Directory

@@ -977,8 +977,8 @@ export default function WingProgrammes() {
 
                   {/* Card Bottom: Action Buttons & Expandable Candidate Details */}
                   <div className="px-5 py-4 bg-slate-50/70 border-t border-slate-100 flex flex-col gap-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         {isTopicReq && (
                           <button
                             type="button"
@@ -986,7 +986,7 @@ export default function WingProgrammes() {
                               setSelectedTopicProg(p.Program_Code);
                               setIsTopicsModalOpen(true);
                             }}
-                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 inline-flex items-center gap-1 transition cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 inline-flex items-center gap-1 transition cursor-pointer shrink-0"
                             title="Manage Registered Topics"
                           >
                             <FileText size={12} />
@@ -997,7 +997,7 @@ export default function WingProgrammes() {
                         <button
                           type="button"
                           onClick={() => setPrintCandidateCode(p.Program_Code)}
-                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 inline-flex items-center gap-1 transition cursor-pointer"
+                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 inline-flex items-center gap-1 transition cursor-pointer shrink-0"
                           title="Print Official A4 Candidate Evaluation Sheet"
                         >
                           <Printer size={12} />
@@ -1005,9 +1005,9 @@ export default function WingProgrammes() {
                         </button>
 
                         <Link
-                          to={`/wing-panel/${actWing}/candidate-registration/${p.Program_Code}`}
-                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 inline-flex items-center gap-1 transition shadow-2xs"
-                          title="Assign other candidates by AddNo"
+                          to={p.is_group_program ? `/wing-panel/${actWing}/group-programme-manager` : `/wing-panel/${actWing}/candidate-registration/${p.Program_Code}`}
+                          className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 inline-flex items-center gap-1 transition shadow-2xs shrink-0"
+                          title={p.is_group_program ? "Manage Squad & Group Registrations" : "Assign other candidates by AddNo"}
                         >
                           <UserPlus size={12} />
                           <span>Assign +</span>
@@ -1017,17 +1017,17 @@ export default function WingProgrammes() {
                           <button
                             type="button"
                             onClick={() => alert("Plz, Inform Admin: Programme info is frozen because result has been declared. Edit function is not available for wings. Please inform the Admin if updates are needed.")}
-                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 inline-flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                            className="px-2 py-1.5 rounded-xl text-[10px] font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 inline-flex items-center gap-1 transition cursor-pointer shadow-2xs shrink-0"
                             title="Plz, Inform Admin - Edit function is not available"
                           >
                             <Lock size={12} className="text-rose-600" />
-                            <span>Plz, Inform Admin</span>
+                            <span>Admin</span>
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setEditingProgram(p)}
-                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 inline-flex items-center gap-1 transition cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 inline-flex items-center gap-1 transition cursor-pointer shrink-0"
                             title="Edit Programme Details"
                           >
                             <Edit3 size={12} />
@@ -1036,17 +1036,17 @@ export default function WingProgrammes() {
                         )}
                       </div>
 
-                      {/* Candidates Toggle */}
+                      {/* Candidates / Squads Toggle */}
                       <button
                         type="button"
                         onClick={() => toggleCandidates(p.Program_Code)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer ${
+                        className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer shadow-xs ${
                           isExp
                             ? "bg-slate-200 text-slate-800"
-                            : "bg-blue-600 text-white hover:bg-blue-700 shadow-xs shadow-blue-200"
+                            : "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200"
                         }`}
                       >
-                        <span>{isExp ? "Hide List" : "Candidates"}</span>
+                        <span>{isExp ? "Hide List" : (p.is_group_program ? "Squads" : "Candidates")}</span>
                         {isExp ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                       </button>
                     </div>

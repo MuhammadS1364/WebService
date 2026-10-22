@@ -9,8 +9,9 @@ import {
   Check, 
   ChevronDown,
   Layers,
+  Key,
 } from "lucide-react";
-import { sendDeepSeekQuery, type ChatMessage } from "../lib/deepseekService";
+import { sendDeepSeekQuery, type ChatMessage, getCustomApiKey, setCustomApiKey } from "../lib/deepseekService";
 
 interface UIMessage {
   id: string;
@@ -21,14 +22,20 @@ interface UIMessage {
 
 const QUICK_PROMPTS = [
   { label: "Category Bonding", query: "How does category bonding work for students in Anjuman e Huda?" },
-  { label: "Content Submission", query: "How do I upload .docx, .tsx, or .pdf files, or paste content for a programme?" },
-  { label: "Points System", query: "What are the points awarded for 1st, 2nd, 3rd positions, and Grades?" },
-  { label: "Squad Teams", query: "How can students form a squad for group programmes?" },
+  { label: "Create Squad", query: "How do I create a new student squad and assign it to a programme?" },
+  { label: "Assign Candidates", query: "How do wings or admins assign individual candidates by Admission Number?" },
+  { label: "Points System", query: "How are 1st, 2nd, 3rd positions, Grades, and Grand Total points calculated?" },
+  { label: "Content Upload", query: "How do I submit .docx, .pdf, .tsx files or paste content before deadline?" },
+  { label: "Frozen Programmes", query: "Why is my programme frozen with 'Plz, Inform Admin' and how to edit?" },
+  { label: "Print A4 Sheet", query: "How do I print the official A4 candidate evaluation sheet for judges?" },
+  { label: "Topic Approval", query: "How does Topic Registration ON/OFF work for debate and speech events?" },
 ];
 
 export default function AISupportModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [customKey, setCustomKey] = useState(() => getCustomApiKey());
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -38,7 +45,7 @@ export default function AISupportModal() {
       {
         id: "welcome-1",
         role: "assistant",
-        content: `👋 **Welcome to Anjuman e Huda AI Support!**\n\nI am your intelligent assistant powered by DeepSeek AI. Ask me anything about:\n• **Category Bonding** (Bidaya, Ula, Thaniya, Aliya)\n• **Content Submissions** (uploading files or pasting text in Content_Table)\n• **Points & Results**\n• **Squad Registrations**`,
+        content: `👋 **Welcome to Anjuman e Huda AI Support!**\n\nI am your intelligent assistant powered by DeepSeek AI. You can ask me **anything** about this system without restriction:\n• **Student Squads & Groups** (creating squads, min 2 / max limits, auto-resolution)\n• **Category Bonding** (how student classes link to academic categories)\n• **Candidate Assignment** (manual enrollment by Admission Number)\n• **Points & Grand Total** (1st 10pts, 2nd 7pts, 3rd 5pts, Grades A/B)\n• **Content & Topics** (file uploads or inline pasting in Content_Table)\n• **Printable Reports** (official A4 scoring sheets & Excel exports)`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ];
@@ -244,14 +251,26 @@ export default function AISupportModal() {
 
             <div className="flex items-center gap-1">
               {!isMinimized && (
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
-                  title="Reset Conversation"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowKeyModal(!showKeyModal)}
+                    className={`p-1.5 rounded-lg transition ${
+                      showKeyModal ? "text-amber-400 bg-white/15" : "text-slate-400 hover:text-white hover:bg-white/10"
+                    }`}
+                    title="DeepSeek API Key Settings (Optional)"
+                  >
+                    <Key className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                    title="Reset Conversation"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                </>
               )}
               <button
                 type="button"
@@ -271,6 +290,47 @@ export default function AISupportModal() {
               </button>
             </div>
           </div>
+
+          {/* Optional Custom API Key Panel */}
+          {showKeyModal && !isMinimized && (
+            <div className="bg-slate-900 border-b border-teal-900/60 p-3.5 text-xs space-y-2 text-white shrink-0 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-teal-300 flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5" />
+                  DeepSeek API Key (Optional)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                By default, this assistant uses the built-in system intelligence engine to answer any question about Anjuman e Huda. You can also provide your own active DeepSeek API Key below:
+              </p>
+              <div className="flex gap-2 pt-1">
+                <input
+                  type="password"
+                  value={customKey}
+                  onChange={(e) => setCustomKey(e.target.value)}
+                  placeholder="Paste your sk-..."
+                  className="flex-1 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomApiKey(customKey);
+                    setShowKeyModal(false);
+                  }}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 font-bold rounded-lg text-xs cursor-pointer transition shadow-2xs"
+                >
+                  Save Key
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Main Body (if not minimized) */}
           {!isMinimized && (
@@ -382,7 +442,7 @@ export default function AISupportModal() {
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask Anjuman AI about rules, submissions..."
+                    placeholder="Ask anything about this system (e.g. squads, bonding, points)..."
                     className="flex-1 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none transition"
                     disabled={loading}
                   />
@@ -396,10 +456,10 @@ export default function AISupportModal() {
                   </button>
                 </form>
                 <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 mt-1.5">
-                  <span className="flex items-center gap-1">
-                    <Layers className="w-2.5 h-2.5" /> Category Bonding & Content Assistant
+                  <span className="flex items-center gap-1 font-medium text-slate-500">
+                    <Layers className="w-2.5 h-2.5 text-teal-600" /> Ask anything about Anjuman e Huda
                   </span>
-                  <span>DeepSeek API Sk-***</span>
+                  <span className="font-semibold text-teal-700">⚡ Flexible System Engine</span>
                 </div>
               </div>
             </>
