@@ -266,9 +266,10 @@ export default function CandidateRegistration() {
           if (
             progCatTitle &&
             progCatTitle.toLowerCase() !== "general" &&
-            progCatTitle.toLowerCase() !== "all"
+            progCatTitle.toLowerCase() !== "all" &&
+            !progCatTitle.toLowerCase().includes("all classes")
           ) {
-            // Find student's category
+            // Find student's class details
             const classId = studentData.Stn_Class;
             const matchedClass = curMeta.classes.find(
               (c) =>
@@ -277,39 +278,56 @@ export default function CandidateRegistration() {
             );
             const resolvedClassId = matchedClass?.class_id || classId;
             const className = matchedClass?.standard_name || matchedClass?.class_nick_name || "";
+            const nickName = matchedClass?.class_nick_name || "";
 
-            let studentCatTitle = "";
-            let studentCatId = "";
-            if (resolvedClassId) {
-              const cat = curMeta.categories.find(
-                (c) =>
-                  c.class_1 === resolvedClassId ||
-                  c.class_2 === resolvedClassId ||
-                  c.class_3 === resolvedClassId
-              );
-              if (cat) {
-                studentCatTitle = cat.category_title;
-                studentCatId = cat.category_id;
-              }
+            // Check if the target category includes this class
+            const targetCategory = curMeta.categories.find(
+              (c) =>
+                c.category_id === progCatId ||
+                (c.category_title && c.category_title.toLowerCase().trim() === progCatTitle.toLowerCase().trim())
+            );
+
+            let isClassEligible = false;
+            if (!targetCategory) {
+              isClassEligible = true;
+            } else if (!targetCategory.class_1 && !targetCategory.class_2 && !targetCategory.class_3) {
+              // General Category with no class constraints
+              isClassEligible = true;
+            } else if (
+              resolvedClassId &&
+              (targetCategory.class_1 === resolvedClassId ||
+                targetCategory.class_2 === resolvedClassId ||
+                targetCategory.class_3 === resolvedClassId)
+            ) {
+              // Student class is in class_1, class_2, or class_3
+              isClassEligible = true;
+            } else if (
+              (className && targetCategory.category_title.toLowerCase().includes(className.toLowerCase())) ||
+              (nickName && targetCategory.category_title.toLowerCase().includes(nickName.toLowerCase()))
+            ) {
+              isClassEligible = true;
             }
 
-            if (!studentCatTitle && className) {
-              const cat = curMeta.categories.find(
-                (c) => c.category_title.toLowerCase().trim() === className.toLowerCase().trim()
-              );
-              if (cat) {
-                studentCatTitle = cat.category_title;
-                studentCatId = cat.category_id;
-              }
-            }
+            if (!isClassEligible) {
+              const studentMatchingCats = curMeta.categories
+                .filter(
+                  (c) =>
+                    resolvedClassId &&
+                    (c.class_1 === resolvedClassId ||
+                      c.class_2 === resolvedClassId ||
+                      c.class_3 === resolvedClassId)
+                )
+                .map((c) => c.category_title);
 
-            const isMatch =
-              studentCatId === progCatId ||
-              (studentCatTitle && studentCatTitle.toLowerCase().trim() === progCatTitle.toLowerCase().trim());
+              const catListText =
+                studentMatchingCats.length > 0
+                  ? studentMatchingCats.join(", ")
+                  : "General events only";
 
-            if (!isMatch && studentCatTitle) {
               setStudentName(
-                `❌ Category Mismatch: This programme is strictly for "${progCatTitle}". Your class is in "${studentCatTitle}".`
+                `❌ Category Mismatch: This programme is strictly for "${progCatTitle}". Your class (${
+                  className || "Your Class"
+                }) is mapped to: ${catListText}.`
               );
               setCategoryMismatch(true);
               return;

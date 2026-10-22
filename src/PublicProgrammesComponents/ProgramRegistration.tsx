@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../../src/lib/SupaBase";
-import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../src/lib/imgbbService";
+import { uploadImageToImgBB, processImagePreservingRatio } from "../../src/lib/imgbbService";
 import { useProgrammeMeta } from "../../src/lib/programmeMeta";
 import {
   Calendar,
@@ -209,8 +209,8 @@ export default function ProgrammeRegistration() {
 
     setUploadError("");
     try {
-      const squareDataUrl = await processImageToSquareDataUrl(file, 480, 0.88);
-      setImagePreview(squareDataUrl);
+      const preservedDataUrl = await processImagePreservingRatio(file, 1600, 0.92);
+      setImagePreview(preservedDataUrl);
       setSelectedFile(file);
       setPosterUrl("");
     } catch {
@@ -256,7 +256,7 @@ export default function ProgrammeRegistration() {
         finalPosterUrl = posterUrl.trim();
       } else if (selectedFile) {
         try {
-          const uploadRes = await uploadImageToImgBB(selectedFile, `${cleanCode}_poster`);
+          const uploadRes = await uploadImageToImgBB(selectedFile, `${cleanCode}_poster`, { isSquareCrop: false });
           if (uploadRes.displayUrl) finalPosterUrl = uploadRes.displayUrl;
         } catch {
           finalPosterUrl = imagePreview;
@@ -988,11 +988,11 @@ export default function ProgrammeRegistration() {
             <div className="rounded-2xl border border-slate-200 p-4 sm:p-5 bg-slate-50/80 space-y-3">
               {imagePreview ? (
                 <div className="flex items-center gap-4 bg-white p-3.5 rounded-xl border border-slate-200">
-                  <div className="relative w-24 h-24 rounded-2xl overflow-hidden border-2 border-indigo-200 shadow-sm shrink-0 bg-slate-100 flex items-center justify-center">
+                  <div className="relative max-h-32 max-w-44 h-28 w-36 rounded-xl overflow-hidden border border-indigo-200 shadow-sm shrink-0 bg-slate-900/5 p-1 flex items-center justify-center">
                     <img
                       src={imagePreview}
                       alt="Poster Preview"
-                      className="w-full h-full object-cover object-center"
+                      className="max-h-full max-w-full object-contain rounded-lg"
                     />
                     <div className="absolute bottom-1 right-1 bg-emerald-500 text-white p-0.5 rounded-full shadow-xs">
                       <CheckCircle2 className="w-3 h-3" />
@@ -1005,7 +1005,7 @@ export default function ProgrammeRegistration() {
                         {selectedFile ? selectedFile.name : "Custom Poster URL Attached"}
                       </p>
                       <p className="text-[11px] text-emerald-600 font-semibold mt-0.5">
-                        High resolution banner ready
+                        Full aspect ratio preserved (uncropped)
                       </p>
                     </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
-import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
+import { uploadImageToImgBB, processImagePreservingRatio } from "../../lib/imgbbService";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import type { Programme } from "./AdminProgrammesList";
 import { X, Upload, Save, Loader2, Lock } from "lucide-react";
@@ -89,13 +89,14 @@ export default function EditProgrammeModal({
     try {
       setUploadingPoster(true);
       setErrorMsg("");
-      const squareDataUrl = await processImageToSquareDataUrl(file, 480, 0.88);
-      let finalUrl = squareDataUrl;
+      // Preserve full image aspect ratio without cropping borders or text
+      const preservedDataUrl = await processImagePreservingRatio(file, 1600, 0.92);
+      let finalUrl = preservedDataUrl;
       try {
-        const res = await uploadImageToImgBB(file, `${program.Program_Code}_poster`);
+        const res = await uploadImageToImgBB(file, `${program.Program_Code}_poster`, { isSquareCrop: false });
         if (res.displayUrl) finalUrl = res.displayUrl;
       } catch {
-        finalUrl = squareDataUrl;
+        finalUrl = preservedDataUrl;
       }
       setFormData((prev: any) => ({ ...prev, Program_Poster: finalUrl }));
     } catch (err: any) {
@@ -490,15 +491,20 @@ export default function EditProgrammeModal({
             </div>
             {formData.Program_Poster && (
               <div className="mt-2 flex items-center gap-3">
-                <img
-                  src={formData.Program_Poster}
-                  alt="Poster preview"
-                  className="h-16 w-28 object-cover rounded-lg border border-gray-200 shadow-xs"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-                <span className="text-[11px] text-gray-500">Live Poster Preview</span>
+                <div className="h-20 w-32 rounded-lg border border-gray-200 bg-slate-900/5 p-1 flex items-center justify-center overflow-hidden">
+                  <img
+                    src={formData.Program_Poster}
+                    alt="Poster preview"
+                    className="max-h-full max-w-full object-contain rounded-sm"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-gray-700 block">Live Poster Preview</span>
+                  <span className="text-[10px] text-gray-500">Full uncropped aspect ratio</span>
+                </div>
               </div>
             )}
           </div>

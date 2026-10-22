@@ -34,7 +34,9 @@ import {
   Trophy,
   Image as ImageIcon,
   Lock,
+  Download,
 } from "lucide-react"; 
+import { downloadImageFullQuality } from "../../lib/imgbbService"; 
 
 export interface Programme {
   Program_Title: string | null;
@@ -775,7 +777,7 @@ export default function AdminProgrammesList({
 
                   {/* PROGRAMME ARTWORK */}
                   <div 
-                    className="relative w-full aspect-[16/9] rounded-xl overflow-hidden bg-slate-100/90 border border-slate-200/70 my-3 flex items-center justify-center group/art cursor-pointer"
+                    className="relative w-full aspect-[16/9] rounded-xl overflow-hidden bg-slate-950 border border-slate-200/70 my-3 flex items-center justify-center group/art cursor-pointer"
                     onClick={() => {
                       if (prog.Program_Poster) {
                         setFullscreenPoster({
@@ -784,31 +786,53 @@ export default function AdminProgrammesList({
                         });
                       }
                     }}
-                    title={prog.Program_Poster ? "Click to view full poster" : "Programme artwork"}
+                    title={prog.Program_Poster ? "Click to view full poster & download" : "Programme artwork"}
                   >
                     {prog.Program_Poster ? (
                       <>
+                        {/* Ambient blurred backdrop to gracefully fill the ratio without cutting the main image */}
+                        <img
+                          src={prog.Program_Poster}
+                          alt=""
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-cover filter blur-md scale-110 opacity-35 select-none pointer-events-none"
+                        />
+                        {/* Foreground full poster in natural aspect ratio */}
                         <SafeImage
                           src={prog.Program_Poster}
                           alt={prog.Program_Title || "Program"}
                           fallbackCategory="programme"
                           fallbackText={prog.Program_Title || prog.Program_Code}
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover/art:scale-105"
+                          className="relative z-1 max-w-full max-h-full w-auto h-auto object-contain transition-transform duration-300 group-hover/art:scale-[1.02]"
                         />
-                        <button
-                          type="button"
-                          className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white backdrop-blur-xs transition opacity-0 group-hover/art:opacity-100 shadow-xs cursor-pointer"
-                          title="Preview Full Poster"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFullscreenPoster({
-                              url: prog.Program_Poster!,
-                              title: prog.Program_Title || prog.Program_Code,
-                            });
-                          }}
-                        >
-                          <Maximize2 size={13} />
-                        </button>
+                        {/* Quick action controls on hover */}
+                        <div className="absolute top-2 right-2 flex items-center gap-1 z-2 opacity-0 group-hover/art:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white backdrop-blur-xs transition shadow-xs cursor-pointer"
+                            title="Download Full Image"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadImageFullQuality(prog.Program_Poster!, prog.Program_Title || prog.Program_Code);
+                            }}
+                          >
+                            <Download size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="p-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white backdrop-blur-xs transition shadow-xs cursor-pointer"
+                            title="Preview Full Poster"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFullscreenPoster({
+                                url: prog.Program_Poster!,
+                                title: prog.Program_Title || prog.Program_Code,
+                              });
+                            }}
+                          >
+                            <Maximize2 size={13} />
+                          </button>
+                        </div>
                       </>
                     ) : (
                       <div className="flex flex-col items-center justify-center gap-1 text-slate-400 select-none">
@@ -818,7 +842,7 @@ export default function AdminProgrammesList({
                     )}
 
                     {isGroup && (
-                      <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900/85 text-white backdrop-blur-xs border border-white/10 shadow-xs">
+                      <span className="absolute bottom-2 left-2 z-2 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900/85 text-white backdrop-blur-xs border border-white/10 shadow-xs">
                         Squad
                       </span>
                     )}
@@ -1185,18 +1209,37 @@ export default function AdminProgrammesList({
             <button
               type="button"
               onClick={() => setFullscreenPoster(null)}
-              className="absolute top-5 right-5 p-2 rounded-full bg-white/20 hover:bg-white/40 text-white transition cursor-pointer"
+              className="absolute top-5 right-5 p-2.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition cursor-pointer z-10"
+              title="Close Preview"
             >
               <X size={20} />
             </button>
-            <div className="max-w-2xl max-h-[85vh] p-2 bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadImageFullQuality(fullscreenPoster.url, fullscreenPoster.title);
+              }}
+              className="absolute top-5 right-20 text-white flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 px-4 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-xl transition cursor-pointer z-10"
+              title="Download Full Image"
+            >
+              <Download size={18} />
+              <span>Download Full Image</span>
+            </button>
+
+            <div 
+              className="max-w-4xl max-h-[88vh] w-full p-3 sm:p-4 bg-slate-900/90 border border-white/15 rounded-3xl shadow-2xl overflow-hidden flex flex-col items-center justify-center" 
+              onClick={(e) => e.stopPropagation()}
+            >
               <img
                 src={fullscreenPoster.url}
                 alt={fullscreenPoster.title}
-                className="w-full h-auto max-h-[75vh] object-contain rounded-2xl"
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-2xl shadow-lg border border-white/10"
               />
-              <div className="p-3 text-center">
-                <p className="font-bold text-slate-800 text-sm truncate">{fullscreenPoster.title}</p>
+              <div className="pt-3 pb-1 text-center max-w-2xl px-2">
+                <p className="font-bold text-white text-sm sm:text-base truncate">{fullscreenPoster.title}</p>
+                <p className="text-[11px] text-slate-300 mt-0.5">Full uncropped image display & high quality download</p>
               </div>
             </div>
           </div>

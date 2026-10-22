@@ -10,6 +10,7 @@ import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { resolveStudentProfile } from "../lib/accountResolver";
 import { Download, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User, BookOpen, ExternalLink, Clock, Lock } from "lucide-react";
+import { downloadImageFullQuality } from "../lib/imgbbService";
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -95,22 +96,7 @@ export default function PublicProgrammesList() {
   const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
 
   const handleDownloadImage = async (url: string, title?: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      const sanitizedName = (title || "programme-poster").replace(/[^a-zA-Z0-9_-]/g, "_");
-      link.setAttribute("download", `${sanitizedName}.jpg`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-    } catch (err) {
-      console.error("Download failed:", err);
-      window.open(url, "_blank");
-    }
+    await downloadImageFullQuality(url, title);
   };
 
   // Fetch and Filter Data Layer - Ensures ALL programmes appear in public view
@@ -346,7 +332,7 @@ export default function PublicProgrammesList() {
               >
                 {/* --- Image Section with Click-to-Preview and Download --- */}
                 <div 
-                  className="relative h-52 w-full bg-slate-950 overflow-hidden cursor-pointer group"
+                  className="relative h-52 w-full bg-slate-950 overflow-hidden cursor-pointer group flex items-center justify-center"
                   onClick={() => {
                     if (program.Program_Poster) {
                       setFullscreenImage({
@@ -357,15 +343,23 @@ export default function PublicProgrammesList() {
                   }}
                   title="Click to view full poster & download"
                 >
+                  {program.Program_Poster && (
+                    <img
+                      src={program.Program_Poster}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover filter blur-md scale-110 opacity-30 select-none pointer-events-none"
+                    />
+                  )}
                   <SafeImage
                     src={program.Program_Poster}
                     alt={program.Program_Title || "Program Presentation Art"}
                     fallbackCategory="programme"
                     fallbackText={program.Program_Title || program.Program_Code}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="relative z-1 max-w-full max-h-full w-auto h-auto object-contain transition-transform duration-500 group-hover:scale-[1.02]"
                   />
                   {/* Hover Hint Overlay */}
-                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-2">
                     <div className="bg-black/75 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
                       <Maximize2 size={13} />
                       <span>View & Download</span>

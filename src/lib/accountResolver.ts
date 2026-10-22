@@ -7,6 +7,7 @@ export interface LoggedInStudentProfile {
   Student_Photo_Urls?: string;
   CollegeName?: string;
   Class?: string;
+  Stn_Class?: string;
   FatherName?: string;
   StnState?: string;
   StnDistrict?: string;

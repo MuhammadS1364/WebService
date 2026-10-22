@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase"; 
 import formatResultDate from "./DateFormatConvertor";
@@ -27,6 +27,7 @@ import {
   Printer,
   Trophy,
 } from "lucide-react";
+import { downloadImageFullQuality } from "../lib/imgbbService";
 
 interface ProgramData {
   Program_Code: string;
@@ -135,79 +136,128 @@ export default function ProgrammesRegistrationCard() {
   // Fullscreen Image Preview & Download State
   const [fullscreenImage, setFullscreenImage] = useState<{ url: string; title: string } | null>(null);
 
-  // Category Bonding Resolution for Active Student
-  const studentCategory = useMemo(() => {
+  // Category Bonding Resolution for Active Student (maps student class to ALL matching categories)
+  const studentClassInfo = useMemo(() => {
     if (!studentProfile || !actStn) return null;
-    const classId = studentProfile.Stn_Class;
-    const className = studentProfile.Class;
+    const rawClassId = (studentProfile as any).Stn_Class || studentProfile.Class;
+    const rawClassName = studentProfile.Class;
 
     // 1. Match class in meta.classes
     const matchedClass = meta.classes.find(
       (c) =>
-        (classId && c.class_id === classId) ||
-        (className && (c.standard_name === className || c.class_nick_name === className))
+        (rawClassId && (c.class_id === rawClassId || c.standard_name === rawClassId || c.class_nick_name === rawClassId)) ||
+        (rawClassName && (c.standard_name === rawClassName || c.class_nick_name === rawClassName))
     );
-    const resolvedClassId = matchedClass?.class_id || classId;
-    const resolvedClassName = matchedClass?.standard_name || className || "Your Class";
 
-    // 2. Find Category that binds to this class
-    if (resolvedClassId) {
-      const cat = meta.categories.find(
-        (c) =>
-          c.class_1 === resolvedClassId ||
-          c.class_2 === resolvedClassId ||
-          c.class_3 === resolvedClassId
+    const resolvedClassId = matchedClass?.class_id || (rawClassId && isUuid(rawClassId) ? rawClassId : "");
+    const standardName = matchedClass?.standard_name || rawClassName || "Your Class";
+    const nickName = matchedClass?.class_nick_name || "";
+    const displayName = nickName && standardName ? `${standardName} (${nickName})` : (standardName || nickName);
+
+    // 2. Find ALL Categories in Our_Category where class_1, class_2, or class_3 is this class
+    const matchingCategories = meta.categories.filter((cat) => {
+      if (cat.is_active === false) return false;
+      if (!resolvedClassId) return false;
+      return (
+        cat.class_1 === resolvedClassId ||
+        cat.class_2 === resolvedClassId ||
+        cat.class_3 === resolvedClassId
       );
-      if (cat) {
-        return {
-          id: cat.category_id,
-          title: cat.category_title,
-          className: resolvedClassName,
-        };
-      }
-    }
+    });
 
-    // 3. Fallback: match category title directly
-    if (className) {
-      const cat = meta.categories.find(
-        (c) => c.category_title.toLowerCase().trim() === className.toLowerCase().trim()
-      );
-      if (cat) {
-        return {
-          id: cat.category_id,
-          title: cat.category_title,
-          className: resolvedClassName,
-        };
-      }
-    }
+    // 3. Collect General Categories (no class restriction or title contains General / All)
+    const generalCategories = meta.categories.filter((cat) => {
+      const title = (cat.category_title || "").toLowerCase();
+      const hasNoClassRestrictions = !cat.class_1 && !cat.class_2 && !cat.class_3;
+      return hasNoClassRestrictions || title.includes("general") || title.includes("all classes") || title === "all";
+    });
 
-    return null;
+    const matchingCategoryIds = new Set(matchingCategories.map((c) => c.category_id));
+    const generalCategoryIds = new Set(generalCategories.map((c) => c.category_id));
+
+    return {
+      resolvedClassId,
+      standardName,
+      nickName,
+      displayName,
+      matchingCategories,
+      generalCategories,
+      matchingCategoryIds,
+      generalCategoryIds,
+    };
   }, [studentProfile, actStn, meta.classes, meta.categories]);
 
+  // Helper to determine if a programme is eligible for the logged-in student
+  const isProgrammeEligible = useCallback(
+    (progCatIdOrTitle?: string | null): boolean => {
+      if (!actStn || !studentClassInfo) return true;
+
+      // 1. No category assigned -> Open to all classes
+      if (!progCatIdOrTitle) return true;
+      const cleanProgCat = progCatIdOrTitle.trim();
+      if (!cleanProgCat) return true;
+
+      // 2. General / Open categories
+      const catTitle = (meta.categoryMap[cleanProgCat] || cleanProgCat).toLowerCase();
+      if (
+        studentClassInfo.generalCategoryIds.has(cleanProgCat) ||
+        catTitle.includes("general") ||
+        catTitle === "all" ||
+        catTitle.includes("all classes") ||
+        catTitle.includes("open")
+      ) {
+        return true;
+      }
+
+      // 3. Matches one of student's bound category IDs
+      if (studentClassInfo.matchingCategoryIds.has(cleanProgCat)) {
+        return true;
+      }
+
+      // 4. By category title matching
+      for (const cat of studentClassInfo.matchingCategories) {
+        const cTitle = (cat.category_title || "").toLowerCase().trim();
+        if (
+          cat.category_id === cleanProgCat ||
+          cTitle === cleanProgCat.toLowerCase() ||
+          cTitle === catTitle
+        ) {
+          return true;
+        }
+      }
+
+      // 5. Look up target category directly in meta.categories
+      const targetCat = meta.categories.find(
+        (c) =>
+          c.category_id === cleanProgCat ||
+          (c.category_title && c.category_title.toLowerCase().trim() === catTitle)
+      );
+      if (targetCat) {
+        if (!targetCat.class_1 && !targetCat.class_2 && !targetCat.class_3) return true;
+        if (
+          studentClassInfo.resolvedClassId &&
+          (targetCat.class_1 === studentClassInfo.resolvedClassId ||
+            targetCat.class_2 === studentClassInfo.resolvedClassId ||
+            targetCat.class_3 === studentClassInfo.resolvedClassId)
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    },
+    [actStn, studentClassInfo, meta.categoryMap, meta.categories]
+  );
+
   const handleDownloadImage = async (url: string, title?: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      const sanitizedName = (title || "programme-poster").replace(/[^a-zA-Z0-9_-]/g, "_");
-      link.setAttribute("download", `${sanitizedName}.jpg`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
-    } catch (err) {
-      console.error("Download failed:", err);
-      // Fallback
-      window.open(url, "_blank");
-    }
+    await downloadImageFullQuality(url, title);
   };
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedFormat, setSelectedFormat] = useState<"all" | "individual" | "group">("all");
   const [selectedWing, setSelectedWing] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   const fetchProgrammes = async () => {
     try {
@@ -322,23 +372,18 @@ export default function ProgrammesRegistrationCard() {
     if (!program.IsOpenRegistration) return;
 
     // Strict Category Bonding Enforcement
-    if (actStn && studentCategory && program.Category) {
-      const progCatTitle = meta.categoryMap[program.Category] || program.Category;
-      if (
-        progCatTitle &&
-        progCatTitle.toLowerCase() !== "general" &&
-        progCatTitle.toLowerCase() !== "all"
-      ) {
-        const isMatch =
-          program.Category === studentCategory.id ||
-          progCatTitle.toLowerCase().trim() === studentCategory.title.toLowerCase().trim();
-
-        if (!isMatch) {
-          alert(
-            `⚠️ Category Bonding Enforcement:\nThis programme is strictly for "${progCatTitle}" category students.\nYour current category is "${studentCategory.title}" (${studentCategory.className}).`
-          );
-          return;
-        }
+    if (actStn && studentClassInfo && program.Category) {
+      if (!isProgrammeEligible(program.Category)) {
+        const progCatTitle = meta.categoryMap[program.Category] || program.Category;
+        const eligibleCatTitles = studentClassInfo.matchingCategories
+          .map((c) => c.category_title)
+          .join(", ");
+        alert(
+          `⚠️ Category Restriction:\nThis programme is designated for "${progCatTitle}".\nYour class (${studentClassInfo.displayName}) is eligible for: ${
+            eligibleCatTitles || "General (All Classes)"
+          }.`
+        );
+        return;
       }
     }
 
@@ -368,7 +413,21 @@ export default function ProgrammesRegistrationCard() {
     setContentModalProgram(program);
   };
 
-  // Filtered Programmes based on search query, format, and wing - ALWAYS LATEST FIRST
+  // Categories available for filtering in the dropdown
+  const availableCategories = useMemo(() => {
+    if (actStn && studentClassInfo) {
+      const list = [...studentClassInfo.matchingCategories];
+      studentClassInfo.generalCategories.forEach((g) => {
+        if (!list.some((c) => c.category_id === g.category_id)) {
+          list.push(g);
+        }
+      });
+      return list;
+    }
+    return meta.categories.filter((c) => c.is_active !== false);
+  }, [actStn, studentClassInfo, meta.categories]);
+
+  // Filtered Programmes based on search query, format, wing, and category
   const filteredProgrammes = useMemo(() => {
     const list = programmes.filter((p) => {
       // 1. Format filter
@@ -379,18 +438,20 @@ export default function ProgrammesRegistrationCard() {
       if (selectedWing !== "all" && p.WingCode !== selectedWing) return false;
 
       // 3. Category Bonding for Student Panel:
-      // Display only programmes that match the category of the student
-      if (actStn && studentCategory) {
-        const progCatId = p.Category;
-        const progCatTitle = meta.categoryMap[p.Category || ""] || p.Category;
+      // Display all programmes where the student's class is mapped to the category or is open/general
+      if (actStn && studentClassInfo) {
+        if (!isProgrammeEligible(p.Category)) return false;
+      }
 
-        // If programme has a specific category (not General/All)
-        if (progCatId && progCatTitle && progCatTitle.toLowerCase() !== "general" && progCatTitle.toLowerCase() !== "all") {
-          const isMatch =
-            progCatId === studentCategory.id ||
-            progCatTitle.toLowerCase().trim() === studentCategory.title.toLowerCase().trim();
-          if (!isMatch) return false;
-        }
+      // 3b. Category Dropdown Filter:
+      if (selectedCategory !== "all") {
+        const pCat = (p.Category || "").trim();
+        const pTitle = (meta.categoryMap[pCat] || pCat).toLowerCase().trim();
+        const selObj = meta.categories.find((c) => c.category_id === selectedCategory);
+        const selTitle = selObj ? selObj.category_title.toLowerCase().trim() : selectedCategory.toLowerCase().trim();
+
+        const matches = pCat === selectedCategory || pTitle === selTitle;
+        if (!matches) return false;
       }
 
       // 4. Search query matching
@@ -422,7 +483,7 @@ export default function ProgrammesRegistrationCard() {
       if (!b.Date) return -1;
       return new Date(b.Date).getTime() - new Date(a.Date).getTime();
     });
-  }, [programmes, searchQuery, selectedFormat, selectedWing, meta]);
+  }, [programmes, searchQuery, selectedFormat, selectedWing, selectedCategory, isProgrammeEligible, actStn, studentClassInfo, meta]);
 
   const uniqueWings = useMemo(() => {
     const list = Array.from(new Set(programmes.map((p) => p.WingCode).filter(Boolean))) as string[];
@@ -465,30 +526,44 @@ export default function ProgrammesRegistrationCard() {
         </div>
 
         {/* CATEGORY BONDING ACTIVE BANNER (FOR LOGGED-IN STUDENTS) */}
-        {actStn && studentCategory && (
-          <div className="mb-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white rounded-3xl p-5 shadow-sm border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20">
+        {actStn && studentClassInfo && (
+          <div className="mb-6 bg-gradient-to-r from-emerald-700 via-teal-700 to-indigo-800 text-white rounded-3xl p-5 shadow-sm border border-emerald-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 backdrop-blur-xs flex items-center justify-center shrink-0 border border-white/20 mt-0.5">
                 <GraduationCap className="w-6 h-6 text-emerald-100" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-black tracking-widest bg-emerald-950/40 text-emerald-200 px-2 py-0.5 rounded-md border border-emerald-400/20">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] uppercase font-black tracking-widest bg-emerald-950/40 text-emerald-200 px-2.5 py-0.5 rounded-md border border-emerald-400/20">
                     Category Bonding Active
                   </span>
-                  <span className="text-xs font-black bg-white text-emerald-800 px-2.5 py-0.5 rounded-full shadow-xs">
-                    {studentCategory.title} Category
+                  <span className="text-xs font-black bg-white text-emerald-900 px-3 py-0.5 rounded-full shadow-xs">
+                    Class: {studentClassInfo.displayName}
                   </span>
                 </div>
                 <p className="text-sm font-bold text-white mt-1">
-                  Exclusively displaying upcoming programmes tailored for your category ({studentCategory.className}).
+                  Displaying all programmes tailored for {studentClassInfo.displayName}, covering all matching institutional categories & general events.
                 </p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                  <span className="text-[11px] font-bold text-emerald-200">Your Categories:</span>
+                  {studentClassInfo.matchingCategories.map((c) => (
+                    <span
+                      key={c.category_id}
+                      className="px-2.5 py-0.5 rounded-full bg-white/20 text-white font-bold text-[11px] border border-white/20 backdrop-blur-xs"
+                    >
+                      {c.category_title}
+                    </span>
+                  ))}
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-emerald-100 font-semibold text-[11px] border border-white/10">
+                    + General (All Classes)
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="shrink-0 flex items-center gap-2 bg-emerald-900/40 px-3.5 py-2 rounded-xl text-xs font-semibold text-emerald-100 border border-emerald-300/20">
+            <div className="shrink-0 flex items-center gap-2 bg-emerald-950/40 px-3.5 py-2 rounded-xl text-xs font-semibold text-emerald-100 border border-emerald-300/20 self-start md:self-center">
               <Layers size={14} className="text-emerald-300" />
-              <span>Registration restricted to {studentCategory.title}</span>
+              <span>{studentClassInfo.matchingCategories.length} Categories Mapped</span>
             </div>
           </div>
         )}
@@ -547,6 +622,26 @@ export default function ProgrammesRegistrationCard() {
             </button>
           </div>
 
+          {/* Category Filter */}
+          {availableCategories.length > 0 && (
+            <div className="shrink-0">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full md:w-auto px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-hidden focus:border-indigo-500 cursor-pointer"
+              >
+                <option value="all">
+                  {actStn && studentClassInfo ? "All My Eligible Categories" : "All Categories"}
+                </option>
+                {availableCategories.map((c) => (
+                  <option key={c.category_id} value={c.category_id}>
+                    {c.category_title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Wing Filter */}
           {uniqueWings.length > 0 && (
             <div className="shrink-0">
@@ -569,17 +664,18 @@ export default function ProgrammesRegistrationCard() {
         {filteredProgrammes.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200">
             <p className="text-slate-500 font-semibold">
-              {searchQuery || selectedFormat !== "all" || selectedWing !== "all"
+              {searchQuery || selectedFormat !== "all" || selectedWing !== "all" || selectedCategory !== "all"
                 ? "No matching programmes found for this search/filter criteria."
                 : "No open programmes available for registration at the moment."}
             </p>
-            {(searchQuery || selectedFormat !== "all" || selectedWing !== "all") && (
+            {(searchQuery || selectedFormat !== "all" || selectedWing !== "all" || selectedCategory !== "all") && (
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery("");
                   setSelectedFormat("all");
                   setSelectedWing("all");
+                  setSelectedCategory("all");
                 }}
                 className="mt-3 text-xs font-bold text-indigo-600 hover:underline cursor-pointer"
               >
@@ -605,7 +701,7 @@ export default function ProgrammesRegistrationCard() {
                 >
                   {/* --- Image Section with Click-to-Preview and Download --- */}
                   <div 
-                    className="relative h-48 w-full bg-slate-900 overflow-hidden cursor-pointer group"
+                    className="relative h-48 w-full bg-slate-950 overflow-hidden cursor-pointer group flex items-center justify-center"
                     onClick={() => {
                       if (program.Program_Poster) {
                         setFullscreenImage({
@@ -616,16 +712,24 @@ export default function ProgrammesRegistrationCard() {
                     }}
                     title="Click to view full poster & download"
                   >
+                    {program.Program_Poster && (
+                      <img
+                        src={program.Program_Poster}
+                        alt=""
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover filter blur-md scale-110 opacity-30 select-none pointer-events-none"
+                      />
+                    )}
                     <SafeImage
                       src={program.Program_Poster}
                       alt={program.Program_Title || "Program Presentation Art"}
                       fallbackCategory="programme"
                       fallbackText={program.Program_Title || program.Program_Code}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="relative z-1 max-w-full max-h-full w-auto h-auto object-contain transition-transform duration-500 group-hover:scale-[1.02]"
                     />
 
                     {/* Hover Hint Overlay */}
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none z-2">
                       <div className="bg-black/70 text-white text-[11px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-xs shadow-lg">
                         <Maximize2 size={13} />
                         <span>View & Download</span>
