@@ -5,6 +5,8 @@ import { resolveWingProfile, type LoggedInWingProfile } from "../../lib/wingReso
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import SafeImage from "../../lib/SafeImage";
 import { hydrateResultRecords } from "../../lib/resultService";
+import ResultExportModal from "../../components/ResultExportModal";
+import type { PdfExportProgramItem, PdfExportWinnerItem } from "../../lib/pdfResultService";
 import {
   Trophy,
   Search,
@@ -19,6 +21,7 @@ import {
   List,
   Award,
   Lock,
+  Download,
 } from "lucide-react";
 
 interface Programme {
@@ -79,6 +82,7 @@ export default function WingResults() {
   const [studentsMap, setStudentsMap] = useState<Record<string, any>>({});
   const [squadsMap, setSquadsMap] = useState<Record<string, string>>({});
   const [togglingReg, setTogglingReg] = useState<Record<string, boolean>>({});
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -95,7 +99,7 @@ export default function WingResults() {
         // Fetch programmes for this wing including IsOpenRegistration and Program_Poster
         const { data: progData, error: progError } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program, IsOpenRegistration, Program_Poster, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, is_freezed")
+          .select("Program_Code, Program_Title, WingCode, Date, Venue, Category, Group, IsResulted, IsResultPublished, Total_Registration, is_group_program, IsOpenRegistration, Program_Poster, Expected_Time, is_limitation, individual_limit_count, group_limit_count, max_count_cadidate_group, is_freezed, points_template")
           .eq("WingCode", wing.WingCode)
           .order("Date", { ascending: false });
 
@@ -336,6 +340,89 @@ export default function WingResults() {
     return programmes.filter(p => !p.IsResultPublished && !p.IsResulted).length;
   }, [programmes]);
 
+  // Memoized Exportable Programmes for Wing Results
+  const exportableWingProgrammes = useMemo((): PdfExportProgramItem[] => {
+    return programmes
+      .filter((p) => resultsMap[p.Program_Code])
+      .map((p) => {
+        const res = resultsMap[p.Program_Code];
+        const template =
+          meta.pointsTemplates.find((t) => t.p_template_id === (p as any)?.points_template) ||
+          meta.pointsTemplates[0];
+
+        const firstPts = template?.first_only ?? 10;
+        const secondPts = template?.second_only ?? 7;
+        const thirdPts = template?.third_only ?? 5;
+        const aGradePts = template?.A_grade ?? 5;
+        const bGradePts = template?.B_grade ?? 3;
+
+        const resolveHolders = (
+          val?: string | null,
+          positionLabel = "",
+          pts = 0,
+          sqTitle?: string | null
+        ): PdfExportWinnerItem[] => {
+          if (!val || val === "No Grade" || val === "none") return [];
+          return val.split(",").map((c) => {
+            const clean = c.trim();
+            const stn = studentsMap[clean];
+            return {
+              position: positionLabel,
+              addNo: clean,
+              name: stn?.StudentName || clean,
+              classTitle: stn?.Class || "Standard Class",
+              collegeName: stn?.CollegeName || "Campus",
+              points: pts,
+              squadTitle: sqTitle || null,
+            };
+          });
+        };
+
+        const firstPlace = resolveHolders(res?.First_Holder, "1st Prize", firstPts, res?.firstSquadTitle);
+        const secondPlace = resolveHolders(res?.Second_Holder, "2nd Prize", secondPts, res?.secondSquadTitle);
+        const thirdPlace = resolveHolders(res?.Third_Holder, "3rd Prize", thirdPts, res?.thirdSquadTitle);
+        const aGrade = resolveHolders(res?.AGrade, "A Grade", aGradePts, res?.aGradeSquadTitle);
+        const bGrade = resolveHolders(res?.BGrade, "B Grade", bGradePts, res?.bGradeSquadTitle);
+
+        return {
+          programCode: p.Program_Code,
+          programTitle: p.Program_Title || "Untitled Programme",
+          category: meta.getCategoryName(p.Category, "General"),
+          wing: wingData?.WingTitle || p.WingCode || "Wing",
+          date: p.Date || "TBA",
+          venue: meta.getVenueName(p.Venue, "Campus"),
+          eventType: p.is_group_program ? "Squad / Group Event" : "Individual Event",
+          firstPlace,
+          secondPlace,
+          thirdPlace,
+          aGrade,
+          bGrade,
+          totalPoints:
+            firstPlace.length * firstPts +
+            secondPlace.length * secondPts +
+            thirdPlace.length * thirdPts +
+            aGrade.length * aGradePts +
+            bGrade.length * bGradePts,
+        };
+      });
+  }, [programmes, resultsMap, studentsMap, meta, wingData]);
+
+  const availableClassesList = useMemo(() => {
+    const map = new Map<string, string>();
+    (meta.classes || []).forEach((c) => {
+      const label =
+        c.standard_name && c.class_nick_name
+          ? `${c.standard_name} (${c.class_nick_name})`
+          : c.standard_name || c.class_nick_name;
+      if (label) map.set(label, label);
+    });
+    return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
+  }, [meta.classes]);
+
+  const availableCategoriesList = useMemo(() => {
+    return availableCategories.map((c) => ({ id: c, label: c }));
+  }, [availableCategories]);
+
   if (loading && !wingData) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -369,6 +456,17 @@ export default function WingResults() {
           </div>
 
           <div className="relative z-10 flex flex-wrap items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              disabled={exportableWingProgrammes.length === 0}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              title="Export results in PDF or Excel"
+            >
+              <Download size={16} className="text-indigo-600" />
+              <span>Export Results (PDF / Excel)</span>
+            </button>
+
             <Link
               to={`/wing-panel/${actWing || wingData?.WingEmail || ""}/create-result`}
               className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm shadow-md shadow-amber-200 transition-all cursor-pointer"
@@ -1132,6 +1230,18 @@ export default function WingResults() {
             </div>
           </div>
         )}
+
+        {/* Official Results Export Hub Modal */}
+        <ResultExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          programmes={exportableWingProgrammes}
+          availableCategories={availableCategoriesList}
+          availableClasses={availableClassesList}
+          availableWings={[{ code: wingData?.WingCode || "WING", label: wingData?.WingTitle || "My Wing" }]}
+          initialCategory={selectedCategory}
+          initialWing={wingData?.WingTitle || "My Wing"}
+        />
 
       </div>
     </div>

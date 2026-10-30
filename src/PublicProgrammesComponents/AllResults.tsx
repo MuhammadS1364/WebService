@@ -1,11 +1,23 @@
 import { useState, useEffect, useMemo } from "react";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
-import { exportToExcel } from "../lib/excelService";
-import formatResultDate from "./DateFormatConvertor";
-import SafeImage from "../lib/SafeImage";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
-import { Trophy, Search, Download, Calendar, MapPin, CheckCircle2, Printer, RotateCcw } from "lucide-react";
+import {
+  exportResultsToPdf,
+  type PdfExportProgramItem,
+  type PdfExportWinnerItem,
+} from "../lib/pdfResultService";
+import dhiuLogo from "../ImgBox/Dhiu.jpg";
+import {
+  Trophy,
+  Search,
+  Download,
+  Calendar,
+  MapPin,
+  Printer,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import type { ResultBoxRecord } from "../lib/types";
 import { hydrateResultRecords } from "../lib/resultService";
 
@@ -15,9 +27,10 @@ interface StudentInfo {
   Class: string;
   CollegeName?: string;
   Student_Photo_Urls?: string;
+  Stn_Class?: string;
 }
 
-interface EnrichedResult extends ResultBoxRecord {
+export interface EnrichedResult extends ResultBoxRecord {
   programme?: {
     Program_Title: string | null;
     Program_Code: string;
@@ -30,12 +43,23 @@ interface EnrichedResult extends ResultBoxRecord {
     Program_Poster?: string | null;
     IsResultPublished?: boolean;
     IsResulted?: boolean;
+    points_template?: string | null;
   } | null;
   firstStudent?: StudentInfo | null;
   secondStudent?: StudentInfo | null;
   thirdStudent?: StudentInfo | null;
   aGradeStudent?: StudentInfo | null;
   bGradeStudent?: StudentInfo | null;
+  firstStudentsList?: StudentInfo[];
+  secondStudentsList?: StudentInfo[];
+  thirdStudentsList?: StudentInfo[];
+  aGradeStudentsList?: StudentInfo[];
+  bGradeStudentsList?: StudentInfo[];
+  firstSquadTitle?: string | null;
+  secondSquadTitle?: string | null;
+  thirdSquadTitle?: string | null;
+  aGradeSquadTitle?: string | null;
+  bGradeSquadTitle?: string | null;
 }
 
 /**
@@ -66,6 +90,7 @@ export default function AllResultsList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [wingFilter, setWingFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [classFilter, setClassFilter] = useState("All");
   const [publicationFilter, setPublicationFilter] = useState<"published" | "all">("published");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -96,7 +121,7 @@ export default function AllResultsList() {
       if (progCodes.length > 0) {
         const { data: progRows } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Date, Venue, Category, WingCode, Group, is_group_program, Program_Poster, IsResultPublished, IsResulted")
+          .select("Program_Code, Program_Title, Date, Venue, Category, WingCode, Group, is_group_program, Program_Poster, IsResultPublished, IsResulted, points_template")
           .in("Program_Code", progCodes);
 
         (progRows || []).forEach((p: any) => {
@@ -104,23 +129,29 @@ export default function AllResultsList() {
         });
       }
 
-      // 3. Fetch associated StudentsBox
-      const studentAddNos = Array.from(
-        new Set([
-          ...resultRows.map((r: ResultBoxRecord) => r.First_Holder),
-          ...resultRows.map((r: ResultBoxRecord) => r.Second_Holder),
-          ...resultRows.map((r: ResultBoxRecord) => r.Third_Holder),
-          ...resultRows.map((r: ResultBoxRecord) => r.AGrade),
-          ...resultRows.map((r: ResultBoxRecord) => r.BGrade),
-        ].filter(Boolean))
-      ) as string[];
+      // 3. Collect ALL Candidate / Winner AddNos across individual and squads
+      const candidateCodeSet = new Set<string>();
+      resultRows.forEach((r: any) => {
+        (r.firstHolderAddNos || (r.First_Holder ? r.First_Holder.split(",") : [])).forEach((s: string) => s && candidateCodeSet.add(s.trim().toUpperCase()));
+        (r.secondHolderAddNos || (r.Second_Holder ? r.Second_Holder.split(",") : [])).forEach((s: string) => s && candidateCodeSet.add(s.trim().toUpperCase()));
+        (r.thirdHolderAddNos || (r.Third_Holder ? r.Third_Holder.split(",") : [])).forEach((s: string) => s && candidateCodeSet.add(s.trim().toUpperCase()));
+        (r.aGradeAddNos || (r.AGrade ? r.AGrade.split(",") : [])).forEach((s: string) => s && candidateCodeSet.add(s.trim().toUpperCase()));
+        (r.bGradeAddNos || (r.BGrade ? r.BGrade.split(",") : [])).forEach((s: string) => s && candidateCodeSet.add(s.trim().toUpperCase()));
+
+        [r.First_Holder, r.Second_Holder, r.Third_Holder, r.AGrade, r.BGrade].forEach((val: string) => {
+          if (val && !val.includes(",")) candidateCodeSet.add(val.trim().toUpperCase());
+        });
+      });
 
       let studentsMap: Record<string, StudentInfo> = {};
-      if (studentAddNos.length > 0) {
-        const { data: studentRows } = await SupaBaseFunction
+      const allCodes = Array.from(candidateCodeSet);
+      if (allCodes.length > 0) {
+        const { data: studentRows, error: stnError } = await SupaBaseFunction
           .from("StudentsBox")
           .select("AddNo, StudentName, Stn_Class, CollegeName, Student_Photo_Urls")
-          .in("AddNo", studentAddNos);
+          .in("AddNo", allCodes);
+
+        if (stnError) console.warn("Error loading student records in AllResults:", stnError);
 
         (studentRows || []).forEach((s: any) => {
           const matchedClass = meta.classes.find(
@@ -129,27 +160,62 @@ export default function AllResultsList() {
               c.standard_name === s.Stn_Class ||
               c.class_nick_name === s.Stn_Class
           );
-          studentsMap[s.AddNo] = {
+          const resolvedClass =
+            matchedClass?.standard_name && matchedClass?.class_nick_name
+              ? `${matchedClass.standard_name} (${matchedClass.class_nick_name})`
+              : matchedClass?.standard_name || matchedClass?.class_nick_name || s.Stn_Class || "Standard Class";
+
+          studentsMap[s.AddNo.toUpperCase()] = {
             ...s,
-            Class:
-              matchedClass?.class_nick_name ||
-              matchedClass?.standard_name ||
-              s.Stn_Class ||
-              "",
+            Class: resolvedClass,
           };
         });
       }
 
-      // 4. Combine into EnrichedResult
-      const combined: EnrichedResult[] = resultRows.map((r: ResultBoxRecord) => ({
-        ...r,
-        programme: r.Program_Id ? progsMap[r.Program_Id] || null : null,
-        firstStudent: r.First_Holder ? studentsMap[r.First_Holder] || null : null,
-        secondStudent: r.Second_Holder ? studentsMap[r.Second_Holder] || null : null,
-        thirdStudent: r.Third_Holder ? studentsMap[r.Third_Holder] || null : null,
-        aGradeStudent: r.AGrade && r.AGrade !== "No Grade" ? studentsMap[r.AGrade] || null : null,
-        bGradeStudent: r.BGrade ? studentsMap[r.BGrade] || null : null,
-      }));
+      // Helper to resolve list of student objects
+      const getStudentsList = (addNos?: string[], rawStr?: string | null): StudentInfo[] => {
+        const codes = addNos && addNos.length > 0
+          ? addNos
+          : rawStr ? rawStr.split(",").map((s) => s.trim()) : [];
+
+        return codes
+          .map((c) => {
+            const clean = c.toUpperCase();
+            return (
+              studentsMap[clean] || {
+                AddNo: c,
+                StudentName: c,
+                Class: "Assigned Class",
+                CollegeName: "Campus",
+              }
+            );
+          })
+          .filter(Boolean);
+      };
+
+      // 4. Combine into EnrichedResult with full holder lists
+      const combined: EnrichedResult[] = resultRows.map((r: any) => {
+        const firstList = getStudentsList(r.firstHolderAddNos, r.First_Holder);
+        const secondList = getStudentsList(r.secondHolderAddNos, r.Second_Holder);
+        const thirdList = getStudentsList(r.thirdHolderAddNos, r.Third_Holder);
+        const aGradeList = getStudentsList(r.aGradeAddNos, r.AGrade);
+        const bGradeList = getStudentsList(r.bGradeAddNos, r.BGrade);
+
+        return {
+          ...r,
+          programme: r.Program_Id ? progsMap[r.Program_Id] || null : null,
+          firstStudent: firstList[0] || null,
+          secondStudent: secondList[0] || null,
+          thirdStudent: thirdList[0] || null,
+          aGradeStudent: aGradeList[0] || null,
+          bGradeStudent: bGradeList[0] || null,
+          firstStudentsList: firstList,
+          secondStudentsList: secondList,
+          thirdStudentsList: thirdList,
+          aGradeStudentsList: aGradeList,
+          bGradeStudentsList: bGradeList,
+        };
+      });
 
       setResults(combined);
     } catch (err: any) {
@@ -180,10 +246,20 @@ export default function AllResultsList() {
     return meta.venueMap[ven] || ven;
   };
 
-  // Dynamic Filter Options - ONLY from loaded results table
-  const { uniqueWings, uniqueCategories } = useMemo(() => {
+  // Dynamic Filter Options - ONLY from loaded results table and registered classes
+  const { uniqueWings, uniqueCategories, uniqueClasses } = useMemo(() => {
     const wingMap = new Map<string, string>();
     const catMap = new Map<string, string>();
+    const classMap = new Map<string, string>();
+
+    // Add classes from meta
+    (meta.classes || []).forEach((c) => {
+      const label =
+        c.standard_name && c.class_nick_name
+          ? `${c.standard_name} (${c.class_nick_name})`
+          : c.standard_name || c.class_nick_name;
+      if (label) classMap.set(label, label);
+    });
 
     results.forEach((r) => {
       if (r.programme?.WingCode) {
@@ -194,13 +270,27 @@ export default function AllResultsList() {
         const title = meta.categoryMap[r.programme.Category] || r.programme.Category;
         catMap.set(r.programme.Category, title);
       }
+
+      // Collect classes from winners
+      [
+        ...(r.firstStudentsList || []),
+        ...(r.secondStudentsList || []),
+        ...(r.thirdStudentsList || []),
+        ...(r.aGradeStudentsList || []),
+        ...(r.bGradeStudentsList || []),
+      ].forEach((s) => {
+        if (s.Class && s.Class !== "Assigned Class") {
+          classMap.set(s.Class, s.Class);
+        }
+      });
     });
 
     return {
       uniqueWings: Array.from(wingMap.entries()).map(([code, label]) => ({ code, label })),
       uniqueCategories: Array.from(catMap.entries()).map(([id, label]) => ({ id, label })),
+      uniqueClasses: Array.from(classMap.entries()).map(([id, label]) => ({ id, label })),
     };
-  }, [results, meta.wingMap, meta.categoryMap]);
+  }, [results, meta.wingMap, meta.categoryMap, meta.classes]);
 
   // Filtered Results
   const filteredResults = useMemo(() => {
@@ -210,9 +300,6 @@ export default function AllResultsList() {
       const prog = res.programme;
       const title = (prog?.Program_Title || "").toLowerCase();
       const code = (res.Program_Id || "").toLowerCase();
-      const first = (res.firstStudent?.StudentName || res.First_Holder || "").toLowerCase();
-      const second = (res.secondStudent?.StudentName || res.Second_Holder || "").toLowerCase();
-      const third = (res.thirdStudent?.StudentName || res.Third_Holder || "").toLowerCase();
       const wing = getWingTitle(prog?.WingCode).toLowerCase();
       const venue = getVenueTitle(prog?.Venue).toLowerCase();
 
@@ -244,45 +331,135 @@ export default function AllResultsList() {
         }
       }
 
+      // 3. Class Filter
+      if (classFilter !== "All") {
+        const checkStudentClass = (list?: StudentInfo[]) => {
+          if (!list || list.length === 0) return false;
+          return list.some((s) => {
+            const cName = (s.Class || "").toLowerCase();
+            const target = classFilter.toLowerCase();
+            return cName.includes(target) || target.includes(cName);
+          });
+        };
+
+        const hasClassMatch =
+          checkStudentClass(res.firstStudentsList) ||
+          checkStudentClass(res.secondStudentsList) ||
+          checkStudentClass(res.thirdStudentsList) ||
+          checkStudentClass(res.aGradeStudentsList) ||
+          checkStudentClass(res.bGradeStudentsList);
+
+        if (!hasClassMatch) return false;
+      }
+
+      const checkStudentsSearch = (list?: StudentInfo[]) => {
+        if (!list) return false;
+        return list.some(
+          (s) =>
+            (s.StudentName || "").toLowerCase().includes(query) ||
+            (s.AddNo || "").toLowerCase().includes(query) ||
+            (s.Class || "").toLowerCase().includes(query) ||
+            (s.CollegeName || "").toLowerCase().includes(query)
+        );
+      };
+
       const matchesSearch =
         !query ||
         title.includes(query) ||
         code.includes(query) ||
-        first.includes(query) ||
-        second.includes(query) ||
-        third.includes(query) ||
         wing.includes(query) ||
-        venue.includes(query);
+        venue.includes(query) ||
+        (res.firstSquadTitle || "").toLowerCase().includes(query) ||
+        (res.secondSquadTitle || "").toLowerCase().includes(query) ||
+        (res.thirdSquadTitle || "").toLowerCase().includes(query) ||
+        checkStudentsSearch(res.firstStudentsList) ||
+        checkStudentsSearch(res.secondStudentsList) ||
+        checkStudentsSearch(res.thirdStudentsList) ||
+        checkStudentsSearch(res.aGradeStudentsList) ||
+        checkStudentsSearch(res.bGradeStudentsList);
 
       const matchesWing = wingFilter === "All" || prog?.WingCode === wingFilter;
       const matchesCategory = categoryFilter === "All" || prog?.Category === categoryFilter;
 
       return matchesSearch && matchesWing && matchesCategory;
     });
-  }, [results, searchQuery, wingFilter, categoryFilter, publicationFilter, startDate, endDate, meta.wingMap, meta.categoryMap, meta.venueMap]);
+  }, [
+    results,
+    searchQuery,
+    wingFilter,
+    categoryFilter,
+    classFilter,
+    publicationFilter,
+    startDate,
+    endDate,
+    meta.wingMap,
+    meta.categoryMap,
+    meta.venueMap,
+  ]);
 
-  // Export to Excel
-  const handleExport = () => {
-    if (filteredResults.length === 0) {
-      alert("No results to export.");
-      return;
-    }
+  // Exportable programmes data for both PDF and Excel
+  const exportableProgrammes = useMemo((): PdfExportProgramItem[] => {
+    return filteredResults.map((r) => {
+      const p = r.programme;
+      const template =
+        meta.pointsTemplates.find((t) => t.p_template_id === (p as any)?.points_template) ||
+        meta.pointsTemplates[0];
 
-    const exportRows = filteredResults.map((r) => ({
-      "Result ID": r.Result_id,
-      "Program Code": r.Program_Id || "N/A",
-      "Program Title": r.programme?.Program_Title || "Untitled",
-      "Wing": getWingTitle(r.programme?.WingCode),
-      "Date": r.programme?.Date || "TBA",
-      "1st Place": r.firstStudent ? `${r.firstStudent.StudentName} (${r.First_Holder})` : r.First_Holder || "-",
-      "2nd Place": r.secondStudent ? `${r.secondStudent.StudentName} (${r.Second_Holder})` : r.Second_Holder || "-",
-      "3rd Place": r.thirdStudent ? `${r.thirdStudent.StudentName} (${r.Third_Holder})` : r.Third_Holder || "-",
-      "A Grade": r.aGradeStudent ? `${r.aGradeStudent.StudentName} (${r.AGrade})` : r.AGrade || "-",
-      "B Grade": r.bGradeStudent ? `${r.bGradeStudent.StudentName} (${r.BGrade})` : r.BGrade || "-",
-    }));
+      const firstPts = template?.first_only ?? 10;
+      const secondPts = template?.second_only ?? 7;
+      const thirdPts = template?.third_only ?? 5;
+      const aGradePts = template?.A_grade ?? 5;
+      const bGradePts = template?.B_grade ?? 3;
 
-    exportToExcel(exportRows, `Official_Results_${new Date().toISOString().split("T")[0]}.xlsx`, "Results");
-  };
+      const mapWinnerItems = (
+        items: StudentInfo[] = [],
+        positionLabel: string,
+        pts: number,
+        squadTitle?: string | null
+      ): PdfExportWinnerItem[] => {
+        if (items.length === 0) return [];
+        return items.map((stn) => ({
+          position: positionLabel,
+          addNo: stn.AddNo,
+          name: stn.StudentName,
+          classTitle: stn.Class || "Standard Class",
+          collegeName: stn.CollegeName || "Campus",
+          points: pts,
+          squadTitle: squadTitle || null,
+        }));
+      };
+
+      const firstPlace = mapWinnerItems(r.firstStudentsList, "1st Prize", firstPts, r.firstSquadTitle);
+      const secondPlace = mapWinnerItems(r.secondStudentsList, "2nd Prize", secondPts, r.secondSquadTitle);
+      const thirdPlace = mapWinnerItems(r.thirdStudentsList, "3rd Prize", thirdPts, r.thirdSquadTitle);
+      const aGrade = mapWinnerItems(r.aGradeStudentsList, "A Grade", aGradePts, r.aGradeSquadTitle);
+      const bGrade = mapWinnerItems(r.bGradeStudentsList, "B Grade", bGradePts, r.bGradeSquadTitle);
+
+      return {
+        programCode: r.Program_Id || "PROG",
+        programTitle: p?.Program_Title || "Untitled Programme",
+        category: getCategoryTitle(p?.Category),
+        wing: getWingTitle(p?.WingCode),
+        date: p?.Date || "TBA",
+        venue: getVenueTitle(p?.Venue),
+        eventType: p?.is_group_program ? "Squad / Group Event" : "Individual Event",
+        firstPlace,
+        secondPlace,
+        thirdPlace,
+        aGrade,
+        bGrade,
+        totalPoints:
+          firstPlace.length * firstPts +
+          secondPlace.length * secondPts +
+          thirdPlace.length * thirdPts +
+          aGrade.length * aGradePts +
+          bGrade.length * bGradePts,
+      };
+    });
+  }, [filteredResults, meta.pointsTemplates, meta.wingMap, meta.categoryMap, meta.venueMap]);
+
+  // Quick Export or Open Export Hub Modal
+
 
   if (loading) {
     return (
@@ -325,17 +502,11 @@ export default function AllResultsList() {
           <div className="flex items-center gap-2.5 flex-wrap no-print">
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-slate-900 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer active:scale-95 border border-white/20"
-              title="Print visual results sheet or export to PDF"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer active:scale-95"
+              title="Print all official Judgement Sheets or save as PDF"
             >
-              <Printer size={15} /> Print Visual
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={filteredResults.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 rounded-xl text-xs sm:text-sm font-bold shadow-md hover:bg-slate-100 transition cursor-pointer disabled:opacity-50 active:scale-95"
-            >
-              <Download size={15} /> Export Excel ({filteredResults.length})
+              <Printer size={15} className="text-indigo-600" />
+              <span>Print All Judgement Sheets</span>
             </button>
           </div>
         </div>
@@ -348,17 +519,27 @@ export default function AllResultsList() {
       )}
 
       {/* Search & Filter Controls (Filtered to only my-tables data) */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs mb-8 space-y-3 no-print">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs mb-6 space-y-3.5 no-print">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
             <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by program, candidate name, or admission number..."
+              placeholder="Search by program title, code (e.g. PRG101), candidate name, or admission number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition"
+              className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 transition cursor-pointer"
+                title="Clear search"
+              >
+                <X size={15} />
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -366,31 +547,31 @@ export default function AllResultsList() {
             <select
               value={publicationFilter}
               onChange={(e) => setPublicationFilter(e.target.value as any)}
-              className="px-3 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-900 focus:outline-none cursor-pointer"
+              className="px-3 py-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold text-purple-900 focus:outline-none cursor-pointer hover:bg-purple-100/50 transition"
             >
               <option value="published">📢 Published Results Only</option>
               <option value="all">🏆 All Evaluated Results</option>
             </select>
 
-            {/* Wing Filter (Strictly from loaded table records) */}
+            {/* Class Filter */}
             <select
-              value={wingFilter}
-              onChange={(e) => setWingFilter(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="px-3 py-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-900 focus:outline-none cursor-pointer hover:bg-indigo-100/50 transition"
             >
-              <option value="All">All Wings ({uniqueWings.length})</option>
-              {uniqueWings.map((w) => (
-                <option key={w.code} value={w.code}>
-                  {w.label}
+              <option value="All">All Classes ({uniqueClasses.length})</option>
+              {uniqueClasses.map((cl) => (
+                <option key={cl.id} value={cl.label}>
+                  {cl.label}
                 </option>
               ))}
             </select>
 
-            {/* Category Filter (Strictly from loaded table records) */}
+            {/* Category Filter */}
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer hover:bg-slate-100 transition"
             >
               <option value="All">All Categories ({uniqueCategories.length})</option>
               {uniqueCategories.map((c) => (
@@ -399,14 +580,28 @@ export default function AllResultsList() {
                 </option>
               ))}
             </select>
+
+            {/* Wing Filter */}
+            <select
+              value={wingFilter}
+              onChange={(e) => setWingFilter(e.target.value)}
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer hover:bg-slate-100 transition"
+            >
+              <option value="All">All Wings ({uniqueWings.length})</option>
+              {uniqueWings.map((w) => (
+                <option key={w.code} value={w.code}>
+                  {w.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Date Range Filter Section (From "20-07-2026" to "10-10-2026") */}
-        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+        {/* Date Range Filter Section & View Mode Switcher */}
+        <div className="pt-2 border-t border-slate-100 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="font-bold text-slate-600 flex items-center gap-1">
-              <Calendar size={14} className="text-amber-600" /> Filter by Date Range:
+              <Calendar size={14} className="text-amber-600" /> Date Range:
             </span>
             <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200">
               <span className="text-[10px] uppercase font-bold text-slate-400">From</span>
@@ -427,7 +622,7 @@ export default function AllResultsList() {
               />
             </div>
 
-            {(startDate || endDate || wingFilter !== "All" || categoryFilter !== "All" || searchQuery) && (
+            {(startDate || endDate || wingFilter !== "All" || categoryFilter !== "All" || classFilter !== "All" || publicationFilter !== "published" || searchQuery) && (
               <button
                 type="button"
                 onClick={() => {
@@ -435,224 +630,300 @@ export default function AllResultsList() {
                   setEndDate("");
                   setWingFilter("All");
                   setCategoryFilter("All");
+                  setClassFilter("All");
+                  setPublicationFilter("published");
                   setSearchQuery("");
                 }}
                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                title="Reset all search filters"
               >
                 <RotateCcw size={12} /> Clear Filters
               </button>
             )}
           </div>
 
-          <div className="text-xs font-semibold text-slate-500">
-            Showing <span className="font-bold text-slate-800">{filteredResults.length}</span> of {results.length} results
+          <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
+            <div className="text-xs font-semibold text-slate-600 whitespace-nowrap bg-slate-100 px-3.5 py-1.5 rounded-xl border border-slate-200">
+              Showing <span className="font-bold text-slate-900">{filteredResults.length}</span> of {results.length} Judgement Sheets
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Results Cards Grid */}
+      {/* Results Content Area */}
       {filteredResults.length === 0 ? (
         <div className="bg-white rounded-3xl border border-dashed border-slate-200 p-12 text-center">
           <Trophy className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="font-bold text-slate-700 text-base">No Results Found</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+          <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
             No published results match your current search query or filter selection.
           </p>
+          {(startDate || endDate || wingFilter !== "All" || categoryFilter !== "All" || classFilter !== "All" || searchQuery) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate("");
+                setEndDate("");
+                setWingFilter("All");
+                setCategoryFilter("All");
+                setClassFilter("All");
+                setSearchQuery("");
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition cursor-pointer"
+            >
+              <RotateCcw size={13} />
+              <span>Reset All Filters</span>
+            </button>
+          )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredResults.map((res) => {
-            const prog = res.programme;
-            return (
-              <div
-                key={res.Result_id}
-                className="bg-white rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
-              >
-                {/* Header Section */}
-                <div className="p-5 pb-3 border-b border-slate-100 bg-gradient-to-b from-slate-50/70 to-white">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                      {res.Program_Id}
-                    </span>
-                    {prog?.WingCode && (
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        {getWingTitle(prog.WingCode)}
-                      </span>
-                    )}
-                    {prog?.Category && (
-                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
-                        {getCategoryTitle(prog.Category)}
-                      </span>
-                    )}
-                  </div>
+        /* ======================================================== */
+        /* OFFICIAL JUDGEMENT SHEETS DECLARATION VIEW ONLY          */
+        /* ======================================================== */
+        <div className="space-y-8">
+          {exportableProgrammes.map((p, index) => (
+            <div
+              key={p.programCode || index}
+              className="bg-white rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-md transition p-6 sm:p-8 space-y-6 print-break-inside-avoid relative overflow-hidden"
+            >
+              {/* Top Accent Strip */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-700 via-purple-600 to-amber-500" />
 
-                  <h3 className="font-bold text-slate-900 text-base leading-snug line-clamp-2">
-                    {prog?.Program_Title || res.Program_Id}
-                  </h3>
-
-                  <div className="flex items-center gap-3 text-xs text-slate-500 font-medium mt-2">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={13} className="text-slate-400" />
-                      {formatResultDate(prog?.Date)}
-                    </span>
-                    <span className="flex items-center gap-1 truncate">
-                      <MapPin size={13} className="text-slate-400" />
-                      {getVenueTitle(prog?.Venue)}
-                    </span>
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b-2 border-slate-100">
+                <div className="flex items-center gap-3.5">
+                  <img
+                    src={dhiuLogo}
+                    alt="DHIU"
+                    className="w-13 h-13 object-contain rounded-2xl border border-slate-200 p-1 bg-white shadow-2xs shrink-0"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                        Official Judgement Sheet & Scorecard
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-slate-500">
+                        {p.programCode}
+                      </span>
+                      {p.totalPoints ? (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                          Total: {p.totalPoints} pts
+                        </span>
+                      ) : null}
+                    </div>
+                    <h2 className="text-xl font-black text-slate-900 mt-1 leading-snug">
+                      {p.programTitle}
+                    </h2>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs text-slate-500">
+                      <span className="font-semibold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-lg">
+                        {p.category}
+                      </span>
+                      <span className="font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200/60">
+                        {p.wing}
+                      </span>
+                      <span className="text-slate-600 font-medium">
+                        {p.eventType}
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1 text-slate-600">
+                        <Calendar size={13} className="text-slate-400" />
+                        {p.date || "TBA"}
+                      </span>
+                      {p.venue && (
+                        <>
+                          <span>•</span>
+                          <span className="flex items-center gap-1 text-slate-600 truncate">
+                            <MapPin size={13} className="text-slate-400" />
+                            {p.venue}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Podium Winners */}
-                <div className="p-5 space-y-3 flex-1 flex flex-col justify-center">
-                  {/* 1st Place */}
-                  {res.First_Holder ? (
-                    <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-amber-50/80 border border-amber-200/80">
-                      <div className="relative w-11 h-11 rounded-2xl overflow-hidden shrink-0 border-2 border-amber-400 bg-amber-100 shadow-sm">
-                        <SafeImage
-                          src={res.firstStudent?.Student_Photo_Urls}
-                          alt={res.firstStudent?.StudentName || res.First_Holder}
-                          fallbackCategory="student"
-                          fallbackText={res.firstStudent?.StudentName || res.First_Holder}
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute -bottom-1 -right-1 text-xs bg-white/95 rounded-full px-1 shadow-xs leading-none border border-amber-200">
-                          🥇
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700">1st Position</div>
-                        <div className="font-bold text-slate-900 text-sm truncate">
-                          {res.firstStudent?.StudentName || res.First_Holder}
-                        </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          {res.First_Holder} {res.firstStudent?.Class ? `• ${res.firstStudent.Class}` : ""}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* 2nd Place */}
-                  {res.Second_Holder ? (
-                    <div className="flex items-center gap-3 p-2 rounded-2xl bg-slate-50 border border-slate-200">
-                      <div className="relative w-10 h-10 rounded-2xl overflow-hidden shrink-0 border-2 border-slate-300 bg-slate-100 shadow-sm">
-                        <SafeImage
-                          src={res.secondStudent?.Student_Photo_Urls}
-                          alt={res.secondStudent?.StudentName || res.Second_Holder}
-                          fallbackCategory="student"
-                          fallbackText={res.secondStudent?.StudentName || res.Second_Holder}
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute -bottom-1 -right-1 text-xs bg-white/95 rounded-full px-1 shadow-xs leading-none border border-slate-200">
-                          🥈
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-600">2nd Position</div>
-                        <div className="font-bold text-slate-800 text-xs sm:text-sm truncate">
-                          {res.secondStudent?.StudentName || res.Second_Holder}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {res.Second_Holder} {res.secondStudent?.Class ? `• ${res.secondStudent.Class}` : ""}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* 3rd Place */}
-                  {res.Third_Holder ? (
-                    <div className="flex items-center gap-3 p-2 rounded-2xl bg-orange-50/60 border border-orange-200/60">
-                      <div className="relative w-10 h-10 rounded-2xl overflow-hidden shrink-0 border-2 border-amber-600 bg-amber-100 shadow-sm">
-                        <SafeImage
-                          src={res.thirdStudent?.Student_Photo_Urls}
-                          alt={res.thirdStudent?.StudentName || res.Third_Holder}
-                          fallbackCategory="student"
-                          fallbackText={res.thirdStudent?.StudentName || res.Third_Holder}
-                          className="w-full h-full object-cover"
-                        />
-                        <span className="absolute -bottom-1 -right-1 text-xs bg-white/95 rounded-full px-1 shadow-xs leading-none border border-orange-200">
-                          🥉
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-extrabold uppercase tracking-wider text-orange-800">3rd Position</div>
-                        <div className="font-bold text-slate-800 text-xs sm:text-sm truncate">
-                          {res.thirdStudent?.StudentName || res.Third_Holder}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {res.Third_Holder} {res.thirdStudent?.Class ? `• ${res.thirdStudent.Class}` : ""}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* Grades (A & B) */}
-                  {(res.aGradeStudent || (res.AGrade && res.AGrade !== "No Grade") || res.BGrade) && (
-                    <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-100 mt-2">
-                      {res.AGrade && res.AGrade !== "No Grade" && (
-                        <div className="flex-1 min-w-[130px] p-2 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-emerald-300 bg-white shadow-2xs">
-                            <SafeImage
-                              src={res.aGradeStudent?.Student_Photo_Urls}
-                              alt={res.aGradeStudent?.StudentName || res.AGrade}
-                              fallbackCategory="student"
-                              fallbackText={res.aGradeStudent?.StudentName || res.AGrade}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-extrabold text-[10px] uppercase text-emerald-700 block">Grade A</span>
-                            <span className="font-bold truncate block">{res.aGradeStudent?.StudentName || res.AGrade}</span>
-                          </div>
-                        </div>
-                      )}
-                      {res.BGrade && (
-                        <div className="flex-1 min-w-[130px] p-2 bg-blue-50 rounded-xl border border-blue-200 text-blue-900 text-xs flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-blue-300 bg-white shadow-2xs">
-                            <SafeImage
-                              src={res.bGradeStudent?.Student_Photo_Urls}
-                              alt={res.bGradeStudent?.StudentName || res.BGrade}
-                              fallbackCategory="student"
-                              fallbackText={res.bGradeStudent?.StudentName || res.BGrade}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-extrabold text-[10px] uppercase text-blue-700 block">Grade B</span>
-                            <span className="font-bold truncate block">{res.bGradeStudent?.StudentName || res.BGrade}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer status & Display Result Action */}
-                <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                    <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                      <CheckCircle2 size={13} className="text-emerald-600" />
-                      Verified Official Result
-                    </span>
-                    {res.creaded_At && (
-                      <span className="text-[10px] font-mono text-slate-400">
-                        Published {res.creaded_At}
-                      </span>
-                    )}
-                  </div>
+                {/* Actions */}
+                <div className="flex items-center gap-2 no-print self-end sm:self-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportResultsToPdf({
+                        programmes: [p],
+                        exportType: "judgements",
+                        filters: { categoryTitle: p.category, wingTitle: p.wing },
+                        filename: `Judgement_Sheet_${p.programCode}.pdf`,
+                      });
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
+                    title="Download this official Judgement Sheet as a PDF document"
+                  >
+                    <Download size={13} />
+                    <span>Download PDF</span>
+                  </button>
 
                   <button
                     type="button"
-                    onClick={() => setSelectedResultModal(res)}
-                    className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-1.5 shadow-2xs transition cursor-pointer active:scale-95 no-print"
-                    title="Open full competition result with winner podium and candidate details"
+                    onClick={() => {
+                      const matched = filteredResults.find((fr) => fr.Program_Id === p.programCode);
+                      if (matched) setSelectedResultModal(matched);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
+                    title="View candidate photos, certificates & detailed podium"
                   >
-                    <Trophy size={13} className="text-yellow-200" />
-                    <span>Display Result Details</span>
+                    <Trophy size={13} className="text-amber-600" />
+                    <span>Podium View</span>
                   </button>
                 </div>
               </div>
-            );
-          })}
+
+              {/* Winners Table */}
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-2xs">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                      <th className="py-2.5 px-3.5">Position</th>
+                      <th className="py-2.5 px-3">AddNo</th>
+                      <th className="py-2.5 px-3.5">Winner / Squad Name</th>
+                      <th className="py-2.5 px-3">Class</th>
+                      <th className="py-2.5 px-3 text-center">Points</th>
+                      <th className="py-2.5 px-3">College / Center</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {/* 1st Place */}
+                    {p.firstPlace && p.firstPlace.length > 0 && p.firstPlace.map((w, wIdx) => (
+                      <tr key={`1-${wIdx}`} className="bg-amber-50/50 hover:bg-amber-50/80">
+                        <td className="py-2.5 px-3.5 font-bold text-amber-800 flex items-center gap-1.5">
+                          <span>🥇</span>
+                          <span>1st Prize</span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">{w.addNo}</td>
+                        <td className="py-2.5 px-3.5 font-bold text-slate-900">
+                          {w.squadTitle ? (
+                            <div>
+                              <span className="text-indigo-800 font-black">{w.squadTitle}</span>
+                              <span className="text-slate-700 font-medium block text-[11px]">• {w.name}</span>
+                            </div>
+                          ) : (
+                            w.name
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-700">{w.classTitle || "-"}</td>
+                        <td className="py-2.5 px-3 text-center font-bold text-amber-700">
+                          {w.points ? `${w.points} pts` : "-"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{w.collegeName || "Campus"}</td>
+                      </tr>
+                    ))}
+
+                    {/* 2nd Place */}
+                    {p.secondPlace && p.secondPlace.length > 0 && p.secondPlace.map((w, wIdx) => (
+                      <tr key={`2-${wIdx}`} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3.5 font-bold text-slate-600 flex items-center gap-1.5">
+                          <span>🥈</span>
+                          <span>2nd Prize</span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">{w.addNo}</td>
+                        <td className="py-2.5 px-3.5 font-bold text-slate-900">
+                          {w.squadTitle ? (
+                            <div>
+                              <span className="text-indigo-800 font-black">{w.squadTitle}</span>
+                              <span className="text-slate-700 font-medium block text-[11px]">• {w.name}</span>
+                            </div>
+                          ) : (
+                            w.name
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-700">{w.classTitle || "-"}</td>
+                        <td className="py-2.5 px-3 text-center font-bold text-slate-700">
+                          {w.points ? `${w.points} pts` : "-"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{w.collegeName || "Campus"}</td>
+                      </tr>
+                    ))}
+
+                    {/* 3rd Place */}
+                    {p.thirdPlace && p.thirdPlace.length > 0 && p.thirdPlace.map((w, wIdx) => (
+                      <tr key={`3-${wIdx}`} className="hover:bg-slate-50">
+                        <td className="py-2.5 px-3.5 font-bold text-orange-700 flex items-center gap-1.5">
+                          <span>🥉</span>
+                          <span>3rd Prize</span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">{w.addNo}</td>
+                        <td className="py-2.5 px-3.5 font-bold text-slate-900">
+                          {w.squadTitle ? (
+                            <div>
+                              <span className="text-indigo-800 font-black">{w.squadTitle}</span>
+                              <span className="text-slate-700 font-medium block text-[11px]">• {w.name}</span>
+                            </div>
+                          ) : (
+                            w.name
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-700">{w.classTitle || "-"}</td>
+                        <td className="py-2.5 px-3 text-center font-bold text-orange-700">
+                          {w.points ? `${w.points} pts` : "-"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{w.collegeName || "Campus"}</td>
+                      </tr>
+                    ))}
+
+                    {/* Grade A / B */}
+                    {[...(p.aGrade || []), ...(p.bGrade || [])].map((w, wIdx) => (
+                      <tr key={`g-${wIdx}`} className="hover:bg-slate-50 text-slate-700">
+                        <td className="py-2.5 px-3.5 font-bold text-indigo-700 flex items-center gap-1.5">
+                          <span>🎖️</span>
+                          <span>{w.position || "Grade Holder"}</span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-indigo-700">{w.addNo}</td>
+                        <td className="py-2.5 px-3.5 font-bold text-slate-800">
+                          {w.squadTitle ? (
+                            <div>
+                              <span className="text-indigo-800 font-black">{w.squadTitle}</span>
+                              <span className="text-slate-700 font-medium block text-[11px]">• {w.name}</span>
+                            </div>
+                          ) : (
+                            w.name
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600">{w.classTitle || "-"}</td>
+                        <td className="py-2.5 px-3 text-center font-bold text-indigo-600">
+                          {w.points ? `${w.points} pts` : "-"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-500 text-[11px]">{w.collegeName || "Campus"}</td>
+                      </tr>
+                    ))}
+
+                    {(!p.firstPlace || p.firstPlace.length === 0) &&
+                      (!p.secondPlace || p.secondPlace.length === 0) &&
+                      (!p.thirdPlace || p.thirdPlace.length === 0) && (
+                        <tr>
+                          <td colSpan={6} className="py-6 text-center text-slate-400 italic">
+                            No published winners recorded for this programme yet.
+                          </td>
+                        </tr>
+                      )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Verification Signatures & Seal */}
+              <div className="pt-4 border-t border-slate-200 grid grid-cols-3 gap-6 text-center text-xs">
+                <div className="space-y-4">
+                  <div className="h-8 border-b border-dashed border-slate-300" />
+                  <p className="font-bold text-slate-600">Judge / Evaluator</p>
+                </div>
+                <div className="space-y-4">
+                  <div className="h-8 border-b border-dashed border-slate-300" />
+                  <p className="font-bold text-slate-600">Category Controller</p>
+                </div>
+                <div className="space-y-4">
+                  <div className="h-8 border-b border-dashed border-slate-300" />
+                  <p className="font-bold text-slate-600">Festival Convener / Seal</p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
