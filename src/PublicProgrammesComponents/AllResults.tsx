@@ -1,12 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
+import ResultExportModal from "../components/ResultExportModal";
 import {
   exportResultsToPdf,
   type PdfExportProgramItem,
   type PdfExportWinnerItem,
 } from "../lib/pdfResultService";
+import { exportResultsToExcel } from "../lib/excelResultService";
 import dhiuLogo from "../ImgBox/Dhiu.jpg";
 import {
   Trophy,
@@ -17,6 +20,10 @@ import {
   Printer,
   RotateCcw,
   X,
+  FileSpreadsheet,
+  FileDown,
+  Table,
+  FileText,
 } from "lucide-react";
 import type { ResultBoxRecord } from "../lib/types";
 import { hydrateResultRecords } from "../lib/resultService";
@@ -82,9 +89,18 @@ const parseFlexibleDate = (val?: string | null): Date | null => {
 
 export default function AllResultsList() {
   const meta = useProgrammeMeta();
+  const location = useLocation();
+  const isAdmin = location.pathname.includes("/admin-panel");
+
   const [results, setResults] = useState<EnrichedResult[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Admin View Mode & Export States
+  const [adminViewMode, setAdminViewMode] = useState<"table" | "judgements">("table");
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,7 +137,7 @@ export default function AllResultsList() {
       if (progCodes.length > 0) {
         const { data: progRows } = await SupaBaseFunction
           .from("ProgrammesBox")
-          .select("Program_Code, Program_Title, Date, Venue, Category, WingCode, Group, is_group_program, Program_Poster, IsResultPublished, IsResulted, points_template")
+          .select("*")
           .in("Program_Code", progCodes);
 
         (progRows || []).forEach((p: any) => {
@@ -303,9 +319,16 @@ export default function AllResultsList() {
       const wing = getWingTitle(prog?.WingCode).toLowerCase();
       const venue = getVenueTitle(prog?.Venue).toLowerCase();
 
-      // 1. Publication Filter (Published only vs All)
-      if (publicationFilter === "published") {
-        if (!prog?.IsResultPublished && !prog?.IsResulted) return false;
+      // 1. Publication Filter: In admin result directory, strictly show only published results where is_published/IsResultPublished is true
+      const isPublished = Boolean(
+        prog?.IsResultPublished === true ||
+        (prog as any)?.is_published === true ||
+        (res as any)?.is_published === true ||
+        (res as any)?.IsResultPublished === true
+      );
+
+      if (isAdmin || publicationFilter === "published") {
+        if (!isPublished) return false;
       }
 
       // 2. Specific Date Range Filter (e.g. "20-07-2026" to "10-10-2026")
@@ -458,8 +481,56 @@ export default function AllResultsList() {
     });
   }, [filteredResults, meta.pointsTemplates, meta.wingMap, meta.categoryMap, meta.venueMap]);
 
-  // Quick Export or Open Export Hub Modal
+  // Export Handlers for Admin Directory
+  const handleExportPdf = () => {
+    if (exportableProgrammes.length === 0) {
+      alert("No published results available to export to PDF.");
+      return;
+    }
+    try {
+      setIsExportingPdf(true);
+      exportResultsToPdf({
+        programmes: exportableProgrammes,
+        exportType: adminViewMode === "table" ? "table" : "judgements",
+        filters: {
+          categoryTitle: categoryFilter !== "All" ? getCategoryTitle(categoryFilter) : undefined,
+          wingTitle: wingFilter !== "All" ? getWingTitle(wingFilter) : undefined,
+          classTitle: classFilter !== "All" ? classFilter : undefined,
+          searchQuery: searchQuery || undefined,
+        },
+        filename: `Official_Results_${new Date().toISOString().slice(0, 10)}.pdf`,
+      });
+    } catch (err) {
+      console.error("PDF export error:", err);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
+  const handleExportExcel = () => {
+    if (exportableProgrammes.length === 0) {
+      alert("No published results available to export to Excel.");
+      return;
+    }
+    try {
+      setIsExportingExcel(true);
+      exportResultsToExcel({
+        programmes: exportableProgrammes,
+        exportType: "both",
+        filters: {
+          categoryTitle: categoryFilter !== "All" ? getCategoryTitle(categoryFilter) : undefined,
+          wingTitle: wingFilter !== "All" ? getWingTitle(wingFilter) : undefined,
+          classTitle: classFilter !== "All" ? classFilter : undefined,
+          searchQuery: searchQuery || undefined,
+        },
+        filename: `Official_Results_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      });
+    } catch (err) {
+      console.error("Excel export error:", err);
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -490,24 +561,68 @@ export default function AllResultsList() {
                 <Trophy className="w-6 h-6 text-yellow-300" />
               </span>
               <span className="text-xs font-bold uppercase tracking-wider text-orange-200">
-                Official Hall of Fame
+                {isAdmin ? "Admin Results Directory & Export Center" : "Official Hall of Fame"}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Our Published Results</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              {isAdmin ? "Competition Results Directory" : "Our Published Results"}
+            </h1>
             <p className="text-orange-100 text-xs sm:text-sm mt-1 max-w-xl">
-              Official standings, winners podium, and grade honors for conducted programmes and competitions.
+              {isAdmin
+                ? "Export verified published results in PDF or Excel workbooks, review scorecards, and audit position standings."
+                : "Official standings, winners podium, and grade honors for conducted programmes and competitions."}
             </p>
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap no-print">
-            <button
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer active:scale-95"
-              title="Print all official Judgement Sheets or save as PDF"
-            >
-              <Printer size={15} className="text-indigo-600" />
-              <span>Print All Judgement Sheets</span>
-            </button>
+            {isAdmin ? (
+              <>
+                {/* Button 1: Export PDF */}
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  disabled={isExportingPdf || exportableProgrammes.length === 0}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="Export results as official PDF document"
+                >
+                  <FileDown size={16} />
+                  <span>{isExportingPdf ? "Exporting PDF..." : "Export PDF"}</span>
+                </button>
+
+                {/* Button 2: Export Excel */}
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  disabled={isExportingExcel || exportableProgrammes.length === 0}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="Export results as Excel spreadsheet (.xlsx)"
+                >
+                  <FileSpreadsheet size={16} />
+                  <span>{isExportingExcel ? "Exporting Excel..." : "Export Excel"}</span>
+                </button>
+
+                {/* Advanced Modal Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setIsExportModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-white/15 hover:bg-white/25 text-white border border-white/25 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95"
+                  title="Open Advanced Export Hub & Print Preview"
+                >
+                  <Download size={14} />
+                  <span>Export Hub</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 rounded-xl text-xs sm:text-sm font-bold shadow-md transition cursor-pointer active:scale-95"
+                title="Print all official Judgement Sheets or save as PDF"
+              >
+                <Printer size={15} className="text-indigo-600" />
+                <span>Print All Judgement Sheets</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -643,8 +758,38 @@ export default function AllResultsList() {
           </div>
 
           <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
+            {isAdmin && (
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setAdminViewMode("table")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    adminViewMode === "table"
+                      ? "bg-white text-indigo-700 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Consolidated Result Table"
+                >
+                  <Table size={13} />
+                  <span>Result Table</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminViewMode("judgements")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    adminViewMode === "judgements"
+                      ? "bg-white text-indigo-700 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  title="Official Judgement Sheets"
+                >
+                  <FileText size={13} />
+                  <span>Judgement Sheets</span>
+                </button>
+              </div>
+            )}
             <div className="text-xs font-semibold text-slate-600 whitespace-nowrap bg-slate-100 px-3.5 py-1.5 rounded-xl border border-slate-200">
-              Showing <span className="font-bold text-slate-900">{filteredResults.length}</span> of {results.length} Judgement Sheets
+              Showing <span className="font-bold text-slate-900">{filteredResults.length}</span> published result{filteredResults.length === 1 ? "" : "s"}
             </div>
           </div>
         </div>
@@ -676,9 +821,167 @@ export default function AllResultsList() {
             </button>
           )}
         </div>
+      ) : isAdmin && adminViewMode === "table" ? (
+        /* ======================================================== */
+        /* ADMIN VIEW 1: CONSOLIDATED RESULTS TABLE                 */
+        /* ======================================================== */
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-100">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">
+                Official Consolidated Results Table
+              </h2>
+              <p className="text-xs text-slate-500">
+                Tabular overview of conducted programmes and verified position holders.
+              </p>
+            </div>
+            <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              Verified Published Only
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-900 text-white font-bold text-[11px] uppercase tracking-wider">
+                  <th className="py-3 px-3 text-center w-10">Sl</th>
+                  <th className="py-3 px-3 min-w-[170px]">Programme Title</th>
+                  <th className="py-3 px-3 min-w-[85px]">Date</th>
+                  <th className="py-3 px-3 min-w-[100px]">Category</th>
+                  <th className="py-3 px-3 min-w-[150px]">1st Position</th>
+                  <th className="py-3 px-3 min-w-[150px]">2nd Position</th>
+                  <th className="py-3 px-3 min-w-[150px]">3rd Position</th>
+                  <th className="py-3 px-3 min-w-[130px]">Grade Holders</th>
+                  <th className="py-3 px-3 text-center min-w-[90px] no-print">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 font-medium bg-white">
+                {exportableProgrammes.map((p, index) => {
+                  const isGroup = p.eventType?.includes("Group") || p.eventType?.includes("Squad");
+
+                  const formatWinnerCell = (
+                    items?: PdfExportWinnerItem[],
+                    bgBadge = "bg-slate-100 text-slate-800"
+                  ) => {
+                    if (!items || items.length === 0) return <span className="text-slate-400 font-normal">-</span>;
+
+                    const hasSquads = items.some((i) => Boolean(i.squadTitle));
+
+                    if (hasSquads || isGroup) {
+                      const squadsMap = new Map<string, PdfExportWinnerItem[]>();
+                      items.forEach((item) => {
+                        const key = item.squadTitle?.trim() || "Squad Group";
+                        if (!squadsMap.has(key)) squadsMap.set(key, []);
+                        squadsMap.get(key)!.push(item);
+                      });
+
+                      return (
+                        <div className="space-y-1.5">
+                          {Array.from(squadsMap.entries()).map(([squadName, members], sIdx) => {
+                            const pts = members[0]?.points;
+                            return (
+                              <div key={sIdx} className="p-1.5 rounded-lg bg-slate-50 border border-slate-200/80">
+                                <div className="font-bold text-slate-900 flex items-center justify-between gap-1 text-[11px]">
+                                  <span className="text-indigo-900 font-extrabold">{squadName}</span>
+                                  {pts ? (
+                                    <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${bgBadge}`}>
+                                      {pts} pts
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <div className="text-[10px] text-slate-600 font-mono mt-0.5 leading-snug">
+                                  {members.map((m, mIdx) => (
+                                    <span key={mIdx}>
+                                      {mIdx > 0 && ", "}
+                                      {m.addNo} {m.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-1">
+                        {items.map((i, iIdx) => (
+                          <div key={iIdx} className="flex items-center justify-between gap-1 text-slate-900">
+                            <span className="font-semibold text-xs">
+                              {i.name}{" "}
+                              <span className="font-mono text-slate-500 font-normal text-[10px]">
+                                ({i.addNo})
+                              </span>
+                            </span>
+                            {i.points ? (
+                              <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${bgBadge}`}>
+                                {i.points} pts
+                              </span>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  };
+
+                  return (
+                    <tr key={p.programCode || index} className="hover:bg-slate-50 transition">
+                      <td className="py-2.5 px-3 text-center font-bold text-slate-500 text-[11px]">{index + 1}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="font-bold text-slate-900 block text-xs">{p.programTitle}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{p.programCode}</span>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600 text-xs whitespace-nowrap">{p.date || "TBA"}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold">
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">{formatWinnerCell(p.firstPlace, "bg-amber-100 text-amber-800")}</td>
+                      <td className="py-2.5 px-3">{formatWinnerCell(p.secondPlace, "bg-slate-200 text-slate-800")}</td>
+                      <td className="py-2.5 px-3">{formatWinnerCell(p.thirdPlace, "bg-orange-100 text-orange-800")}</td>
+                      <td className="py-2.5 px-3">{formatWinnerCell([...(p.aGrade || []), ...(p.bGrade || [])], "bg-indigo-100 text-indigo-800")}</td>
+                      <td className="py-2.5 px-3 text-center no-print">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              exportResultsToPdf({
+                                programmes: [p],
+                                exportType: "judgements",
+                                filters: { categoryTitle: p.category, wingTitle: p.wing },
+                                filename: `Judgement_Sheet_${p.programCode}.pdf`,
+                              });
+                            }}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                            title="Download Judgement Sheet PDF"
+                          >
+                            <Download size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const matched = filteredResults.find((fr) => fr.Program_Id === p.programCode);
+                              if (matched) setSelectedResultModal(matched);
+                            }}
+                            className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg transition cursor-pointer"
+                            title="Podium View"
+                          >
+                            <Trophy size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         /* ======================================================== */
-        /* OFFICIAL JUDGEMENT SHEETS DECLARATION VIEW ONLY          */
+        /* OFFICIAL JUDGEMENT SHEETS DECLARATION VIEW               */
         /* ======================================================== */
         <div className="space-y-8">
           {exportableProgrammes.map((p, index) => (
@@ -938,6 +1241,21 @@ export default function AllResultsList() {
           programVenue={selectedResultModal.programme?.Venue}
           programPoster={selectedResultModal.programme?.Program_Poster}
           wingCode={selectedResultModal.programme?.WingCode}
+        />
+      )}
+
+      {/* Advanced Result Export Hub Modal */}
+      {isExportModalOpen && (
+        <ResultExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          programmes={exportableProgrammes}
+          availableCategories={uniqueCategories}
+          availableClasses={uniqueClasses}
+          availableWings={uniqueWings}
+          initialCategory={categoryFilter}
+          initialClass={classFilter}
+          initialWing={wingFilter}
         />
       )}
     </div>

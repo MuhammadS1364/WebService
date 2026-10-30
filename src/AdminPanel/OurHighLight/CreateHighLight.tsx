@@ -1,6 +1,8 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { uploadImageToImgBB } from "../../lib/imgbbService";
+import SafeImage from "../../lib/SafeImage";
+import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
 import {
   Image as ImageIcon,
   Video as VideoIcon,
@@ -12,7 +14,27 @@ import {
   Upload,
   FileUp,
   Link as LinkIcon,
+  Maximize2,
+  Download,
+  Trash2,
+  Calendar,
+  Layers,
+  Sparkles,
+  RefreshCw,
+  X,
 } from "lucide-react";
+
+interface PublicHighlightItem {
+  id: number;
+  created_at: string;
+  HighLitght_Title: string | null;
+  HighLight_Type: string | null;
+  PhotoImg_Url: string | null;
+  ShortDescpt: string | null;
+  Accademic_Year?: number | null;
+  Academic_Year?: number | null;
+  FileType?: string | null;
+}
 
 interface HighlightFormState {
   HighLitght_Title: string;
@@ -47,6 +69,91 @@ export default function CreateHighLight() {
 
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: string; text: string }>({ type: "", text: "" });
+
+  // Gallery of all existing highlights
+  const [highlights, setHighlights] = useState<PublicHighlightItem[]>([]);
+  const [loadingHighlights, setLoadingHighlights] = useState<boolean>(true);
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("All");
+  const [fullscreenMedia, setFullscreenMedia] = useState<{ url: string; type: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const fetchHighlights = async () => {
+    try {
+      setLoadingHighlights(true);
+      const { data, error } = await SupaBaseFunction
+        .from("PublicHighLights")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      if (data) setHighlights(data as PublicHighlightItem[]);
+    } catch (err: any) {
+      console.error("Failed to fetch highlights list:", err);
+    } finally {
+      setLoadingHighlights(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHighlights();
+  }, []);
+
+  // Prevent background scroll when fullscreen media is open
+  useEffect(() => {
+    if (fullscreenMedia) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [fullscreenMedia]);
+
+  const handleDeleteHighlight = async (id: number, title?: string | null) => {
+    if (!window.confirm(`Are you sure you want to delete highlight "${title || 'this media highlight'}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      setDeletingId(id);
+      const { error } = await SupaBaseFunction
+        .from("PublicHighLights")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      setHighlights((prev) => prev.filter((item) => item.id !== id));
+      setFeedback({
+        type: "success",
+        text: `Highlight "${title || 'Item'}" deleted successfully from campus broadcasts.`,
+      });
+    } catch (err: any) {
+      console.error("Delete highlight failed:", err);
+      setFeedback({
+        type: "error",
+        text: err?.message || "Failed to delete highlight.",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDownloadMedia = async (url: string, filename?: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.setAttribute("download", filename || "highlight-media");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error("Download failed:", err);
+      window.open(url, "_blank");
+    }
+  };
 
   // Direct file upload states
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -179,6 +286,9 @@ export default function CreateHighLight() {
         type: "success",
         text: "Broadcast Highlight successfully published to the campus public feed!",
       });
+
+      // Reload highlights gallery immediately
+      await fetchHighlights();
 
       setFormData({
         HighLitght_Title: "",
@@ -506,40 +616,47 @@ export default function CreateHighLight() {
       </div>
 
       {/* Live Feed Card Preview */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs">
         <div className="flex items-center gap-2 mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-          <Eye size={15} className="text-indigo-600" />
-          Live Preview: Public Feed Card
+          <Eye size={15} className="text-emerald-600" />
+          Live Preview: Current Highlight Broadcast Card
         </div>
 
-        <div className="max-w-md mx-auto bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-          <div className="h-44 bg-slate-200 relative flex items-center justify-center overflow-hidden">
+        <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+          <div className="aspect-[4/2] bg-slate-100 relative flex items-center justify-center overflow-hidden">
             {formData.PhotoImg_Url ? (
-              <img
-                src={formData.PhotoImg_Url}
-                alt="Highlight preview"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src =
-                    "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=600&auto=format&fit=crop&q=80";
-                }}
-              />
+              formData.FileType === "Video" ? (
+                <video
+                  src={formData.PhotoImg_Url}
+                  controls
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <SafeImage
+                  src={formData.PhotoImg_Url}
+                  alt={formData.HighLitght_Title || "Highlight preview"}
+                  fallbackCategory="highlight"
+                  fallbackText={formData.HighLitght_Title || "Cover Preview"}
+                  className="w-full h-full object-cover"
+                />
+              )
             ) : (
-              <div className="text-slate-400 flex flex-col items-center gap-1">
-                <ImageIcon size={32} />
-                <span className="text-xs font-medium">Cover Photo Preview</span>
+              <div className="text-slate-400 flex flex-col items-center gap-1.5 p-4 text-center">
+                <ImageIcon size={32} className="text-slate-300" />
+                <span className="text-xs font-semibold">Media Cover Preview</span>
+                <span className="text-[10px] text-slate-400">Upload a photo or paste a URL above</span>
               </div>
             )}
-            <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-900/70 backdrop-blur-xs text-white text-[11px] font-bold">
+            <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs">
               {formData.HighLight_Type}
             </span>
-            <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-white/90 text-slate-800 text-[10px] font-bold">
-              {formData.Accademic_Year}
+            <span className="absolute top-3 right-3 px-2.5 py-0.5 rounded-full bg-white/95 text-slate-800 text-[10px] font-bold shadow-xs border border-slate-200/60">
+              AY: {formData.Accademic_Year}
             </span>
           </div>
 
-          <div className="p-4 space-y-2">
-            <h3 className="font-bold text-slate-900 text-sm line-clamp-1">
+          <div className="p-5 space-y-2">
+            <h3 className="font-bold text-slate-900 text-base line-clamp-1">
               {formData.HighLitght_Title || "Highlight Title Display"}
             </h3>
             <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
@@ -548,6 +665,277 @@ export default function CreateHighLight() {
           </div>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* ALL BROADCASTED HIGHLIGHTS GALLERY (CARDS DISPLAY WITH SAFEIMAGE & MEDIA) */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 md:p-10 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold uppercase tracking-wider mb-2 border border-indigo-200">
+              <Sparkles size={13} className="text-indigo-600" />
+              Broadcast Directory
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
+              All Highlights & Media Gallery
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">
+              Browse all published campus milestones, media cards, and images currently visible to visitors.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={fetchHighlights}
+              disabled={loadingHighlights}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+              title="Refresh highlights list"
+            >
+              <RefreshCw size={13} className={loadingHighlights ? "animate-spin text-indigo-600" : "text-slate-500"} />
+              <span>Refresh</span>
+            </button>
+            <span className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+              {highlights.length} Published
+            </span>
+          </div>
+        </div>
+
+        {/* Category Filter Tabs */}
+        {(() => {
+          const categories = [
+            "All",
+            ...Array.from(new Set(highlights.map((h) => h.HighLight_Type).filter(Boolean))),
+          ];
+
+          return categories.length > 1 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedTypeFilter(cat as string)}
+                  className={`px-4 py-1.5 text-xs font-bold rounded-full transition-all cursor-pointer border ${
+                    selectedTypeFilter === cat
+                      ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          ) : null;
+        })()}
+
+        {/* Highlight Cards Grid */}
+        {loadingHighlights ? (
+          <div className="text-center py-16 space-y-3">
+            <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto" />
+            <p className="text-xs font-semibold text-slate-500">Loading campus highlights and media cards...</p>
+          </div>
+        ) : highlights.length === 0 ? (
+          <div className="text-center py-16 border border-dashed border-slate-200 rounded-3xl p-8 bg-slate-50/50 space-y-2">
+            <ImageIcon className="w-12 h-12 text-slate-300 mx-auto" />
+            <h3 className="font-bold text-slate-700 text-sm">No Highlights Published Yet</h3>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Use the form above to broadcast your first campus achievement, photo, or event spotlight.
+            </p>
+          </div>
+        ) : (
+          (() => {
+            const filtered =
+              selectedTypeFilter === "All"
+                ? highlights
+                : highlights.filter((h) => h.HighLight_Type === selectedTypeFilter);
+
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-12 text-slate-400 text-xs">
+                  No highlights found under category "{selectedTypeFilter}".
+                </div>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filtered.map((item) => (
+                  <article
+                    key={item.id}
+                    className="group bg-white rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col hover:border-emerald-300"
+                  >
+                    {/* Media Container with SafeImage and Fullscreen Trigger */}
+                    <div
+                      className="aspect-[4/2] relative cursor-pointer overflow-hidden bg-slate-100"
+                      onClick={() =>
+                        item.PhotoImg_Url &&
+                        setFullscreenMedia({
+                          url: item.PhotoImg_Url,
+                          type: item.FileType || "Photo",
+                        })
+                      }
+                      title="Click to view fullscreen preview"
+                    >
+                      {item.FileType === "Video" ? (
+                        <video
+                          src={item.PhotoImg_Url || ""}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <SafeImage
+                          src={item.PhotoImg_Url}
+                          alt={item.HighLitght_Title || "Highlight"}
+                          fallbackCategory="highlight"
+                          fallbackText={item.HighLitght_Title || "Highlight Spotlight"}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      )}
+
+                      {/* Top Floating Badges */}
+                      <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
+                        {item.HighLight_Type && (
+                          <span className="px-2.5 py-0.5 rounded-full bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-bold shadow-xs">
+                            {item.HighLight_Type}
+                          </span>
+                        )}
+                        {item.FileType && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-600/90 backdrop-blur-xs text-white text-[9px] font-bold uppercase shadow-xs">
+                            {item.FileType}
+                          </span>
+                        )}
+                      </div>
+
+                      {(item.Accademic_Year || item.Academic_Year) && (
+                        <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full bg-white/95 text-slate-800 text-[10px] font-bold shadow-xs border border-slate-200/80 z-10 flex items-center gap-1">
+                          <Layers size={10} className="text-slate-500" />
+                          AY: {item.Accademic_Year || item.Academic_Year}
+                        </span>
+                      )}
+
+                      {/* Hover Overlay with Fullscreen Icon */}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 text-slate-900 text-xs font-bold shadow-lg">
+                          <Maximize2 size={14} className="text-indigo-600" />
+                          <span>View Media</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Card Content & Details */}
+                    <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+                      <div className="space-y-1.5">
+                        <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2 leading-snug">
+                          {item.HighLitght_Title || "Untitled Highlight"}
+                        </h3>
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                          {item.ShortDescpt || "No summary description available."}
+                        </p>
+                      </div>
+
+                      {/* Footer Info & Admin Actions */}
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <div className="flex items-center text-[11px] font-medium text-slate-400">
+                          <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                          {formatResultDate(item.created_at)}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {item.PhotoImg_Url && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadMedia(item.PhotoImg_Url!, `${item.HighLitght_Title || 'highlight'}`);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                              title="Download Media File"
+                            >
+                              <Download size={14} />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteHighlight(item.id, item.HighLitght_Title);
+                            }}
+                            disabled={deletingId === item.id}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-50"
+                            title="Delete this Highlight"
+                          >
+                            {deletingId === item.id ? (
+                              <Loader2 size={14} className="animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            );
+          })()
+        )}
+      </div>
+
+      {/* Fullscreen Media Lightbox Modal */}
+      {fullscreenMedia && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-8 transition-opacity"
+          onClick={() => setFullscreenMedia(null)}
+        >
+          {/* Action Header */}
+          <div className="absolute top-4 right-4 sm:top-8 sm:right-8 flex items-center gap-3 z-50">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownloadMedia(fullscreenMedia.url);
+              }}
+              className="text-white/90 hover:text-white flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full backdrop-blur-sm transition-colors text-xs sm:text-sm font-semibold cursor-pointer"
+              aria-label="Download Media"
+            >
+              <Download size={16} />
+              <span>Download</span>
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setFullscreenMedia(null);
+              }}
+              className="text-white/90 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-full backdrop-blur-sm transition-colors cursor-pointer"
+              aria-label="Close Fullscreen"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Media Container */}
+          <div
+            className="relative w-full h-full flex justify-center items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {fullscreenMedia.type === "Video" ? (
+              <video
+                src={fullscreenMedia.url}
+                controls
+                autoPlay
+                className="max-w-full max-h-[85vh] w-auto rounded-2xl shadow-2xl object-contain ring-1 ring-white/10"
+              />
+            ) : (
+              <img
+                src={fullscreenMedia.url}
+                alt="Fullscreen highlight view"
+                className="max-w-full max-h-[85vh] w-auto rounded-2xl shadow-2xl object-contain ring-1 ring-white/10"
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
