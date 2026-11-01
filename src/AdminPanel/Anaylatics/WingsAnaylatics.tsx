@@ -63,7 +63,9 @@ import React, { useState, useEffect, useMemo } from "react";
 // @ts-ignore - Assuming SupaBaseFunction is correctly configured in your lib
 import { SupaBaseFunction } from "../../lib/SupaBase"; 
 import EditWingModal, { type EditableWing } from "../Wing/EditWingModal";
-import { Edit2, Building2, CheckCircle2, Search, Download, Calendar, Printer, RotateCcw, Filter } from "lucide-react";
+import { Edit2, Building2, CheckCircle2, Search, Download, Calendar, Printer, RotateCcw, Filter, FileText } from "lucide-react";
+import { AnalyticsPrintHeader, AnalyticsPrintFooter } from "../../components/AnalyticsPrintHeaderFooter";
+import A4PrintPreviewModal from "../../components/A4PrintPreviewModal";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -135,6 +137,7 @@ export default function GeneralWingsAnaylatics() {
   // Edit Modal & Notification State
   const [selectedWingForEdit, setSelectedWingForEdit] = useState<EditableWing | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [isA4PreviewOpen, setIsA4PreviewOpen] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   // Filter States
@@ -346,6 +349,39 @@ export default function GeneralWingsAnaylatics() {
   const totalSystemRegistrations = filteredData.reduce((sum, w) => sum + (w.Total_Registrations || 0), 0);
   const activeWingsCount = filteredData.filter(w => w.IsActive).length;
 
+  const activeFilterLabels = useMemo(() => {
+    const list: string[] = [];
+    if (filters.SearchTerm) list.push(`Search: "${filters.SearchTerm}"`);
+    if (filters.IsActive && filters.IsActive !== "all") {
+      list.push(filters.IsActive === "true" ? "Active Operating Wings" : "Inactive Wings");
+    }
+    return list;
+  }, [filters]);
+
+  const handlePrintVisual = () => {
+    if (activeTab !== "Analytics") {
+      setActiveTab("Analytics");
+      setTimeout(() => {
+        try {
+          window.focus();
+          window.print();
+        } catch (err) {
+          console.error("Print failed:", err);
+        }
+      }, 300);
+    } else {
+      try {
+        window.focus();
+        window.print();
+      } catch (err) {
+        console.error("Print failed:", err);
+      }
+    }
+  };
+
+  // Pure print date initializer
+  const [printDateString] = useState(() => new Date().toLocaleString());
+
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -355,7 +391,7 @@ export default function GeneralWingsAnaylatics() {
   }
 
   return (
-    <div className="w-full max-w-full overflow-hidden font-sans space-y-5">
+    <div className="w-full max-w-full overflow-hidden font-sans space-y-5 print:overflow-visible print:max-w-none print:space-y-4">
       {/* PRINT-ONLY CSS */}
       <style>{`
         @media print {
@@ -365,24 +401,18 @@ export default function GeneralWingsAnaylatics() {
         }
       `}</style>
 
-      {/* PRINT-ONLY BRANDED REPORT HEADER */}
-      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
-            <p className="text-sm font-bold text-slate-700">Wings & Departmental Performance Visual Analytics Report</p>
-          </div>
-          <div className="text-right text-xs text-slate-600 font-mono">
-            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
-            <p className="font-bold text-violet-800">
-              {filters.startDate || filters.endDate
-                ? `Period: ${filters.startDate || "Beginning"} to ${filters.endDate || "Present"}`
-                : "Period: Complete Records"}
-            </p>
-            <p>Total Wings: {filteredData.length}</p>
-          </div>
-        </div>
-      </div>
+      {/* PRINT-ONLY BRANDED REPORT HEADER WITH USER REQUESTED HEADINGS */}
+      <AnalyticsPrintHeader
+        title="Anjuman e Huda (Chs) Analytics"
+        reportType="Wings & Departmental Performance Visual Analytics Report"
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        activeFilterLabels={activeFilterLabels}
+        totalCount={filteredData.length}
+        totalCountLabel="Registered Wings"
+        subMetrics={`Global Points: ${totalSystemPoints.toLocaleString()} | Registrations: ${totalSystemRegistrations.toLocaleString()}`}
+        printDateString={printDateString}
+      />
       
       {/* FEEDBACK TOAST BANNER */}
       {feedback && (
@@ -424,12 +454,25 @@ export default function GeneralWingsAnaylatics() {
 
           <button 
             type="button"
-            onClick={() => window.print()} 
-            className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-            title="Print Visual Analytics and Charts"
+            onClick={handlePrintVisual} 
+            className="w-full sm:w-auto bg-slate-900 hover:bg-black active:scale-95 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            title="Print or Save PDF of Visual Analytics (A4)"
           >
             <Printer size={14} className="text-emerald-400" />
-            <span>Print Visual</span>
+            <span>Print Visual (PDF)</span>
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => {
+              if (activeTab !== "Analytics") setActiveTab("Analytics");
+              setIsA4PreviewOpen(true);
+            }} 
+            className="w-full sm:w-auto bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200 active:scale-95 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            title="Preview exact A4 Ready-to-Print Document with Centered Logos"
+          >
+            <FileText size={14} className="text-violet-600" />
+            <span>A4 Ready Preview</span>
           </button>
 
           <button 
@@ -455,15 +498,25 @@ export default function GeneralWingsAnaylatics() {
               </span>
             )}
           </div>
-          {(filters.SearchTerm || filters.IsActive !== "all" || filters.startDate || filters.endDate) && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setFilters({ SearchTerm: "", IsActive: "all", startDate: "", endDate: "" })}
-              className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition"
+              onClick={() => setFilters(prev => ({ ...prev, startDate: "2026-10-01", endDate: "2026-10-31" }))}
+              className="flex items-center gap-1 text-xs font-bold text-violet-800 bg-violet-50 hover:bg-violet-100 border border-violet-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+              title="Filter by month: 01 Oct - 31 Oct 2026"
             >
-              <RotateCcw className="w-3 h-3" /> Reset Filters
+              <Calendar className="w-3 h-3 text-violet-600" /> Oct 2026 Data
             </button>
-          )}
+            {(filters.SearchTerm || filters.IsActive !== "all" || filters.startDate || filters.endDate) && (
+              <button
+                type="button"
+                onClick={() => setFilters({ SearchTerm: "", IsActive: "all", startDate: "", endDate: "" })}
+                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset Filters
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
@@ -528,37 +581,37 @@ export default function GeneralWingsAnaylatics() {
 
       {/* DYNAMIC CONTENT AREA */}
       {activeTab === "Analytics" ? (
-        <div className="space-y-5">
+        <div className="space-y-5 print:space-y-4">
           {/* KPI CARDS (2 cols on small mobile, 4 cols on desktop) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 print:grid-cols-4 print:gap-3 print-break-inside-avoid break-inside-avoid">
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Registered Wings</span>
               <div className="text-xl sm:text-3xl font-black text-slate-900 mt-1">{filteredData.length}</div>
             </div>
-            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Active Operating</span>
               <div className="text-xl sm:text-3xl font-black text-emerald-600 mt-1">{activeWingsCount}</div>
             </div>
-            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Global Points</span>
               <div className="text-xl sm:text-3xl font-black text-violet-600 mt-1">{totalSystemPoints.toLocaleString()}</div>
             </div>
-            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">Total Registrations</span>
               <div className="text-xl sm:text-3xl font-black text-amber-500 mt-1">{totalSystemRegistrations.toLocaleString()}</div>
             </div>
           </div>
 
           {/* CHARTS GRID (min-w-0 on every card prevents flex/grid blowout & collapse) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 print:grid-cols-1 print:gap-6">
             
             {/* STACKED BAR CHART: Points Breakdown */}
-            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden print:overflow-visible print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">Wing Points Breakdown (Top 8)</h3>
                 <span className="text-[11px] text-slate-400 font-medium">Standard + Bonus</span>
               </div>
-              <div className="h-[260px] sm:h-[300px] w-full min-w-0">
+              <div className="h-[260px] sm:h-[300px] print:h-[240px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={pointsBreakdown} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -584,12 +637,12 @@ export default function GeneralWingsAnaylatics() {
             </div>
 
             {/* PIE CHART: Registration Distribution */}
-            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden print:overflow-visible print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">Registration Volume by Wing</h3>
                 <span className="text-[11px] text-slate-400 font-medium">Candidate Share</span>
               </div>
-              <div className="h-[260px] sm:h-[300px] w-full min-w-0">
+              <div className="h-[260px] sm:h-[300px] print:h-[240px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie 
@@ -609,7 +662,7 @@ export default function GeneralWingsAnaylatics() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-600 pt-2 max-h-16 overflow-y-auto">
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-slate-600 pt-2 max-h-16 overflow-y-auto print:max-h-none print:overflow-visible">
                 {registrationsByWing.map((item, idx) => (
                   <span key={item.name} className="inline-flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
@@ -620,12 +673,12 @@ export default function GeneralWingsAnaylatics() {
             </div>
 
             {/* COMPOSED CHART: Deep Engagement Profiling */}
-            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden lg:col-span-2">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden lg:col-span-2 print:overflow-visible print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">Top Performing Wings: Engagement vs Conversions</h3>
                 <span className="text-[11px] text-slate-400 font-medium">Registrations & Points</span>
               </div>
-              <div className="h-[280px] sm:h-[320px] w-full min-w-0">
+              <div className="h-[280px] sm:h-[320px] print:h-[240px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={engagementProfile} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -654,6 +707,9 @@ export default function GeneralWingsAnaylatics() {
             </div>
 
           </div>
+
+          {/* PRINT-ONLY OFFICIAL FOOTER WITH TWO CENTERED LOGOS */}
+          <AnalyticsPrintFooter />
         </div>
       ) : (
         /* DIRECTORY VIEW: RESPONSIVE (Cards for small screens, Table for desktop) */
@@ -807,6 +863,106 @@ export default function GeneralWingsAnaylatics() {
         }}
         onSuccess={handleWingEditSuccess}
       />
+
+      {/* A4 OFFICIAL PRINT & PDF PREVIEW MODAL */}
+      <A4PrintPreviewModal
+        isOpen={isA4PreviewOpen}
+        onClose={() => setIsA4PreviewOpen(false)}
+        title="Anjuman e Huda (Chs) Analytics"
+        reportType="Wings & Departmental Performance Visual Analytics Report"
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        activeFilterLabels={activeFilterLabels}
+        totalCount={filteredData.length}
+        totalCountLabel="Registered Wings"
+        subMetrics={`Global Points: ${totalSystemPoints.toLocaleString()} | Registrations: ${totalSystemRegistrations.toLocaleString()}`}
+        printDateString={printDateString}
+      >
+        {/* KPI Grid */}
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Registered Wings</span>
+            <div className="text-xl font-black text-slate-900 mt-0.5">{filteredData.length}</div>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Active Operating</span>
+            <div className="text-xl font-black text-emerald-600 mt-0.5">{activeWingsCount}</div>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Global Points</span>
+            <div className="text-xl font-black text-violet-600 mt-0.5">{totalSystemPoints.toLocaleString()}</div>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Registrations</span>
+            <div className="text-xl font-black text-amber-500 mt-0.5">{totalSystemRegistrations.toLocaleString()}</div>
+          </div>
+        </div>
+
+        {/* Charts in Clean Single-Column A4 Layout */}
+        <div className="space-y-6">
+          {/* Chart 1 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Wing Points Breakdown (Top 8)</h3>
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={pointsBreakdown} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} tickFormatter={(val: string) => (val.length > 8 ? val.slice(0, 6) + "…" : val)} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Bar dataKey="standard" name="Standard" stackId="a" fill="#8b5cf6" />
+                  <Bar dataKey="bonus" name="Bonus" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex items-center justify-center gap-4 text-xs font-medium text-slate-600 pt-2">
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" /> Standard</span>
+              <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f43f5e]" /> Bonus</span>
+            </div>
+          </div>
+
+          {/* Chart 2 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Registration Volume by Wing</h3>
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={registrationsByWing} cx="50%" cy="50%" innerRadius="40%" outerRadius="70%" paddingAngle={2} dataKey="value">
+                    {registrationsByWing.map((_, index) => (
+                      <Cell key={`wing-pie-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] text-slate-600 pt-2">
+              {registrationsByWing.map((item, idx) => (
+                <span key={item.name} className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                  {item.name}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Chart 3 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Top Performing Wings: Engagement vs Conversions</h3>
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={engagementProfile} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} tickFormatter={(val: string) => (val.length > 9 ? val.slice(0, 7) + "…" : val)} />
+                  <YAxis yAxisId="left" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Area yAxisId="left" type="monotone" dataKey="registrations" name="Registrations" fill="#fef3c7" stroke="#f59e0b" />
+                  <Bar yAxisId="left" dataKey="results" name="Results" barSize={22} fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Line yAxisId="right" type="monotone" dataKey="points" name="Total Points" stroke="#6d28d9" strokeWidth={2.5} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </A4PrintPreviewModal>
     </div>
   );
 }

@@ -612,16 +612,17 @@ export default function StudentGroupManage() {
         throw new Error(`Members (${dupes}) are already registered for this programme!`);
       }
 
-      // Insert all squad members to CandidateRegistrationTable
-      const candidateInserts = squadMembers.map((m) => ({
-        Program_Code: selectedProgramCode,
-        Candidate_Code: m,
-        squad_uuid: registerSquadModal.squad_id || null,
-      }));
-
+      // Insert squad registration in CandidateRegistrationTable
+      // User requirement: For group programmes, squad_uuid is filled and Candidate_Code is kept NULL
       const { error: regError } = await SupaBaseFunction
         .from("CandidateRegistrationTable")
-        .insert(candidateInserts);
+        .insert([
+          {
+            Program_Code: selectedProgramCode,
+            Candidate_Code: null,
+            squad_uuid: registerSquadModal.squad_id,
+          },
+        ]);
 
       if (regError) throw regError;
 

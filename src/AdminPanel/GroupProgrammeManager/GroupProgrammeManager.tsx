@@ -547,13 +547,13 @@ export default function GroupProgrammeManager() {
           return;
         }
 
-        const rowsToInsert = validMembers.map((addNo) => ({
-          Program_Code: selectedProgramCode,
-          Candidate_Code: addNo,
-          squad_uuid: createdSquad.squad_id,
-        }));
-
-        const { error: insErr } = await SupaBaseFunction.from("CandidateRegistrationTable").insert(rowsToInsert);
+        const { error: insErr } = await SupaBaseFunction.from("CandidateRegistrationTable").insert([
+          {
+            Program_Code: selectedProgramCode,
+            Candidate_Code: null,
+            squad_uuid: createdSquad.squad_id,
+          },
+        ]);
         if (insErr) throw insErr;
 
         // Accurate count update
@@ -675,13 +675,13 @@ export default function GroupProgrammeManager() {
     setAssignSquadMsg(null);
 
     try {
-      const rowsToInsert = memberAddNos.map((addNo) => ({
-        Program_Code: selectedProgramCode,
-        Candidate_Code: addNo,
-        squad_uuid: squad.squad_id,
-      }));
-
-      const { error: insErr } = await SupaBaseFunction.from("CandidateRegistrationTable").insert(rowsToInsert);
+      const { error: insErr } = await SupaBaseFunction.from("CandidateRegistrationTable").insert([
+        {
+          Program_Code: selectedProgramCode,
+          Candidate_Code: null,
+          squad_uuid: squad.squad_id,
+        },
+      ]);
       if (insErr) throw insErr;
 
       // Update total registrations in ProgrammesBox using exact count

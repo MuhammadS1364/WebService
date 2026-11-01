@@ -75,11 +75,14 @@ import StudentsAnaylaticsGeneral from './AdminPanel/Anaylatics/StudentsAnaylatic
 import GeneralWingsAnaylatics from './AdminPanel/Anaylatics/WingsAnaylatics';
 import MasterConfigHub from './AdminPanel/MasterConfig/MasterConfigHub';
 import MasterConfigWrapper from './AdminPanel/MasterConfig/MasterConfigWrapper';
-import AISupportModal from './components/AISupportModal';
 
 
 import UpdatePassword from './UpdatePass/UpdatePass';
 import UpdateProfile from './Profile/UpdateProfile';
+
+// Result & Registration Control Consoles
+import ResultConsole from './AdminPanel/ResultConsole/ResultConsole';
+import RegistrationConsole from './AdminPanel/RegistrationConsole/RegistrationConsole';
 
 // Category Controller Components
 import CategoryControllersList from './AdminPanel/CategoryControllers/CategoryControllersList';
@@ -160,6 +163,10 @@ export default function App() {
           <Route path='resulted-leaderboard' element={<ResultedLeaderboard isAdmin={true} />} />
           <Route path='category-controllers' element={<CategoryControllersList />} />
           <Route path='create-result' element={<CreateResult />} />
+          <Route path='resole' element={<ResultConsole />} />
+          <Route path='result-console' element={<ResultConsole />} />
+          <Route path='reg-console' element={<RegistrationConsole />} />
+          <Route path='registration-console' element={<RegistrationConsole />} />
         </Route>
 
         {/* STUDENT PANEL (Protected) */}
@@ -266,9 +273,6 @@ export default function App() {
         {/* 404 ERROR PAGE (Catches all unknown URLs) */}
         <Route path='*' element={<NotFoundPage />} />
       </Routes>
-
-      {/* DeepSeek AI Support Interactive Assistant */}
-      <AISupportModal />
     </>
   );
 }

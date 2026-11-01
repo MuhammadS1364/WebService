@@ -130,7 +130,7 @@ export default function OutReachPanel() {
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-slate-50">
         
         {/* MOBILE TOP HEADER (< 1025px, Clean White) */}
-        <header className="min-[1025px]:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shrink-0 z-30 shadow-xs">
+        <header className="no-print print:hidden min-[1025px]:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shrink-0 z-30 shadow-xs">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-slate-50 p-1 overflow-hidden shrink-0 flex items-center justify-center border border-slate-200">
               <img src={dhiuLogo} alt="DHIU Logo" className="w-full h-full object-contain" />
@@ -174,7 +174,7 @@ export default function OutReachPanel() {
         </main>
 
         {/* MOBILE BOTTOM NAVIGATION BAR: CLEAN WHITE BACKGROUND, DIRECT 5 TABS (NO (...) BUTTON) */}
-        <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center justify-around py-1.5 px-1 shadow-lg backdrop-blur-md">
+        <nav className="no-print print:hidden min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center justify-around py-1.5 px-1 shadow-lg backdrop-blur-md">
           <NavLink
             to={`/outreach-panel/${safeActOutReach}/dashboard`}
             className={bottomBarLinkClasses}

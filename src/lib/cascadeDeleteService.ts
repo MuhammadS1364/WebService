@@ -1,5 +1,6 @@
 import { SupaBaseFunction } from "./SupaBase";
 import { hydrateResultRecords } from "./resultService";
+import { syncAllStudentAndSquadPoints } from "./pointAuditService";
 import type {
   OurBatchesRecord,
   OurClassesRecord,
@@ -263,6 +264,9 @@ export async function deleteProgrammeCascade(programCode: string): Promise<void>
     error = retry.error;
   }
   if (error) throw error;
+
+  // Authoritatively re-synchronize all student, squad, and wing points
+  await syncAllStudentAndSquadPoints();
 }
 
 export async function deleteProgrammesBulkCascade(programCodes: string[]): Promise<void> {
@@ -315,6 +319,9 @@ export async function deleteProgrammesBulkCascade(programCodes: string[]): Promi
   // 5. Delete ProgrammesBox
   const { error } = await SupaBaseFunction.from("ProgrammesBox").delete().in("Program_Code", codes);
   if (error) throw error;
+
+  // Authoritatively re-synchronize all student, squad, and wing points
+  await syncAllStudentAndSquadPoints();
 }
 
 export async function deleteBatchCascade(batch: OurBatchesRecord): Promise<void> {

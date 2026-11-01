@@ -66,10 +66,10 @@ export default function AdminPanel() {
     }`;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 font-sans print:h-auto print:w-auto print:overflow-visible print:bg-white print:block">
       
       {/* DESKTOP SIDEBAR - Clean White Background, Collapses on small devices < 1025px */}
-      <aside className="hidden min-[1025px]:flex h-full w-64 bg-white text-slate-700 flex-col border-r border-slate-200 shrink-0">
+      <aside className="hidden min-[1025px]:flex h-full w-64 bg-white text-slate-700 flex-col border-r border-slate-200 shrink-0 no-print">
         
         {/* Brand Header with DHIU Official Logo */}
         <div className="p-5 flex items-center justify-between border-b border-slate-100">
@@ -97,6 +97,49 @@ export default function AdminPanel() {
             <LayoutDashboard size={16} />
             <span>Dashboard Overview</span>
           </NavLink>
+
+          {/* DEDICATED CONTROL CONSOLES: RESOLE & REG-CONSOLE */}
+          <div className="pt-2 pb-1 space-y-1">
+            <NavLink
+              to={`/admin-panel/${actUser}/resole`}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 py-2 px-3 rounded-xl text-xs font-bold transition ${
+                  isActive
+                    ? "bg-amber-500 text-slate-950 shadow-xs font-black"
+                    : "text-slate-700 hover:bg-amber-50 hover:text-amber-800"
+                }`
+              }
+              title="Resole: Full Result Control (Create, Edit, Delete Results)"
+            >
+              <Trophy size={16} className="text-amber-500 shrink-0" />
+              <div className="flex items-center justify-between flex-1">
+                <span className="font-black">Resole</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-md font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200">
+                  Results
+                </span>
+              </div>
+            </NavLink>
+
+            <NavLink
+              to={`/admin-panel/${actUser}/reg-console`}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 py-2 px-3 rounded-xl text-xs font-bold transition ${
+                  isActive
+                    ? "bg-teal-600 text-white shadow-xs font-black"
+                    : "text-slate-700 hover:bg-teal-50 hover:text-teal-800"
+                }`
+              }
+              title="Reg-Console: Full Candidate Registration Control (Add, Edit, Delete Candidates & Squads)"
+            >
+              <UserCheck size={16} className="text-teal-600 shrink-0" />
+              <div className="flex items-center justify-between flex-1">
+                <span className="font-black">Reg-Console</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-md font-extrabold uppercase bg-teal-100 text-teal-800 border border-teal-200">
+                  Registrations
+                </span>
+              </div>
+            </NavLink>
+          </div>
 
           {/* Section: Master Setup */}
           <div className="pt-2">
@@ -153,6 +196,12 @@ export default function AdminPanel() {
               <div className="pl-4 pr-1 py-1 space-y-1 mt-1 border-l-2 border-slate-200 ml-4">
                 <NavLink to={`/admin-panel/${actUser}/Programmes-List`} className={desktopNavLinkClasses}>
                   All Programmes
+                </NavLink>
+                <NavLink to={`/admin-panel/${actUser}/resole`} className={desktopNavLinkClasses}>
+                  Resole (Result Control)
+                </NavLink>
+                <NavLink to={`/admin-panel/${actUser}/reg-console`} className={desktopNavLinkClasses}>
+                  Reg-Console (Registrations)
                 </NavLink>
                 <NavLink to={`/admin-panel/${actUser}/group-programme-manager`} className={desktopNavLinkClasses}>
                   Squad & Group Hub
@@ -296,10 +345,10 @@ export default function AdminPanel() {
       </aside>
 
       {/* MAIN CONTENT WORKSPACE */}
-      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-slate-50">
+      <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-slate-50 print:h-auto print:overflow-visible print:bg-white print:block">
         
         {/* MOBILE TOP HEADER (< 1025px, Clean White) */}
-        <header className="min-[1025px]:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shrink-0 z-30 shadow-xs">
+        <header className="min-[1025px]:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 shrink-0 z-30 shadow-xs no-print">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-slate-50 p-1 overflow-hidden shrink-0 flex items-center justify-center border border-slate-200">
               <img src={dhiuLogo} alt="DHIU Logo" className="w-full h-full object-contain" />
@@ -333,24 +382,40 @@ export default function AdminPanel() {
         </header>
 
         {/* Dynamic Route Content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col pb-20 min-[1025px]:pb-0">
-          <div className="flex-1 p-3 sm:p-6 md:p-8 w-full mx-auto max-w-7xl">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col pb-20 min-[1025px]:pb-0 print:h-auto print:overflow-visible print:p-0 print:m-0 print:block">
+          <div className="flex-1 p-3 sm:p-6 md:p-8 w-full mx-auto max-w-7xl print:p-0 print:max-w-none">
             <Outlet />
           </div>
 
-          <div className="w-full mt-auto">
+          <div className="w-full mt-auto no-print">
             <SiteFooter />
           </div>
         </main>
 
         {/* MOBILE BOTTOM NAVIGATION BAR: SHOWS ALL BUTTONS WITH SMOOTH HORIZONTAL SCROLL */}
-        <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center overflow-x-auto scrollbar-none py-1.5 px-1 shadow-lg backdrop-blur-md gap-1">
+        <nav className="min-[1025px]:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-slate-200 flex items-center overflow-x-auto scrollbar-none py-1.5 px-1 shadow-lg backdrop-blur-md gap-1 no-print">
           <NavLink
             to={`/admin-panel/${actUser}/dashboard`}
             className={bottomBarLinkClasses}
           >
             <LayoutDashboard size={17} className="mb-0.5" />
             <span>Home</span>
+          </NavLink>
+
+          <NavLink
+            to={`/admin-panel/${actUser}/resole`}
+            className={bottomBarLinkClasses}
+          >
+            <Trophy size={17} className="mb-0.5 text-amber-500" />
+            <span>Resole</span>
+          </NavLink>
+
+          <NavLink
+            to={`/admin-panel/${actUser}/reg-console`}
+            className={bottomBarLinkClasses}
+          >
+            <UserCheck size={17} className="mb-0.5 text-teal-600" />
+            <span>Reg-Console</span>
           </NavLink>
 
           <NavLink
@@ -429,7 +494,7 @@ export default function AdminPanel() {
 
         {/* MOBILE FULL DRAWER (Clean white background, opened via Header menu button) */}
         {isMobileDrawerOpen && (
-          <div className="min-[1025px]:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-xs transition-opacity">
+          <div className="min-[1025px]:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-xs transition-opacity no-print">
             <div className="bg-white border-t border-slate-200 rounded-t-3xl p-5 space-y-4 max-h-[80vh] overflow-y-auto shadow-2xl">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <span className="font-bold text-sm text-slate-900 flex items-center gap-2">
@@ -448,6 +513,24 @@ export default function AdminPanel() {
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
+                <NavLink
+                  to={`/admin-panel/${actUser}/resole`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs font-black border border-amber-300"
+                >
+                  <Trophy size={16} className="text-amber-600" />
+                  <span>Resole (Result Control)</span>
+                </NavLink>
+
+                <NavLink
+                  to={`/admin-panel/${actUser}/reg-console`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-teal-50 text-teal-900 hover:bg-teal-100 text-xs font-black border border-teal-300"
+                >
+                  <UserCheck size={16} className="text-teal-600" />
+                  <span>Reg-Console (Registrations)</span>
+                </NavLink>
+
                 <NavLink
                   to={`/admin-panel/${actUser}/master-config`}
                   onClick={() => setIsMobileDrawerOpen(false)}

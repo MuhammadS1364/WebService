@@ -102,7 +102,10 @@ import {
   Printer,
   RotateCcw,
   Filter,
+  FileText,
 } from "lucide-react";
+import { AnalyticsPrintHeader, AnalyticsPrintFooter } from "../../components/AnalyticsPrintHeaderFooter";
+import A4PrintPreviewModal from "../../components/A4PrintPreviewModal";
 
 export interface Student {
   AddNo: string;
@@ -195,6 +198,7 @@ export default function StudentsAnalyticsGeneral() {
   const [students, setStudents] = useState<Student[]>([]);
   const [studentActivityDates, setStudentActivityDates] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
+  const [isA4PreviewOpen, setIsA4PreviewOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Student Detail Modal & Programmes
@@ -562,37 +566,71 @@ export default function StudentsAnalyticsGeneral() {
       achievements: s.Achievements_Points || 0, outreach: s.OutReach_Points || 0
     }));
 
+  const activeFilterLabels = useMemo(() => {
+    const list: string[] = [];
+    if (filters.Class) list.push(`Class: ${filters.Class}`);
+    if (filters.Category) list.push(`Category: ${filters.Category}`);
+    if (filters.CollegeName) list.push(`College: ${filters.CollegeName}`);
+    if (filters.StnState) list.push(`State: ${filters.StnState}`);
+    if (filters.StnDistrict) list.push(`District: ${filters.StnDistrict}`);
+    if (filters.IsActive && filters.IsActive !== "all") {
+      list.push(filters.IsActive === "true" ? "Active Students" : "Inactive Students");
+    }
+    return list;
+  }, [filters]);
+
+  const handlePrintVisual = () => {
+    if (activeTab !== "Analytics") {
+      setActiveTab("Analytics");
+      setTimeout(() => {
+        try {
+          window.focus();
+          window.print();
+        } catch (err) {
+          console.error("Print failed:", err);
+        }
+      }, 300);
+    } else {
+      try {
+        window.focus();
+        window.print();
+      } catch (err) {
+        console.error("Print failed:", err);
+      }
+    }
+  };
+
+  const [printDateString] = useState(() => {
+    const now = new Date();
+    return `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+  });
+
   if (loading) return <div className="flex items-center justify-center min-h-[50vh] text-slate-500 font-semibold animate-pulse">Loading Student Analytics...</div>;
 
   return (
-    <div className="min-h-screen bg-teal-50 p-4 sm:p-6 lg:p-8 font-sans">
+    <div className="min-h-screen bg-teal-50 p-4 sm:p-6 lg:p-8 font-sans print:min-h-0 print:bg-white print:p-0 print:overflow-visible">
       {/* PRINT-ONLY CSS */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
           body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print-block { display: block !important; }
+          .print-break-inside-avoid { break-inside: avoid !important; page-break-inside: avoid !important; }
         }
       `}</style>
 
-      {/* PRINT-ONLY BRANDED REPORT HEADER */}
-      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
-            <p className="text-sm font-bold text-slate-700">Student Performance & Engagement Visual Report</p>
-          </div>
-          <div className="text-right text-xs text-slate-600 font-mono">
-            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
-            <p className="font-bold text-teal-800">
-              {filters.startDate || filters.endDate
-                ? `Period: ${filters.startDate || "Beginning"} to ${filters.endDate || "Present"}`
-                : "Period: Complete Records"}
-            </p>
-            <p>Total Students: {filteredData.length}</p>
-          </div>
-        </div>
-      </div>
+      {/* PRINT-ONLY BRANDED REPORT HEADER WITH USER REQUESTED HEADINGS */}
+      <AnalyticsPrintHeader
+        title="Anjuman e Huda (Chs) Analytics"
+        reportType="Student Performance & Engagement Visual Report"
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        activeFilterLabels={activeFilterLabels}
+        totalCount={filteredData.length}
+        totalCountLabel="Total Students"
+        subMetrics={`Total Points: ${filteredData.reduce((s, x) => s + (x.Grand_Total_Points || 0), 0).toLocaleString()}`}
+        printDateString={printDateString}
+      />
       
       {/* Header Area */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 sm:p-6 rounded-2xl shadow-sm mb-6 gap-5 no-print">
@@ -604,12 +642,14 @@ export default function StudentsAnalyticsGeneral() {
         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-stretch sm:items-center flex-wrap">
           <div className="flex bg-slate-100 rounded-lg p-1 w-full sm:w-auto">
             <button 
+              type="button"
               onClick={() => setActiveTab("List")} 
               className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === "List" ? "bg-white text-teal-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               Directory
             </button>
             <button 
+              type="button"
               onClick={() => setActiveTab("Analytics")} 
               className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === "Analytics" ? "bg-white text-teal-700 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
@@ -619,17 +659,31 @@ export default function StudentsAnalyticsGeneral() {
 
           <button 
             type="button"
-            onClick={() => window.print()}
-            className="flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all"
-            title="Print Visual Analytics and Charts"
+            onClick={handlePrintVisual}
+            className="flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-black active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm transition-all cursor-pointer"
+            title="Print or Save PDF of Visual Analytics (A4)"
           >
             <Printer className="w-4 h-4 text-emerald-400" />
-            <span>Print Visual</span>
+            <span>Print Visual (PDF)</span>
           </button>
 
           <button 
+            type="button"
+            onClick={() => {
+              if (activeTab !== "Analytics") setActiveTab("Analytics");
+              setIsA4PreviewOpen(true);
+            }}
+            className="flex items-center justify-center gap-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 active:scale-95 px-3.5 py-2.5 rounded-lg text-sm font-bold transition-all cursor-pointer"
+            title="Preview exact A4 Ready-to-Print Document with Centered Logos"
+          >
+            <FileText className="w-4 h-4 text-teal-600" />
+            <span>A4 Ready Preview</span>
+          </button>
+
+          <button 
+            type="button"
             onClick={handleExport} 
-            className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-md shadow-teal-600/20 transition-all text-center"
+            className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 active:scale-95 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-md shadow-teal-600/20 transition-all text-center cursor-pointer"
           >
             Export CSV ({filteredData.length})
           </button>
@@ -648,18 +702,28 @@ export default function StudentsAnalyticsGeneral() {
               </span>
             )}
           </div>
-          {(filters.startDate || filters.endDate || filters.Class || filters.Category || filters.CollegeName || filters.StnState || filters.StnDistrict || filters.IsActive !== "all") && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setFilters({
-                Class: "", Category: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "all",
-                startDate: "", endDate: ""
-              })}
-              className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition"
+              onClick={() => setFilters(prev => ({ ...prev, startDate: "2026-10-01", endDate: "2026-10-31" }))}
+              className="flex items-center gap-1 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+              title="Filter by month: 01 Oct - 31 Oct 2026"
             >
-              <RotateCcw className="w-3 h-3" /> Reset Filters
+              <Calendar className="w-3 h-3 text-teal-600" /> Oct 2026 Data
             </button>
-          )}
+            {(filters.startDate || filters.endDate || filters.Class || filters.Category || filters.CollegeName || filters.StnState || filters.StnDistrict || filters.IsActive !== "all") && (
+              <button
+                type="button"
+                onClick={() => setFilters({
+                  Class: "", Category: "", StnState: "", StnDistrict: "", CollegeName: "", IsActive: "all",
+                  startDate: "", endDate: ""
+                })}
+                className="flex items-center gap-1 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg transition"
+              >
+                <RotateCcw className="w-3 h-3" /> Reset Filters
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-2.5">
@@ -729,9 +793,9 @@ export default function StudentsAnalyticsGeneral() {
       </div>
 
       {activeTab === "Analytics" ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 print:grid-cols-1 print:gap-6">
           
-          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-base font-bold text-slate-700 m-0">Total Points by Class (Top 10)</h3>
               <span className="text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
@@ -739,7 +803,7 @@ export default function StudentsAnalyticsGeneral() {
               </span>
             </div>
             <p className="text-xs text-slate-400 mb-4">Class nickname shown directly below each bar</p>
-            <div className="h-[300px] w-full">
+            <div className="h-[300px] w-full print:h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={pointsByClass} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -778,9 +842,9 @@ export default function StudentsAnalyticsGeneral() {
             </div>
           </div>
 
-          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
             <h3 className="text-base font-bold text-slate-700 mb-5">Students by Academic Category</h3>
-            <div className="h-[270px] w-full">
+            <div className="h-[270px] w-full print:h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={studentsByCategory} cx="50%" cy="50%" innerRadius="55%" outerRadius="80%" paddingAngle={2} dataKey="value" nameKey="name">
@@ -800,9 +864,9 @@ export default function StudentsAnalyticsGeneral() {
             </div>
           </div>
 
-          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
             <h3 className="text-base font-bold text-slate-700 mb-5">Student Distribution by District</h3>
-            <div className="h-[270px] w-full">
+            <div className="h-[270px] w-full print:h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={studentsByDistrict} cx="50%" cy="50%" innerRadius="55%" outerRadius="80%" paddingAngle={2} dataKey="value">
@@ -822,9 +886,9 @@ export default function StudentsAnalyticsGeneral() {
             </div>
           </div>
 
-          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-100 print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
             <h3 className="text-base font-bold text-slate-700 mb-5">Top 5 Outstanding Students</h3>
-            <div className="h-[270px] w-full">
+            <div className="h-[270px] w-full print:h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={topStudents} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -844,6 +908,10 @@ export default function StudentsAnalyticsGeneral() {
             </div>
           </div>
 
+          {/* PRINT-ONLY OFFICIAL FOOTER WITH TWO CENTERED LOGOS */}
+          <div className="col-span-1 lg:col-span-2">
+            <AnalyticsPrintFooter />
+          </div>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -1164,6 +1232,78 @@ export default function StudentsAnalyticsGeneral() {
           </div>
         </div>
       )}
+      {/* A4 OFFICIAL PRINT & PDF PREVIEW MODAL */}
+      <A4PrintPreviewModal
+        isOpen={isA4PreviewOpen}
+        onClose={() => setIsA4PreviewOpen(false)}
+        title="Anjuman e Huda (Chs) Analytics"
+        reportType="Student Performance & Engagement Visual Report"
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        activeFilterLabels={activeFilterLabels}
+        totalCount={filteredData.length}
+        totalCountLabel="Total Students"
+        subMetrics={`Total Points: ${filteredData.reduce((s, x) => s + (x.Grand_Total_Points || 0), 0).toLocaleString()}`}
+        printDateString={printDateString}
+      >
+        <div className="space-y-6">
+          {/* Chart 1: Points by Class */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Total Points by Class (Top 10)</h3>
+            <div className="h-[230px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={pointsByClass} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{fill: '#0f172a', fontSize: 11, fontWeight: 700}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fill: '#64748b', fontSize: 10}} axisLine={false} tickLine={false} />
+                  <Bar dataKey="points" name="Total Points" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Chart 2: Students by Academic Category */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Students by Academic Category</h3>
+            <div className="h-[210px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={studentsByCategory} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value">
+                    {studentsByCategory.map((_, index) => (
+                      <Cell key={`stn-cat-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] text-slate-600 pt-2">
+              {studentsByCategory.map((item, idx) => (
+                <span key={item.name} className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                  {item.name}: {item.value}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Chart 3: Top Outstanding Students */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Top 5 Outstanding Students</h3>
+            <div className="h-[210px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={topStudents} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis dataKey="name" tick={{fill: '#64748b', fontSize: 10}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fill: '#64748b', fontSize: 10}} axisLine={false} tickLine={false} />
+                  <Area type="monotone" dataKey="total" name="Grand Total" fill="#cffafe" stroke="#0ea5e9" />
+                  <Bar dataKey="achievements" name="Achievement Pts" barSize={24} fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="outreach" name="Outreach Pts" stroke="#8b5cf6" strokeWidth={2.5} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </A4PrintPreviewModal>
     </div>
   );
 }

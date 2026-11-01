@@ -266,16 +266,17 @@ export default function SquadRegistrationModal({
 
       if (squadError) throw squadError;
 
-      // Register all squad members to CandidateRegistrationTable for this program
-      const candidateInserts = filledMembers.map((memberId) => ({
-        Program_Code: programCode,
-        Candidate_Code: memberId,
-        squad_uuid: squadData?.squad_id || null,
-      }));
-
+      // Register squad in CandidateRegistrationTable for this group program
+      // User requirement: For group programmes, squad_uuid is populated and Candidate_Code is kept NULL
       await SupaBaseFunction
         .from("CandidateRegistrationTable")
-        .insert(candidateInserts);
+        .insert([
+          {
+            Program_Code: programCode,
+            Candidate_Code: null,
+            squad_uuid: squadData?.squad_id,
+          },
+        ]);
 
       // Increment program registration counter
       const { data: prog } = await SupaBaseFunction
@@ -371,15 +372,17 @@ export default function SquadRegistrationModal({
         return;
       }
 
-      const candidateInserts = squadMembers.map((m) => ({
-        Program_Code: programCode,
-        Candidate_Code: m,
-        squad_uuid: targetSquad.squad_id || null,
-      }));
-
+      // Register squad in CandidateRegistrationTable for this group program
+      // User requirement: For group programmes, squad_uuid is populated and Candidate_Code is kept NULL
       await SupaBaseFunction
         .from("CandidateRegistrationTable")
-        .insert(candidateInserts);
+        .insert([
+          {
+            Program_Code: programCode,
+            Candidate_Code: null,
+            squad_uuid: targetSquad.squad_id,
+          },
+        ]);
 
       // Update squad participation count
       await SupaBaseFunction

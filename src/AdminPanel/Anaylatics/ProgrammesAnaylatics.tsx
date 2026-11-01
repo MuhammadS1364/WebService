@@ -14,8 +14,11 @@ import {
   Printer,
   Calendar,
   X,
-  RotateCcw
+  RotateCcw,
+  FileText
 } from "lucide-react";
+import { AnalyticsPrintHeader, AnalyticsPrintFooter } from "../../components/AnalyticsPrintHeaderFooter";
+import A4PrintPreviewModal from "../../components/A4PrintPreviewModal";
 
 export interface WingSummary {
   WingCode: string;
@@ -54,6 +57,7 @@ export default function ProgrammesAnalytics() {
   const [venuesList, setVenuesList] = useState<VenueOption[]>([]);
   const [academicYearsList, setAcademicYearsList] = useState<AcademicOption[]>([]);
   const [activeTab, setActiveTab] = useState<"Analytics" | "List">("Analytics");
+  const [isA4PreviewOpen, setIsA4PreviewOpen] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Dynamic Lookup Maps
@@ -414,20 +418,57 @@ export default function ProgrammesAnalytics() {
       return acc;
     }, {});
     return Object.values(map);
-  }, [filteredData, meta]);
+  }, [filteredData, meta.categoryMap]);
 
   const timelineData = useMemo(() => {
-    const map = filteredData.reduce<Record<string, { name: string; programs: number }>>((acc, curr) => {
-      if (!curr.Date) return acc;
-      const dateObj = new Date(curr.Date);
-      if (isNaN(dateObj.getTime())) return acc;
-      
-      const month = dateObj.toLocaleString('default', { month: 'short', year: '2-digit' });
-      if (!acc[month]) acc[month] = { name: month, programs: 0 };
-      acc[month].programs += 1;
-      return acc;
-    }, {});
-    return Object.values(map);
+    // Collect all valid dates from filteredData
+    const itemsWithDates: { date: Date; dateStr: string }[] = [];
+    filteredData.forEach((p) => {
+      const d = parseFlexibleDate(p.Date || p.created_at);
+      if (d && !isNaN(d.getTime())) {
+        itemsWithDates.push({ date: d, dateStr: p.Date || "" });
+      }
+    });
+
+    if (itemsWithDates.length === 0) return [];
+
+    // Check time span (in days) between earliest and latest date
+    const timestamps = itemsWithDates.map(item => item.date.getTime());
+    const minTime = Math.min(...timestamps);
+    const maxTime = Math.max(...timestamps);
+    const diffDays = (maxTime - minTime) / (1000 * 60 * 60 * 24);
+
+    // If all events fall within 45 days (e.g. single month like Oct 2026), group by Day
+    // If events span across multiple months, group by Month-Year (e.g. "Jul 26", "Aug 26", "Sep 26", "Oct 26")
+    const isShortRange = diffDays <= 45;
+
+    const map = new Map<string, { name: string; timestamp: number; programs: number }>();
+
+    itemsWithDates.forEach(({ date }) => {
+      const key = isShortRange
+        ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+        : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+      const label = isShortRange
+        ? date.toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+        : date.toLocaleString("default", { month: "short", year: "2-digit" });
+
+      const sortTimestamp = isShortRange
+        ? new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+        : new Date(date.getFullYear(), date.getMonth(), 1).getTime();
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.programs += 1;
+      } else {
+        map.set(key, { name: label, timestamp: sortTimestamp, programs: 1 });
+      }
+    });
+
+    // CRITICAL USER REQUIREMENT:
+    // "and programe trend time line start from the left to right ok"
+    // Strictly sort in ASCENDING chronological order (earliest date on far left -> latest on far right)
+    return Array.from(map.values()).sort((a, b) => a.timestamp - b.timestamp);
   }, [filteredData]);
 
   // Derived KPI metrics
@@ -435,6 +476,56 @@ export default function ProgrammesAnalytics() {
   const totalRegistrations = filteredData.reduce((sum, p) => sum + (p.Total_Registration || 0), 0);
   const conductedPrograms = filteredData.filter(p => p.IsConducted).length;
   const upcomingPrograms = totalPrograms - conductedPrograms;
+
+  const activeFilterLabels = useMemo(() => {
+    const list: string[] = [];
+    if (filters.AccademicYear) list.push(`Year: ${filters.AccademicYear}`);
+    if (filters.Category) {
+      const c = availableCategories.find(cat => cat.id === filters.Category);
+      list.push(`Category: ${c?.label || filters.Category}`);
+    }
+    if (filters.WingCode) {
+      const w = availableWings.find(wing => wing.WingCode === filters.WingCode);
+      list.push(`Wing: ${w?.label || filters.WingCode}`);
+    }
+    if (filters.Venue) {
+      const v = availableVenues.find(ven => ven.id === filters.Venue);
+      list.push(`Venue: ${v?.label || filters.Venue}`);
+    }
+    if (filters.Group) {
+      list.push(filters.Group === "true" ? "Group Programmes" : "Single Programmes");
+    }
+    if (filters.Collaborator) {
+      list.push(`Collaborator: ${filters.Collaborator}`);
+    }
+    return list;
+  }, [filters, availableCategories, availableWings, availableVenues]);
+
+  const handlePrintVisual = () => {
+    if (activeTab !== "Analytics") {
+      setActiveTab("Analytics");
+      setTimeout(() => {
+        try {
+          window.focus();
+          window.print();
+        } catch (err) {
+          console.error("Print error:", err);
+        }
+      }, 300);
+    } else {
+      try {
+        window.focus();
+        window.print();
+      } catch (err) {
+        console.error("Print error:", err);
+      }
+    }
+  };
+
+  const [printDateString] = useState(() => {
+    const now = new Date();
+    return `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+  });
 
   if (loading) {
     return (
@@ -448,7 +539,7 @@ export default function ProgrammesAnalytics() {
   }
 
   return (
-    <div className="w-full max-w-full overflow-hidden font-sans space-y-5 sm:space-y-6">
+    <div className="w-full max-w-full overflow-hidden font-sans space-y-5 sm:space-y-6 print:overflow-visible print:max-w-none print:space-y-4">
       {/* PRINT-ONLY CSS */}
       <style>{`
         @media print {
@@ -456,28 +547,22 @@ export default function ProgrammesAnalytics() {
           body { background: white !important; color: #0f172a !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .print-block { display: block !important; }
           .print-table { display: table !important; width: 100% !important; }
-          .print-break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+          .print-break-inside-avoid { break-inside: avoid !important; page-break-inside: avoid !important; }
         }
       `}</style>
 
-      {/* PRINT-ONLY BRANDED REPORT HEADER */}
-      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Anjuman e Huda</h1>
-            <p className="text-sm font-bold text-slate-700">Programmes & Events Visual Analytics Report</p>
-          </div>
-          <div className="text-right text-xs text-slate-600 font-mono">
-            <p>Printed: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
-            <p className="font-bold text-indigo-800">
-              {filters.startDate || filters.endDate
-                ? `Filtered Period: ${filters.startDate || "Beginning"} to ${filters.endDate || "Present"}`
-                : "Period: Complete Records"}
-            </p>
-            <p>Total Events: {totalPrograms} | Registrations: {totalRegistrations}</p>
-          </div>
-        </div>
-      </div>
+      {/* PRINT-ONLY BRANDED REPORT HEADER WITH USER REQUESTED HEADINGS */}
+      <AnalyticsPrintHeader
+        title="Anjuman e Huda (Chs) Analytics"
+        reportType="Programmes & Events Visual Analytics"
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        activeFilterLabels={activeFilterLabels}
+        totalCount={totalPrograms}
+        totalCountLabel="Total Events"
+        subMetrics={`Registrations: ${totalRegistrations.toLocaleString()} | Conducted: ${conductedPrograms}`}
+        printDateString={printDateString}
+      />
 
       {/* HEADER SECTION (Fully Responsive on Mobile) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs gap-4 no-print">
@@ -500,6 +585,7 @@ export default function ProgrammesAnalytics() {
         <div className="flex flex-wrap sm:flex-nowrap gap-2.5 w-full md:w-auto items-center">
           <div className="flex bg-slate-100 p-1 rounded-2xl w-full sm:w-auto">
             <button 
+              type="button"
               onClick={() => setActiveTab("Analytics")} 
               className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeTab === "Analytics"
@@ -510,6 +596,7 @@ export default function ProgrammesAnalytics() {
               Analytics
             </button>
             <button 
+              type="button"
               onClick={() => setActiveTab("List")} 
               className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                 activeTab === "List"
@@ -522,6 +609,7 @@ export default function ProgrammesAnalytics() {
           </div>
 
           <button
+            type="button"
             onClick={handleExport}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm shadow-indigo-200 transition-all cursor-pointer shrink-0 no-print"
           >
@@ -530,12 +618,26 @@ export default function ProgrammesAnalytics() {
           </button>
 
           <button
-            onClick={() => window.print()}
+            type="button"
+            onClick={handlePrintVisual}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-black active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all cursor-pointer shrink-0 no-print"
-            title="Print or Save PDF of the Visual Analytics & Directory"
+            title="Print or Save PDF of the Visual Analytics (A4)"
           >
-            <Printer size={14} />
-            <span>Print Visual</span>
+            <Printer size={15} />
+            <span>Print Visual (PDF)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (activeTab !== "Analytics") setActiveTab("Analytics");
+              setIsA4PreviewOpen(true);
+            }}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 active:scale-95 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 no-print"
+            title="Preview exact A4 Ready-to-Print Document with Centered Logos"
+          >
+            <FileText size={15} />
+            <span>A4 Ready Preview</span>
           </button>
         </div>
       </div>
@@ -657,17 +759,27 @@ export default function ProgrammesAnalytics() {
                 title="End Date"
               />
             </div>
-
-            {(filters.startDate || filters.endDate) && (
+            <div className="flex items-center gap-1.5 self-end">
               <button
                 type="button"
-                onClick={() => setFilters(prev => ({ ...prev, startDate: "", endDate: "" }))}
-                className="self-end px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
-                title="Clear date filter"
+                onClick={() => setFilters(prev => ({ ...prev, startDate: "2026-10-01", endDate: "2026-10-31" }))}
+                className="px-2.5 py-2 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition-colors cursor-pointer"
+                title="Filter by month: 01 Oct - 31 Oct 2026"
               >
-                <X size={13} /> Clear
+                Oct 2026
               </button>
-            )}
+
+              {(filters.startDate || filters.endDate) && (
+                <button
+                  type="button"
+                  onClick={() => setFilters(prev => ({ ...prev, startDate: "", endDate: "" }))}
+                  className="px-2.5 py-2 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Clear date filter"
+                >
+                  <X size={13} /> Clear
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -676,30 +788,30 @@ export default function ProgrammesAnalytics() {
       {activeTab === "Analytics" ? (
         <div className="space-y-6">
 
-          {/* KPI CARDS (2 cols on mobile, 4 cols on desktop) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+          {/* KPI CARDS (2 cols on mobile, 4 cols on desktop & print) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 print:grid-cols-4 print:gap-3 print-break-inside-avoid break-inside-avoid">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">
                 Total Events
               </span>
               <p className="text-xl sm:text-3xl font-black text-slate-900 mt-1">{totalPrograms}</p>
             </div>
 
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">
                 Total Registrations
               </span>
               <p className="text-xl sm:text-3xl font-black text-indigo-600 mt-1">{totalRegistrations}</p>
             </div>
 
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">
                 Conducted
               </span>
               <p className="text-xl sm:text-3xl font-black text-emerald-600 mt-1">{conductedPrograms}</p>
             </div>
 
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs print:border-slate-300 print:shadow-none print:p-3">
               <span className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-wider block">
                 Upcoming
               </span>
@@ -707,18 +819,18 @@ export default function ProgrammesAnalytics() {
             </div>
           </div>
 
-          {/* CHARTS CONTAINER (Clean Responsive Grid, no fixed 400px minwidth) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          {/* CHARTS CONTAINER (Clean Responsive Grid, avoid breaking across pages in print) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 print:grid-cols-1 print:gap-6">
             
             {/* Registrations by Wing */}
-            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden print:overflow-visible print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">
                   Registrations by Wing (Top 8)
                 </h3>
                 <span className="text-xs text-slate-400 font-medium">Candidate Count</span>
               </div>
-              <div className="h-[260px] sm:h-[300px] w-full min-w-0">
+              <div className="h-[260px] sm:h-[300px] w-full min-w-0 print:h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={registrationsByWing} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -742,14 +854,14 @@ export default function ProgrammesAnalytics() {
             </div>
 
             {/* Programs by Category */}
-            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden print:overflow-visible print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">
                   Events by Category
                 </h3>
                 <span className="text-xs text-slate-400 font-medium">Distribution</span>
               </div>
-              <div className="h-[260px] sm:h-[300px] w-full min-w-0">
+              <div className="h-[260px] sm:h-[300px] w-full min-w-0 print:h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -782,37 +894,46 @@ export default function ProgrammesAnalytics() {
             </div>
 
             {/* Program Frequency Timeline */}
-            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden lg:col-span-2">
+            <div className="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-xs min-w-0 overflow-hidden lg:col-span-2 print:col-span-1 print:overflow-visible print:border-slate-300 print:shadow-none print:p-4 print-break-inside-avoid break-inside-avoid">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm sm:text-base font-bold text-slate-800">
                   Programme Timeline Trend
                 </h3>
                 <span className="text-xs text-slate-400 font-medium">Events Scheduled</span>
               </div>
-              <div className="h-[260px] sm:h-[300px] w-full min-w-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={timelineData} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <RechartsTooltip
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="programs"
-                      name="Programmes"
-                      stroke="#14b8a6"
-                      strokeWidth={3}
-                      dot={{ r: 4, fill: '#14b8a6' }}
-                      activeDot={{ r: 7 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="h-[260px] sm:h-[300px] w-full min-w-0 print:h-[240px]">
+                {timelineData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={timelineData} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: '#64748b', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                      <RechartsTooltip
+                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="programs"
+                        name="Programmes"
+                        stroke="#14b8a6"
+                        strokeWidth={3}
+                        dot={{ r: 4, fill: '#14b8a6' }}
+                        activeDot={{ r: 7 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                    No scheduled timeline data found for current filters.
+                  </div>
+                )}
               </div>
             </div>
             
           </div>
+
+          {/* PRINT-ONLY OFFICIAL FOOTER WITH TWO CENTERED LOGOS */}
+          <AnalyticsPrintFooter />
         </div>
       ) : (
         /* TABLE LIST VIEW (Responsive: Mobile Cards < 640px, Table >= 640px) */
@@ -926,6 +1047,106 @@ export default function ProgrammesAnalytics() {
           </div>
         </div>
       )}
+      {/* A4 OFFICIAL PRINT & PDF PREVIEW MODAL */}
+      <A4PrintPreviewModal
+        isOpen={isA4PreviewOpen}
+        onClose={() => setIsA4PreviewOpen(false)}
+        title="Anjuman e Huda (Chs) Analytics"
+        reportType="Programmes & Events Visual Analytics"
+        startDate={filters.startDate}
+        endDate={filters.endDate}
+        activeFilterLabels={activeFilterLabels}
+        totalCount={totalPrograms}
+        totalCountLabel="Total Events"
+        subMetrics={`Registrations: ${totalRegistrations.toLocaleString()} | Conducted: ${conductedPrograms}`}
+        printDateString={printDateString}
+      >
+        {/* KPI Grid */}
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Events</span>
+            <p className="text-xl font-black text-slate-900 mt-0.5">{totalPrograms}</p>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Registrations</span>
+            <p className="text-xl font-black text-indigo-600 mt-0.5">{totalRegistrations}</p>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Conducted</span>
+            <p className="text-xl font-black text-emerald-600 mt-0.5">{conductedPrograms}</p>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Upcoming</span>
+            <p className="text-xl font-black text-amber-500 mt-0.5">{upcomingPrograms}</p>
+          </div>
+        </div>
+
+        {/* Charts in Clean Single-Column A4 Layout */}
+        <div className="space-y-6">
+          {/* Chart 1 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Registrations by Wing (Top 8)</h3>
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={registrationsByWing} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} interval={0} tickFormatter={(val: string) => (val.length > 9 ? val.slice(0, 7) + "…" : val)} />
+                  <YAxis tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Bar dataKey="registrations" name="Registrations" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Chart 2 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-2">Events by Category</h3>
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={categoryData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={3} dataKey="value">
+                    {categoryData.map((_, index) => (
+                      <Cell key={`preview-cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] text-slate-600 pt-2">
+              {categoryData.map((item, idx) => (
+                <span key={item.name} className="inline-flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                  {item.name}: {item.value}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Chart 3 */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-slate-800">Programme Timeline Trend</h3>
+              <span className="text-[10px] text-slate-400 font-semibold">Chronological: Left to Right</span>
+            </div>
+            <div className="h-[200px] w-full">
+              {timelineData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={timelineData} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#64748b', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Line type="monotone" dataKey="programs" name="Programmes" stroke="#14b8a6" strokeWidth={2.5} dot={{ r: 3, fill: '#14b8a6' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                  No timeline data for current filter
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </A4PrintPreviewModal>
     </div>
   );
 }

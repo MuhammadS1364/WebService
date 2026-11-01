@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../src/lib/SupaBase";
 import { useProgrammeMeta } from "../../src/lib/programmeMeta";
 import SafeImage from "../lib/SafeImage";
 import type { PointsTemplateRecord } from "../../src/lib/types";
-import { hydrateResultRecords, ensureCandidateRegistrationUuid } from "../lib/resultService";
+import { hydrateResultRecords, ensureCandidateRegistrationUuid, deleteOfficialResult } from "../lib/resultService";
+import { syncAllStudentAndSquadPoints } from "../lib/pointAuditService";
 import PrintCandidateSheetModal from "../components/PrintCandidateSheetModal";
 import {
   Trophy,
@@ -16,6 +17,7 @@ import {
   Zap,
   Printer,
   FileText,
+  Trash2,
 } from "lucide-react";
 
 interface RegisteredCandidate {
@@ -138,10 +140,12 @@ export default function CreateResult() {
   const [isEditingExistingResult, setIsEditingExistingResult] = useState<boolean>(false);
   const [_existingResultId, setExistingResultId] = useState<string | null>(null);
   const [_previousPointsAwarded, setPreviousPointsAwarded] = useState<number>(0);
-  const [previousAllocations, setPreviousAllocations] = useState<{ addNo: string; points: number }[]>([]);
-  const [previousSquadAllocations, setPreviousSquadAllocations] = useState<{ squadId: string; points: number }[]>([]);
+  const [_previousAllocations, setPreviousAllocations] = useState<{ addNo: string; points: number }[]>([]);
+  const [_previousSquadAllocations, setPreviousSquadAllocations] = useState<{ squadId: string; points: number }[]>([]);
   const [candCodeToUuid, setCandCodeToUuid] = useState<Record<string, string>>({});
   const [candUuidToCode, setCandUuidToCode] = useState<Record<string, string>>({});
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [isDeletingResult, setIsDeletingResult] = useState<boolean>(false);
   const [statusMsg, setStatusMsg] = useState<{
     type: "success" | "error" | "";
     text: string;
@@ -761,12 +765,12 @@ export default function CreateResult() {
     }
 
     onProgramChange();
-  }, [selectedProgram, programmes, allTemplates]);
+  }, [selectedProgram, programmes, allTemplates, activeTemplate, canEditExistingResult]);
 
 
 
   // Calculate points for each position dynamically
-  const calculatePoints = (pos: keyof HoldersState, grade: GradeSelection): number => {
+  const calculatePoints = useCallback((pos: keyof HoldersState, grade: GradeSelection): number => {
     const t = activeTemplate;
     if (pos === "first") {
       if (grade === "A") return t.first_A_grade ?? 10;
@@ -790,7 +794,7 @@ export default function CreateResult() {
       return t.B_grade ?? 3;
     }
     return 0;
-  };
+  }, [activeTemplate]);
 
   const selectedProgDetails = programmes.find((p) => p.Program_Code === selectedProgram);
   const isGroupProgram = Boolean(selectedProgDetails?.is_group_program);
@@ -943,9 +947,59 @@ export default function CreateResult() {
     });
 
     return list;
-  }, [holders, activeTemplate, isGroupProgram, registeredSquads]);
+  }, [holders, calculatePoints, isGroupProgram, registeredSquads]);
 
   const totalPointsAwarded = allocationsSummary.reduce((sum, a) => sum + a.points, 0);
+
+  // Delete official result (Strictly authorized for Wing and Admin)
+  const handleDeleteResult = async () => {
+    if (!canEditExistingResult) {
+      setStatusMsg({
+        type: "error",
+        text: "Permission Denied: Official results can only be deleted by Wing Managers and Central Admins.",
+      });
+      return;
+    }
+    if (!selectedProgram) return;
+
+    try {
+      setIsDeletingResult(true);
+      setStatusMsg({ type: "", text: "" });
+
+      const outcome = await deleteOfficialResult(selectedProgram);
+      if (!outcome.success) {
+        throw new Error(outcome.message);
+      }
+
+      setStatusMsg({
+        type: "success",
+        text: outcome.message,
+      });
+
+      setIsDeleteModalOpen(false);
+      setIsEditingExistingResult(false);
+      setExistingResultId(null);
+      setHolders(INITIAL_HOLDERS);
+      setPreviousAllocations([]);
+      setPreviousSquadAllocations([]);
+      setPreviousPointsAwarded(0);
+
+      // Update programmes in local state to unresulted
+      setProgrammes((prev) =>
+        prev.map((p) =>
+          p.Program_Code === selectedProgram ? { ...p, IsResulted: false, IsResultPublished: false } : p
+        )
+      );
+    } catch (err: any) {
+      console.error("Error deleting result:", err);
+      setStatusMsg({
+        type: "error",
+        text: "Failed to delete result: " + (err.message || "Unknown error"),
+      });
+    } finally {
+      setIsDeletingResult(false);
+    }
+  };
 
   // Submit official result and assign points to students and wing
   const handleSubmit = async (e: React.FormEvent) => {
@@ -998,19 +1052,38 @@ export default function CreateResult() {
       setLoadingSubmit(true);
       setStatusMsg({ type: "", text: "" });
 
-      const progWingCode = selectedProgDetails?.WingCode || wingCode;
+      const isValidUuid = (u?: string | null): boolean => {
+        return Boolean(u && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(u.trim()));
+      };
+
+      // Result is being created or updated; authoritative sync will run after saving ResultBox and ProgrammesBox
 
       // 1. Resolve UUIDs and Insert or Update ResultBox
       const resolveCandidateUuid = async (candidateAddNo?: string | null): Promise<string | null> => {
         if (!candidateAddNo || !candidateAddNo.trim()) return null;
         const clean = candidateAddNo.trim();
-        if (candCodeToUuid[clean]) return candCodeToUuid[clean];
+        // If already a valid UUID
+        if (isValidUuid(clean)) return clean;
+        if (candCodeToUuid[clean] && isValidUuid(candCodeToUuid[clean])) return candCodeToUuid[clean];
         const resolved = await ensureCandidateRegistrationUuid(selectedProgram, clean);
-        if (resolved) {
+        if (resolved && isValidUuid(resolved)) {
           setCandCodeToUuid((prev) => ({ ...prev, [clean]: resolved }));
           setCandUuidToCode((prev) => ({ ...prev, [resolved]: clean }));
+          return resolved;
         }
-        return resolved;
+        return null;
+      };
+
+      const resolveSquadUuid = (idOrTitle?: string | null): string | null => {
+        if (!idOrTitle || !idOrTitle.trim()) return null;
+        const clean = idOrTitle.trim();
+        if (isValidUuid(clean)) return clean;
+        const found = registeredSquads.find(
+          (s) =>
+            s.squad_id === clean ||
+            (typeof s.squad_title === "string" && s.squad_title.toLowerCase() === clean.toLowerCase())
+        );
+        return found?.squad_id && isValidUuid(found.squad_id) ? found.squad_id : null;
       };
 
       const firstCandUuid = !isGroupProgram ? await resolveCandidateUuid(holders.first.addNo) : null;
@@ -1029,32 +1102,58 @@ export default function CreateResult() {
         || (holders.second.grade === "B" ? secondCandUuid : null)
         || (holders.third.grade === "B" ? thirdCandUuid : null);
 
-      const gradeSquad1 = (holders.aGrade.addNo || null)
+      const rawGradeSquad1 = (holders.aGrade.addNo || null)
         || (holders.first.grade === "A" ? holders.first.addNo : null)
         || (holders.second.grade === "A" ? holders.second.addNo : null)
         || (holders.third.grade === "A" ? holders.third.addNo : null);
 
-      const gradeSquad2 = (holders.bGrade.addNo || null)
+      const rawGradeSquad2 = (holders.bGrade.addNo || null)
         || (holders.first.grade === "B" ? holders.first.addNo : null)
         || (holders.second.grade === "B" ? holders.second.addNo : null)
         || (holders.third.grade === "B" ? holders.third.addNo : null);
 
-      const resultPayload = {
-        Program_Id: selectedProgram,
-        creaded_At: new Date().toTimeString().split(" ")[0],
-        is_published: true,
-        is_group: isGroupProgram,
-        "1st_holder_group": isGroupProgram ? (holders.first.addNo || null) : null,
-        "2nd_holder_group": isGroupProgram ? (holders.second.addNo || null) : null,
-        "3rd_holder_group": isGroupProgram ? (holders.third.addNo || null) : null,
-        grade_holder_group1: isGroupProgram ? (gradeSquad1 || null) : null,
-        grade_holder_group2: isGroupProgram ? (gradeSquad2 || null) : null,
-        First_Holder_uuid: !isGroupProgram ? firstCandUuid : null,
-        Second_Holder_uuid: !isGroupProgram ? secondCandUuid : null,
-        Third_Holder_uuid: !isGroupProgram ? thirdCandUuid : null,
-        Grade1_uuid: !isGroupProgram ? grade1CandUuid : null,
-        Grade2_uuid: !isGroupProgram ? grade2CandUuid : null,
-      };
+      const firstSquadUuid = isGroupProgram ? resolveSquadUuid(holders.first.addNo) : null;
+      const secondSquadUuid = isGroupProgram ? resolveSquadUuid(holders.second.addNo) : null;
+      const thirdSquadUuid = isGroupProgram ? resolveSquadUuid(holders.third.addNo) : null;
+      const gradeSquad1Uuid = isGroupProgram ? resolveSquadUuid(rawGradeSquad1) : null;
+      const gradeSquad2Uuid = isGroupProgram ? resolveSquadUuid(rawGradeSquad2) : null;
+
+      // STRICT USER REQUIREMENT:
+      // For group: use "1st_holder_group", "2nd_holder_group", "3rd_holder_group", grade_holder_group1, grade_holder_group2 and rest keep null
+      // For individual: use "First_Holder_uuid", "Second_Holder_uuid", "Third_Holder_uuid", "Grade1_uuid", "Grade2_uuid" and rest keep null
+      const resultPayload = isGroupProgram
+        ? {
+            Program_Id: selectedProgram,
+            creaded_At: new Date().toTimeString().split(" ")[0],
+            is_published: true,
+            is_group: true,
+            "1st_holder_group": firstSquadUuid,
+            "2nd_holder_group": secondSquadUuid,
+            "3rd_holder_group": thirdSquadUuid,
+            grade_holder_group1: gradeSquad1Uuid,
+            grade_holder_group2: gradeSquad2Uuid,
+            First_Holder_uuid: null,
+            Second_Holder_uuid: null,
+            Third_Holder_uuid: null,
+            Grade1_uuid: null,
+            Grade2_uuid: null,
+          }
+        : {
+            Program_Id: selectedProgram,
+            creaded_At: new Date().toTimeString().split(" ")[0],
+            is_published: true,
+            is_group: false,
+            First_Holder_uuid: firstCandUuid,
+            Second_Holder_uuid: secondCandUuid,
+            Third_Holder_uuid: thirdCandUuid,
+            Grade1_uuid: grade1CandUuid,
+            Grade2_uuid: grade2CandUuid,
+            "1st_holder_group": null,
+            "2nd_holder_group": null,
+            "3rd_holder_group": null,
+            grade_holder_group1: null,
+            grade_holder_group2: null,
+          };
 
       // Check if ResultBox already exists for this programme
       const { data: existingResult } = await SupaBaseFunction
@@ -1068,170 +1167,21 @@ export default function CreateResult() {
           .from("ResultBox")
           .update(resultPayload)
           .eq("Result_id", existingResult.Result_id);
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error("Result update failed in ResultBox:", updateError);
+          throw new Error(updateError.message || "Failed to update ResultBox");
+        }
       } else {
-        const { error: insertError } = await SupaBaseFunction.from("ResultBox").insert([resultPayload]);
-        if (insertError) throw insertError;
-      }
-
-      // 2. ASSIGN EQUAL POINTS TO EACH STUDENT/TEAMMATE in StudentsBox
-      // If editing an existing result, revert previous allocations first to prevent duplicate or inflated point counts
-      if (isEditingExistingResult && previousAllocations.length > 0) {
-        for (const prev of previousAllocations) {
-          try {
-            const { data: stn } = await SupaBaseFunction
-              .from("StudentsBox")
-              .select("AddNo, Resluted_Count, Total_Point_Anjuman, Grand_Total_Points")
-              .eq("AddNo", prev.addNo)
-              .maybeSingle();
-
-            if (stn) {
-              await SupaBaseFunction
-                .from("StudentsBox")
-                .update({
-                  Resluted_Count: Math.max(0, Number(stn.Resluted_Count || 0) - 1),
-                  Total_Point_Anjuman: Math.max(0, Number(stn.Total_Point_Anjuman || 0) - prev.points),
-                  Grand_Total_Points: Math.max(0, Number(stn.Grand_Total_Points || 0) - prev.points),
-                })
-                .eq("AddNo", prev.addNo);
-            }
-          } catch (revErr) {
-            console.warn("Could not revert previous student points:", prev.addNo, revErr);
-          }
+        const { error: insertError } = await SupaBaseFunction
+          .from("ResultBox")
+          .insert([resultPayload]);
+        if (insertError) {
+          console.error("Result creation failed in ResultBox:", insertError);
+          throw new Error(insertError.message || "Failed to create ResultBox");
         }
       }
 
-      // Revert previous squad points in SquadMate for group programmes
-      if (isEditingExistingResult && previousSquadAllocations.length > 0) {
-        for (const prevSq of previousSquadAllocations) {
-          try {
-            const { data: sq } = await SupaBaseFunction
-              .from("SquadMate")
-              .select("squad_id, total_points, winning_rate")
-              .eq("squad_id", prevSq.squadId)
-              .maybeSingle();
-
-            if (sq) {
-              await SupaBaseFunction
-                .from("SquadMate")
-                .update({
-                  total_points: Math.max(0, Number(sq.total_points || 0) - prevSq.points),
-                  winning_rate: Math.max(0, Number(sq.winning_rate || 0) - 1),
-                })
-                .eq("squad_id", prevSq.squadId);
-            }
-          } catch (revSqErr) {
-            console.warn("Could not revert previous squad points:", prevSq.squadId, revSqErr);
-          }
-        }
-      }
-
-      const studentFeedbackLines: string[] = [];
-      for (const allocation of allocationsSummary) {
-        const { data: stn, error: stnFetchError } = await SupaBaseFunction
-          .from("StudentsBox")
-          .select("AddNo, StudentName, Resluted_Count, Total_Point_Anjuman, Grand_Total_Points")
-          .eq("AddNo", allocation.addNo)
-          .maybeSingle();
-
-        if (stnFetchError) {
-          console.warn("Could not fetch student:", allocation.addNo, stnFetchError);
-        }
-
-        const currentResulted = Number(stn?.Resluted_Count || 0);
-        const currentAnjumanPts = Number(stn?.Total_Point_Anjuman || 0);
-        const currentGrandPts = Number(stn?.Grand_Total_Points || 0);
-
-        const newAnjumanPts = currentAnjumanPts + allocation.points;
-        const newGrandPts = currentGrandPts + allocation.points;
-
-        const { error: updateStnErr } = await SupaBaseFunction
-          .from("StudentsBox")
-          .update({
-            Resluted_Count: currentResulted + 1,
-            Total_Point_Anjuman: newAnjumanPts,
-            Grand_Total_Points: newGrandPts,
-          })
-          .eq("AddNo", allocation.addNo);
-
-        if (updateStnErr) {
-          console.error("Error updating student points:", allocation.addNo, updateStnErr);
-        } else {
-          studentFeedbackLines.push(
-            `• ${allocation.groupName ? `[Group: ${allocation.groupName}] ` : ""}${allocation.name} (${allocation.addNo}): +${allocation.points} PTS [${allocation.label} - ${allocation.gradeLabel}]`
-          );
-        }
-      }
-
-      // 3. UPDATE SQUAD TOTAL POINTS in SquadMate for group programmes
-      const newSquadAllocationsList: { squadId: string; points: number }[] = [];
-      if (isGroupProgram) {
-        for (const posKey of ["first", "second", "third", "aGrade", "bGrade"] as (keyof HoldersState)[]) {
-          const h = holders[posKey];
-          if (h.addNo) {
-            const sq = registeredSquads.find((s) => s.squad_id === h.addNo);
-            if (sq) {
-              const pts = calculatePoints(posKey, h.grade);
-              newSquadAllocationsList.push({ squadId: sq.squad_id, points: pts });
-              try {
-                const { data: currentSquad } = await SupaBaseFunction
-                  .from("SquadMate")
-                  .select("total_points, winning_rate")
-                  .eq("squad_id", sq.squad_id)
-                  .maybeSingle();
-
-                if (currentSquad) {
-                  await SupaBaseFunction
-                    .from("SquadMate")
-                    .update({
-                      total_points: (currentSquad.total_points || 0) + pts,
-                      winning_rate: (currentSquad.winning_rate || 0) + 1,
-                    })
-                    .eq("squad_id", sq.squad_id);
-                }
-              } catch (sqErr) {
-                console.warn("Could not credit squad points:", sqErr);
-              }
-            }
-          }
-        }
-      }
-
-      // 4. UPDATE WING RESULTED METRICS (Candidate points are strictly for candidates/squads; Wing points are only awarded +2 for no-result-required events)
-      if (progWingCode) {
-        try {
-          const { data: wingRow } = await SupaBaseFunction
-            .from("Chs-WingS")
-            .select("WingCode, Total_Resulted")
-            .eq("WingCode", progWingCode)
-            .maybeSingle();
-
-          if (wingRow) {
-            const currentResulted = Number(wingRow.Total_Resulted || 0);
-            const newTotalResulted = isEditingExistingResult
-              ? currentResulted
-              : currentResulted + 1;
-
-            await SupaBaseFunction
-              .from("Chs-WingS")
-              .update({
-                Total_Resulted: newTotalResulted,
-              })
-              .eq("WingCode", progWingCode);
-          }
-        } catch (wingErr) {
-          console.warn("Could not update wing resulted count:", wingErr);
-        }
-      }
-
-      // Update state for subsequent edits in same session
-      setIsEditingExistingResult(true);
-      setPreviousPointsAwarded(totalPointsAwarded);
-      setPreviousAllocations(allocationsSummary.map((a) => ({ addNo: a.addNo, points: a.points })));
-      setPreviousSquadAllocations(newSquadAllocationsList);
-
-
-      // 5. Mark ProgrammeBox as Resulted & Freezed
+      // 2. Mark ProgrammeBox as Resulted & Freezed
       await SupaBaseFunction
         .from("ProgrammesBox")
         .update({
@@ -1243,7 +1193,7 @@ export default function CreateResult() {
         })
         .eq("Program_Code", selectedProgram);
 
-      // 6. Update Accademic_Info total_resulted metrics
+      // 3. Update Accademic_Info total_resulted metrics
       if (selectedProgDetails?.AccademicYear) {
         try {
           const { data: acad } = await SupaBaseFunction
@@ -1262,6 +1212,19 @@ export default function CreateResult() {
           console.warn("Could not update Accademic_Info:", acadErr);
         }
       }
+
+      // 4. Authoritatively synchronize points for all students, squads, and wings from published ResultBox
+      const syncReport = await syncAllStudentAndSquadPoints();
+      console.log("Point synchronization report:", syncReport);
+
+      const studentFeedbackLines: string[] = allocationsSummary.map((allocation) =>
+        `• ${allocation.groupName ? `[Group: ${allocation.groupName}] ` : ""}${allocation.name} (${allocation.addNo}): +${allocation.points} PTS [${allocation.label} - ${allocation.gradeLabel}]`
+      );
+
+      // Update state for subsequent edits in same session
+      setIsEditingExistingResult(true);
+      setPreviousPointsAwarded(totalPointsAwarded);
+      setPreviousAllocations(allocationsSummary.map((a) => ({ addNo: a.addNo, points: a.points })));
 
       // 7. Success notification
       setStatusMsg({
@@ -1916,44 +1879,120 @@ export default function CreateResult() {
             )}
 
             {/* SUBMIT BUTTONS */}
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                {isEditingExistingResult && canEditExistingResult && (
+                  <button
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    disabled={loadingSubmit || isDeletingResult}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-200 transition cursor-pointer disabled:opacity-50"
+                    title="Delete this result and revert student points"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Result & Revert Points</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={isEditingExistingResult && !canEditExistingResult}
+                  onClick={() => setHolders(INITIAL_HOLDERS)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Reset Positions
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={loadingSubmit || allocationsSummary.length === 0 || (isEditingExistingResult && !canEditExistingResult)}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs sm:text-sm font-bold shadow-md transition ${
+                    isEditingExistingResult && !canEditExistingResult
+                      ? "bg-slate-300 text-slate-600 cursor-not-allowed shadow-none"
+                      : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer disabled:opacity-50"
+                  }`}
+                >
+                  {loadingSubmit ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      Assigning Equal Points & Publishing...
+                    </>
+                  ) : isEditingExistingResult && !canEditExistingResult ? (
+                    <>
+                      <Award className="w-4 h-4 text-slate-500" /> Result Finalized (Wing & Admin Only)
+                    </>
+                  ) : (
+                    <>
+                      <Award className="w-4 h-4" /> {isEditingExistingResult ? "Re-Publish Result & Recalibrate Points" : "Publish Result & Assign Points"} (+{totalPointsAwarded} PTS)
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </form>
+
+      {/* Delete Result Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-slate-900">
+                Delete Official Result?
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                This action will permanently delete the official result for programme{" "}
+                <span className="font-bold text-slate-900">#{selectedProgram}</span>.
+              </p>
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-left text-xs text-rose-900 space-y-1">
+                <span className="font-bold block flex items-center gap-1">
+                  <AlertCircle size={13} className="text-rose-600 shrink-0" />
+                  Automatic Point Recalibration:
+                </span>
+                <p className="text-[11px] text-rose-700">
+                  All points awarded to students (Total Points, Grand Total &amp; Resulted Count) and group squads will be cleanly deducted back to their pre-result values.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                disabled={isEditingExistingResult && !canEditExistingResult}
-                onClick={() => setHolders(INITIAL_HOLDERS)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeletingResult}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
-                Reset Positions
+                Cancel
               </button>
-
               <button
-                type="submit"
-                disabled={loadingSubmit || allocationsSummary.length === 0 || (isEditingExistingResult && !canEditExistingResult)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-xs sm:text-sm font-bold shadow-md transition ${
-                  isEditingExistingResult && !canEditExistingResult
-                    ? "bg-slate-300 text-slate-600 cursor-not-allowed shadow-none"
-                    : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 cursor-pointer disabled:opacity-50"
-                }`}
+                type="button"
+                onClick={handleDeleteResult}
+                disabled={isDeletingResult}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-200 transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
               >
-                {loadingSubmit ? (
+                {isDeletingResult ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                    Assigning Equal Points & Publishing...
-                  </>
-                ) : isEditingExistingResult && !canEditExistingResult ? (
-                  <>
-                    <Award className="w-4 h-4 text-slate-500" /> Result Finalized (Wing & Admin Only)
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Rolling back points &amp; deleting...</span>
                   </>
                 ) : (
                   <>
-                    <Award className="w-4 h-4" /> {isEditingExistingResult ? "Re-Publish Result & Recalibrate Points" : "Publish Result & Assign Points"} (+{totalPointsAwarded} PTS)
+                    <Trash2 size={14} />
+                    <span>Yes, Delete &amp; Rollback Points</span>
                   </>
                 )}
               </button>
             </div>
           </div>
-        )}
-      </form>
+        </div>
+      )}
 
       {/* Print Candidate Sheet Modal (A4) */}
       {selectedProgram && (

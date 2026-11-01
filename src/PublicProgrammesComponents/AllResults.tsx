@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link, useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../lib/SupaBase";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
@@ -24,9 +24,13 @@ import {
   FileDown,
   Table,
   FileText,
+  Trash2,
+  Edit,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import type { ResultBoxRecord } from "../lib/types";
-import { hydrateResultRecords } from "../lib/resultService";
+import { hydrateResultRecords, deleteOfficialResult } from "../lib/resultService";
 
 interface StudentInfo {
   AddNo: string;
@@ -90,6 +94,7 @@ const parseFlexibleDate = (val?: string | null): Date | null => {
 export default function AllResultsList() {
   const meta = useProgrammeMeta();
   const location = useLocation();
+  const { actUser } = useParams<{ actUser?: string }>();
   const isAdmin = location.pathname.includes("/admin-panel");
 
   const [results, setResults] = useState<EnrichedResult[]>([]);
@@ -102,6 +107,11 @@ export default function AllResultsList() {
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false);
 
+  // Delete State (Admin only)
+  const [programToDelete, setProgramToDelete] = useState<{ code: string; title: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteStatus, setDeleteStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
   const [wingFilter, setWingFilter] = useState("All");
@@ -111,6 +121,29 @@ export default function AllResultsList() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedResultModal, setSelectedResultModal] = useState<EnrichedResult | null>(null);
+
+  const handleDeleteConfirm = async () => {
+    if (!programToDelete || !isAdmin) return;
+    try {
+      setIsDeleting(true);
+      setDeleteStatus(null);
+      const res = await deleteOfficialResult(programToDelete.code);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
+      setResults((prev) => prev.filter((r) => r.Program_Id !== programToDelete.code));
+      setDeleteStatus({ type: "success", text: res.message });
+      setProgramToDelete(null);
+    } catch (err: any) {
+      console.error("Admin delete result error:", err);
+      setDeleteStatus({
+        type: "error",
+        text: "Failed to delete result: " + (err.message || "Unknown error"),
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const fetchResults = async () => {
     try {
@@ -428,11 +461,21 @@ export default function AllResultsList() {
         meta.pointsTemplates.find((t) => t.p_template_id === (p as any)?.points_template) ||
         meta.pointsTemplates[0];
 
-      const firstPts = template?.first_only ?? 10;
-      const secondPts = template?.second_only ?? 7;
-      const thirdPts = template?.third_only ?? 5;
-      const aGradePts = template?.A_grade ?? 5;
-      const bGradePts = template?.B_grade ?? 3;
+      // Compute actual achieved points based on position and grade honors
+      const is1stAGrade = (r.Grade1_uuid && r.Grade1_uuid === r.First_Holder_uuid) || (r.grade_holder_group1 && r.grade_holder_group1 === r["1st_holder_group"]);
+      const is1stBGrade = (r.Grade2_uuid && r.Grade2_uuid === r.First_Holder_uuid) || (r.grade_holder_group2 && r.grade_holder_group2 === r["1st_holder_group"]);
+      const firstRealPts = is1stAGrade ? (template?.first_A_grade ?? 10) : is1stBGrade ? (template?.first_B_grade ?? 8) : (template?.first_only ?? 5);
+
+      const is2ndAGrade = (r.Grade1_uuid && r.Grade1_uuid === r.Second_Holder_uuid) || (r.grade_holder_group1 && r.grade_holder_group1 === r["2nd_holder_group"]);
+      const is2ndBGrade = (r.Grade2_uuid && r.Grade2_uuid === r.Second_Holder_uuid) || (r.grade_holder_group2 && r.grade_holder_group2 === r["2nd_holder_group"]);
+      const secondRealPts = is2ndAGrade ? (template?.second_A_grade ?? 8) : is2ndBGrade ? (template?.second_B_grade ?? 6) : (template?.second_only ?? 3);
+
+      const is3rdAGrade = (r.Grade1_uuid && r.Grade1_uuid === r.Third_Holder_uuid) || (r.grade_holder_group1 && r.grade_holder_group1 === r["3rd_holder_group"]);
+      const is3rdBGrade = (r.Grade2_uuid && r.Grade2_uuid === r.Third_Holder_uuid) || (r.grade_holder_group2 && r.grade_holder_group2 === r["3rd_holder_group"]);
+      const thirdRealPts = is3rdAGrade ? (template?.third_A_grade ?? 6) : is3rdBGrade ? (template?.third_B_grade ?? 4) : (template?.third_only ?? 1);
+
+      const aGradeRealPts = template?.A_grade ?? 5;
+      const bGradeRealPts = template?.B_grade ?? 3;
 
       const mapWinnerItems = (
         items: StudentInfo[] = [],
@@ -452,11 +495,11 @@ export default function AllResultsList() {
         }));
       };
 
-      const firstPlace = mapWinnerItems(r.firstStudentsList, "1st Prize", firstPts, r.firstSquadTitle);
-      const secondPlace = mapWinnerItems(r.secondStudentsList, "2nd Prize", secondPts, r.secondSquadTitle);
-      const thirdPlace = mapWinnerItems(r.thirdStudentsList, "3rd Prize", thirdPts, r.thirdSquadTitle);
-      const aGrade = mapWinnerItems(r.aGradeStudentsList, "A Grade", aGradePts, r.aGradeSquadTitle);
-      const bGrade = mapWinnerItems(r.bGradeStudentsList, "B Grade", bGradePts, r.bGradeSquadTitle);
+      const firstPlace = mapWinnerItems(r.firstStudentsList, "1st Prize", firstRealPts, r.firstSquadTitle);
+      const secondPlace = mapWinnerItems(r.secondStudentsList, "2nd Prize", secondRealPts, r.secondSquadTitle);
+      const thirdPlace = mapWinnerItems(r.thirdStudentsList, "3rd Prize", thirdRealPts, r.thirdSquadTitle);
+      const aGrade = mapWinnerItems(r.aGradeStudentsList, "A Grade", aGradeRealPts, r.aGradeSquadTitle);
+      const bGrade = mapWinnerItems(r.bGradeStudentsList, "B Grade", bGradeRealPts, r.bGradeSquadTitle);
 
       return {
         programCode: r.Program_Id || "PROG",
@@ -472,11 +515,11 @@ export default function AllResultsList() {
         aGrade,
         bGrade,
         totalPoints:
-          firstPlace.length * firstPts +
-          secondPlace.length * secondPts +
-          thirdPlace.length * thirdPts +
-          aGrade.length * aGradePts +
-          bGrade.length * bGradePts,
+          firstPlace.length * firstRealPts +
+          secondPlace.length * secondRealPts +
+          thirdPlace.length * thirdRealPts +
+          aGrade.length * aGradeRealPts +
+          bGrade.length * bGradeRealPts,
       };
     });
   }, [filteredResults, meta.pointsTemplates, meta.wingMap, meta.categoryMap, meta.venueMap]);
@@ -970,6 +1013,26 @@ export default function AllResultsList() {
                           >
                             <Trophy size={13} />
                           </button>
+
+                          {isAdmin && (
+                            <>
+                              <Link
+                                to={`/admin-panel/${encodeURIComponent(actUser || "admin")}/create-result?program=${p.programCode}`}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                                title="Edit Result & Recalibrate Points"
+                              >
+                                <Edit size={13} />
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => setProgramToDelete({ code: p.programCode, title: p.programTitle || p.programCode })}
+                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                title="Delete Result & Rollback Student Points"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -1257,6 +1320,91 @@ export default function AllResultsList() {
           initialClass={classFilter}
           initialWing={wingFilter}
         />
+      )}
+
+      {/* Admin Delete Result Confirmation Modal */}
+      {programToDelete && isAdmin && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-slate-900">
+                Delete Official Result?
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete the result for{" "}
+                <span className="font-bold text-slate-900">{programToDelete.title}</span> (
+                <span className="font-mono text-slate-500">#{programToDelete.code}</span>)?
+              </p>
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-left text-xs text-rose-900 space-y-1">
+                <span className="font-bold flex items-center gap-1">
+                  <AlertCircle size={13} className="text-rose-600 shrink-0" />
+                  Automatic Point Recalibration:
+                </span>
+                <p className="text-[11px] text-rose-700">
+                  All points awarded to winning students and group squads will be cleanly deducted back to their pre-result values, and the programme status will be reset.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setProgramToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-200 transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Rolling back points &amp; deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    <span>Yes, Delete &amp; Rollback Points</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Feedback Toast */}
+      {deleteStatus && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 p-4 rounded-2xl shadow-xl border flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+            deleteStatus.type === "success"
+              ? "bg-emerald-900 text-white border-emerald-700"
+              : "bg-rose-900 text-white border-rose-700"
+          }`}
+        >
+          {deleteStatus.type === "success" ? (
+            <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle size={18} className="text-rose-400 shrink-0" />
+          )}
+          <span className="text-xs font-bold">{deleteStatus.text}</span>
+          <button
+            type="button"
+            onClick={() => setDeleteStatus(null)}
+            className="ml-2 text-white/60 hover:text-white text-xs font-bold p-1 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
       )}
     </div>
   );

@@ -23,7 +23,7 @@ interface StudentResultEntry {
   programDate: string | null;
   venue?: string | null;
   poster?: string | null;
-  position: "1st Place" | "2nd Place" | "3rd Place" | "Grade A" | "Grade B" | "Participant";
+  position: string;
   pointsAwarded: number;
   isWinner: boolean;
   resultRow?: any;
@@ -50,15 +50,76 @@ export default function StudentResult() {
           name: profile?.StudentName || addNo,
         });
 
-        // 1. Fetch registered programs for this student
-        const { data: regRows } = await SupaBaseFunction
-          .from("CandidateRegistrationTable")
-          .select("Program_Code")
-          .eq("Candidate_Code", addNo);
+        // 1. Resolve student's squads from SquadMate
+        const { data: squadRows } = await SupaBaseFunction
+          .from("SquadMate")
+          .select("squad_id, squad_title, member1_uuid, member2_uuid, member3_uuid, member4_uuid, member5_uuid, member6_uuid, member7_uuid");
 
-        const regCodes = Array.from(new Set((regRows || []).map((r: any) => r.Program_Code).filter(Boolean))) as string[];
+        const studentSquadMap = new Map<string, string>(); // squad_id -> squad_title
+        (squadRows || []).forEach((sq: any) => {
+          const members = [
+            sq.member1_uuid,
+            sq.member2_uuid,
+            sq.member3_uuid,
+            sq.member4_uuid,
+            sq.member5_uuid,
+            sq.member6_uuid,
+            sq.member7_uuid,
+          ].map((m) => (m ? String(m).trim().toUpperCase() : ""));
 
-        // 2. Query ResultBox for published results
+          if (members.includes(addNo.toUpperCase())) {
+            studentSquadMap.set(sq.squad_id.toLowerCase(), sq.squad_title || "Squad");
+          }
+        });
+
+        // 2. Fetch registered programs for this student (individual + squad registrations)
+        const [regRes, squadRegRes, templatesRes] = await Promise.all([
+          SupaBaseFunction
+            .from("CandidateRegistrationTable")
+            .select("Program_Code, CandidateUUiD, Candidate_Code")
+            .eq("Candidate_Code", addNo),
+          studentSquadMap.size > 0
+            ? SupaBaseFunction
+                .from("CandidateRegistrationTable")
+                .select("Program_Code, CandidateUUiD, squad_uuid")
+                .in("squad_uuid", Array.from(studentSquadMap.keys()))
+            : Promise.resolve({ data: [] }),
+          SupaBaseFunction.from("Points_Templates").select("*"),
+        ]);
+
+        const regCodes = Array.from(
+          new Set([
+            ...(regRes.data || []).map((r: any) => r.Program_Code),
+            ...(squadRegRes.data || []).map((r: any) => r.Program_Code),
+          ].filter(Boolean))
+        ) as string[];
+
+        // Build candidate UUID set for this student
+        const studentCandidateUuids = new Set<string>();
+        (regRes.data || []).forEach((r: any) => {
+          if (r.CandidateUUiD) studentCandidateUuids.add(r.CandidateUUiD.toLowerCase());
+        });
+
+        const templateMap = new Map<string, any>();
+        (templatesRes.data || []).forEach((t: any) => {
+          templateMap.set(t.p_template_id, t);
+        });
+
+        const defaultTemplate = templatesRes.data?.[0] || {
+          first_only: 5,
+          first_A_grade: 10,
+          first_B_grade: 8,
+          second_only: 3,
+          second_A_grade: 8,
+          second_B_grade: 6,
+          third_only: 1,
+          third_A_grade: 6,
+          third_B_grade: 4,
+          A_grade: 5,
+          B_grade: 3,
+        };
+
+        // 3. Query ResultBox for published results
         let rawResults: any[] = [];
         const { data: resData, error: resError } = await SupaBaseFunction
           .from("ResultBox")
@@ -67,14 +128,14 @@ export default function StudentResult() {
         if (resError) throw resError;
         rawResults = await hydrateResultRecords(resData || []);
 
-        // 3. Fetch Program details for all relevant codes
+        // 4. Fetch Program details for all relevant codes
         const allProgCodes = Array.from(new Set([...rawResults.map((r) => r.Program_Id), ...regCodes].filter(Boolean)));
-        let progMap: Record<string, { title: string; wing: string; date: string | null; venue: string | null; poster: string | null; isPublished: boolean }> = {};
+        let progMap: Record<string, { title: string; wing: string; date: string | null; venue: string | null; poster: string | null; isPublished: boolean; isGroup: boolean; templateId: string | null }> = {};
 
         if (allProgCodes.length > 0) {
           const { data: pData } = await SupaBaseFunction
             .from("ProgrammesBox")
-            .select("Program_Code, Program_Title, WingCode, Date, Venue, Program_Poster, IsResultPublished, IsResulted")
+            .select("Program_Code, Program_Title, WingCode, Date, Venue, Program_Poster, IsResultPublished, IsResulted, is_group_program, points_template")
             .in("Program_Code", allProgCodes);
 
           (pData || []).forEach((p: any) => {
@@ -85,14 +146,16 @@ export default function StudentResult() {
               venue: p.Venue,
               poster: p.Program_Poster,
               isPublished: Boolean(p.IsResultPublished || p.IsResulted),
+              isGroup: Boolean(p.is_group_program),
+              templateId: p.points_template || null,
             };
           });
         }
 
         const formatted: StudentResultEntry[] = [];
         const seenProgramCodes = new Set<string>();
-
         const cleanAddNo = (addNo || "").trim().toUpperCase();
+
         const matchesHolder = (holderStr?: string | null) => {
           if (!holderStr || !cleanAddNo) return false;
           const tokens = holderStr.split(",").map((s) => s.trim().toUpperCase());
@@ -100,97 +163,122 @@ export default function StudentResult() {
         };
 
         rawResults.forEach((r) => {
-          const pInfo = progMap[r.Program_Id] || { title: r.Program_Id, wing: "", date: null, venue: null, poster: null, isPublished: true };
-          let matchedWin = false;
+          const pInfo = progMap[r.Program_Id] || {
+            title: r.Program_Id,
+            wing: "",
+            date: null,
+            venue: null,
+            poster: null,
+            isPublished: true,
+            isGroup: Boolean(r.is_group),
+            templateId: null,
+          };
 
-          if (matchesHolder(r.First_Holder)) {
-            matchedWin = true;
-            seenProgramCodes.add(r.Program_Id);
-            formatted.push({
-              Result_id: r.Result_id + "-1",
-              Program_Id: r.Program_Id,
-              programTitle: pInfo.title,
-              wingCode: pInfo.wing,
-              programDate: pInfo.date,
-              venue: pInfo.venue,
-              poster: pInfo.poster,
-              position: "1st Place",
-              pointsAwarded: 10,
-              isWinner: true,
-              resultRow: r,
-            });
-          }
-          if (matchesHolder(r.Second_Holder)) {
-            matchedWin = true;
-            seenProgramCodes.add(r.Program_Id);
-            formatted.push({
-              Result_id: r.Result_id + "-2",
-              Program_Id: r.Program_Id,
-              programTitle: pInfo.title,
-              wingCode: pInfo.wing,
-              programDate: pInfo.date,
-              venue: pInfo.venue,
-              poster: pInfo.poster,
-              position: "2nd Place",
-              pointsAwarded: 7,
-              isWinner: true,
-              resultRow: r,
-            });
-          }
-          if (matchesHolder(r.Third_Holder)) {
-            matchedWin = true;
-            seenProgramCodes.add(r.Program_Id);
-            formatted.push({
-              Result_id: r.Result_id + "-3",
-              Program_Id: r.Program_Id,
-              programTitle: pInfo.title,
-              wingCode: pInfo.wing,
-              programDate: pInfo.date,
-              venue: pInfo.venue,
-              poster: pInfo.poster,
-              position: "3rd Place",
-              pointsAwarded: 5,
-              isWinner: true,
-              resultRow: r,
-            });
-          }
-          if (matchesHolder(r.AGrade)) {
-            matchedWin = true;
-            seenProgramCodes.add(r.Program_Id);
-            formatted.push({
-              Result_id: r.Result_id + "-A",
-              Program_Id: r.Program_Id,
-              programTitle: pInfo.title,
-              wingCode: pInfo.wing,
-              programDate: pInfo.date,
-              venue: pInfo.venue,
-              poster: pInfo.poster,
-              position: "Grade A",
-              pointsAwarded: 5,
-              isWinner: true,
-              resultRow: r,
-            });
-          }
-          if (matchesHolder(r.BGrade)) {
-            matchedWin = true;
-            seenProgramCodes.add(r.Program_Id);
-            formatted.push({
-              Result_id: r.Result_id + "-B",
-              Program_Id: r.Program_Id,
-              programTitle: pInfo.title,
-              wingCode: pInfo.wing,
-              programDate: pInfo.date,
-              venue: pInfo.venue,
-              poster: pInfo.poster,
-              position: "Grade B",
-              pointsAwarded: 3,
-              isWinner: true,
-              resultRow: r,
-            });
+          const tmpl = (pInfo.templateId && templateMap.get(pInfo.templateId)) || defaultTemplate;
+          const isGroupResult = Boolean(
+            r.is_group ||
+            pInfo.isGroup ||
+            r["1st_holder_group"] ||
+            r["2nd_holder_group"] ||
+            r["3rd_holder_group"]
+          );
+
+          let positionTitle = "";
+          let gradeTag: "none" | "A" | "B" = "none";
+          let realPoints = 0;
+          let isWinner = false;
+
+          if (isGroupResult) {
+            // Group evaluation: Match squad IDs
+            const g1 = r["1st_holder_group"]?.toLowerCase();
+            const g2 = r["2nd_holder_group"]?.toLowerCase();
+            const g3 = r["3rd_holder_group"]?.toLowerCase();
+            const ga = r.grade_holder_group1?.toLowerCase();
+            const gb = r.grade_holder_group2?.toLowerCase();
+
+            const isSquadIn = (sqId?: string) => Boolean(sqId && studentSquadMap.has(sqId));
+
+            if (isSquadIn(g1)) {
+              isWinner = true;
+              gradeTag = ga === g1 ? "A" : gb === g1 ? "B" : "none";
+              positionTitle = gradeTag !== "none" ? `1st Place (Grade ${gradeTag})` : "1st Place";
+              realPoints = gradeTag === "A" ? (tmpl.first_A_grade ?? 10) : gradeTag === "B" ? (tmpl.first_B_grade ?? 8) : (tmpl.first_only ?? 5);
+            } else if (isSquadIn(g2)) {
+              isWinner = true;
+              gradeTag = ga === g2 ? "A" : gb === g2 ? "B" : "none";
+              positionTitle = gradeTag !== "none" ? `2nd Place (Grade ${gradeTag})` : "2nd Place";
+              realPoints = gradeTag === "A" ? (tmpl.second_A_grade ?? 8) : gradeTag === "B" ? (tmpl.second_B_grade ?? 6) : (tmpl.second_only ?? 3);
+            } else if (isSquadIn(g3)) {
+              isWinner = true;
+              gradeTag = ga === g3 ? "A" : gb === g3 ? "B" : "none";
+              positionTitle = gradeTag !== "none" ? `3rd Place (Grade ${gradeTag})` : "3rd Place";
+              realPoints = gradeTag === "A" ? (tmpl.third_A_grade ?? 6) : gradeTag === "B" ? (tmpl.third_B_grade ?? 4) : (tmpl.third_only ?? 1);
+            } else if (isSquadIn(ga)) {
+              isWinner = true;
+              positionTitle = "Grade A Recognition";
+              realPoints = tmpl.A_grade ?? 5;
+            } else if (isSquadIn(gb)) {
+              isWinner = true;
+              positionTitle = "Grade B Recognition";
+              realPoints = tmpl.B_grade ?? 3;
+            }
+          } else {
+            // Individual evaluation: Match Candidate UUID or AddNo
+            const u1 = r.First_Holder_uuid?.toLowerCase();
+            const u2 = r.Second_Holder_uuid?.toLowerCase();
+            const u3 = r.Third_Holder_uuid?.toLowerCase();
+            const ua = r.Grade1_uuid?.toLowerCase();
+            const ub = r.Grade2_uuid?.toLowerCase();
+
+            const isStudentMatch = (uuid?: string, textHolder?: string) => {
+              if (uuid && studentCandidateUuids.has(uuid)) return true;
+              if (textHolder && matchesHolder(textHolder)) return true;
+              return false;
+            };
+
+            if (isStudentMatch(u1, r.First_Holder)) {
+              isWinner = true;
+              gradeTag = (ua && ua === u1) || matchesHolder(r.AGrade) ? "A" : (ub && ub === u1) || matchesHolder(r.BGrade) ? "B" : "none";
+              positionTitle = gradeTag !== "none" ? `1st Place (Grade ${gradeTag})` : "1st Place";
+              realPoints = gradeTag === "A" ? (tmpl.first_A_grade ?? 10) : gradeTag === "B" ? (tmpl.first_B_grade ?? 8) : (tmpl.first_only ?? 5);
+            } else if (isStudentMatch(u2, r.Second_Holder)) {
+              isWinner = true;
+              gradeTag = (ua && ua === u2) || matchesHolder(r.AGrade) ? "A" : (ub && ub === u2) || matchesHolder(r.BGrade) ? "B" : "none";
+              positionTitle = gradeTag !== "none" ? `2nd Place (Grade ${gradeTag})` : "2nd Place";
+              realPoints = gradeTag === "A" ? (tmpl.second_A_grade ?? 8) : gradeTag === "B" ? (tmpl.second_B_grade ?? 6) : (tmpl.second_only ?? 3);
+            } else if (isStudentMatch(u3, r.Third_Holder)) {
+              isWinner = true;
+              gradeTag = (ua && ua === u3) || matchesHolder(r.AGrade) ? "A" : (ub && ub === u3) || matchesHolder(r.BGrade) ? "B" : "none";
+              positionTitle = gradeTag !== "none" ? `3rd Place (Grade ${gradeTag})` : "3rd Place";
+              realPoints = gradeTag === "A" ? (tmpl.third_A_grade ?? 6) : gradeTag === "B" ? (tmpl.third_B_grade ?? 4) : (tmpl.third_only ?? 1);
+            } else if (isStudentMatch(ua, r.AGrade)) {
+              isWinner = true;
+              positionTitle = "Grade A Recognition";
+              realPoints = tmpl.A_grade ?? 5;
+            } else if (isStudentMatch(ub, r.BGrade)) {
+              isWinner = true;
+              positionTitle = "Grade B Recognition";
+              realPoints = tmpl.B_grade ?? 3;
+            }
           }
 
-          // If the student registered in this program and results are declared/published, but student wasn't on podium:
-          if (!matchedWin && regCodes.includes(r.Program_Id) && pInfo.isPublished && !seenProgramCodes.has(r.Program_Id)) {
+          if (isWinner) {
+            seenProgramCodes.add(r.Program_Id);
+            formatted.push({
+              Result_id: r.Result_id,
+              Program_Id: r.Program_Id,
+              programTitle: pInfo.title,
+              wingCode: pInfo.wing,
+              programDate: pInfo.date,
+              venue: pInfo.venue,
+              poster: pInfo.poster,
+              position: positionTitle,
+              pointsAwarded: realPoints,
+              isWinner: true,
+              resultRow: r,
+            });
+          } else if (regCodes.includes(r.Program_Id) && pInfo.isPublished && !seenProgramCodes.has(r.Program_Id)) {
+            // Student participated, result is declared, but did not place
             seenProgramCodes.add(r.Program_Id);
             formatted.push({
               Result_id: r.Result_id + "-part",
@@ -242,7 +330,9 @@ export default function StudentResult() {
 
   const filtered = results.filter((r) => {
     if (filterPos === "winners" && !r.isWinner) return false;
-    if (filterPos !== "all" && filterPos !== "winners" && r.position !== filterPos) return false;
+    if (filterPos !== "all" && filterPos !== "winners") {
+      if (!r.position.toLowerCase().includes(filterPos.toLowerCase())) return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -306,11 +396,11 @@ export default function StudentResult() {
         >
           <option value="all">All Declared Results ({results.length})</option>
           <option value="winners">🏆 Honours & Winners ({results.filter(r => r.isWinner).length})</option>
-          <option value="1st Place">🥇 1st Place ({results.filter(r => r.position === "1st Place").length})</option>
-          <option value="2nd Place">🥈 2nd Place ({results.filter(r => r.position === "2nd Place").length})</option>
-          <option value="3rd Place">🥉 3rd Place ({results.filter(r => r.position === "3rd Place").length})</option>
-          <option value="Grade A">⭐ Grade A ({results.filter(r => r.position === "Grade A").length})</option>
-          <option value="Grade B">⭐ Grade B ({results.filter(r => r.position === "Grade B").length})</option>
+          <option value="1st Place">🥇 1st Place ({results.filter(r => r.position.startsWith("1st Place")).length})</option>
+          <option value="2nd Place">🥈 2nd Place ({results.filter(r => r.position.startsWith("2nd Place")).length})</option>
+          <option value="3rd Place">🥉 3rd Place ({results.filter(r => r.position.startsWith("3rd Place")).length})</option>
+          <option value="Grade A">⭐ Grade A ({results.filter(r => r.position.includes("Grade A")).length})</option>
+          <option value="Grade B">⭐ Grade B ({results.filter(r => r.position.includes("Grade B")).length})</option>
           <option value="Participant">🎯 Participations ({results.filter(r => r.position === "Participant").length})</option>
         </select>
       </div>
@@ -334,9 +424,9 @@ export default function StudentResult() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((r) => {
-            const isFirst = r.position === "1st Place";
-            const isSecond = r.position === "2nd Place";
-            const isThird = r.position === "3rd Place";
+            const isFirst = r.position.startsWith("1st Place");
+            const isSecond = r.position.startsWith("2nd Place");
+            const isThird = r.position.startsWith("3rd Place");
             const isGrade = r.position.startsWith("Grade");
             const isParticipant = r.position === "Participant";
 

@@ -34,7 +34,37 @@ export async function resolveStudentProfile(paramIdentifier?: string): Promise<L
       }
     }
 
-    // 1. Check in-memory cache first if identifier matches or no param given
+    // Resolve target identifier
+    const targetIdentifier = cleanParam || (() => {
+      try {
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          return (parsed.UserEmail || parsed.email || parsed.AddNo || "").trim();
+        }
+      } catch {}
+      return "";
+    })();
+
+    // 1. Fetch fresh live profile directly from StudentsBox to ensure exact current points
+    if (targetIdentifier) {
+      try {
+        const isEmail = targetIdentifier.includes("@");
+        const query = SupaBaseFunction.from("StudentsBox").select("*");
+        const { data: freshData, error: fetchErr } = isEmail
+          ? await query.ilike("StudentEmail", targetIdentifier).maybeSingle()
+          : await query.eq("AddNo", targetIdentifier).maybeSingle();
+
+        if (freshData && !fetchErr) {
+          cacheStudentProfile(freshData, false);
+          return freshData as LoggedInStudentProfile;
+        }
+      } catch (networkErr) {
+        console.warn("Network query for fresh student profile failed, using cache fallback:", networkErr);
+      }
+    }
+
+    // 2. Fallback to in-memory cache if network failed
     if (
       inMemoryProfileCache &&
       (!cleanParam ||
@@ -44,7 +74,7 @@ export async function resolveStudentProfile(paramIdentifier?: string): Promise<L
       return inMemoryProfileCache;
     }
 
-    // 2. Check localStorage cached profile
+    // 3. Fallback to localStorage cached profile if offline
     try {
       const cached = localStorage.getItem("cached_student_profile");
       if (cached) {
