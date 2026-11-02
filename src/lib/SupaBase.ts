@@ -68,21 +68,45 @@ export function toUppercaseDbPayload<T = any>(val: T): T {
   return val;
 }
 
+function safeGenerateUuid(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 const rawSupabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * Proxied SupaBaseFunction that automatically converts all input values
- * provided to the database (via .insert, .update, .upsert) to UPPERCASE.
+ * provided to the database (via .insert, .update, .upsert) to UPPERCASE,
+ * and ensures non-null column constraints like UserTable.UserId are reliably satisfied.
  */
 export const SupaBaseFunction = new Proxy(rawSupabase, {
   get(target, prop, receiver) {
     if (prop === 'from') {
       return (table: string) => {
         const queryBuilder = (target as any).from(table);
+        const isUserTable = typeof table === 'string' && table.toLowerCase() === 'usertable';
         return new Proxy(queryBuilder, {
           get(bTarget, bProp, bReceiver) {
             if (bProp === 'insert' || bProp === 'update' || bProp === 'upsert') {
               return (values: any, options?: any) => {
+                if (isUserTable && (bProp === 'insert' || bProp === 'upsert')) {
+                  if (Array.isArray(values)) {
+                    values.forEach((v) => {
+                      if (v && typeof v === 'object' && !v.UserId) {
+                        v.UserId = safeGenerateUuid();
+                      }
+                    });
+                  } else if (values && typeof values === 'object' && !values.UserId) {
+                    values.UserId = safeGenerateUuid();
+                  }
+                }
                 const upperValues = toUppercaseDbPayload(values);
                 return bTarget[bProp](upperValues, options);
               };

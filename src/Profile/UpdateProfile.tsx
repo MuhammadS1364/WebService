@@ -28,23 +28,26 @@ import {
   Loader2,
   Trash2,
   BookOpen,
-  Check
+  Check,
+  Layers,
 } from "lucide-react";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../lib/imgbbService";
 
-export type RoleType = "student" | "wing" | "treasurer" | "outreach";
+export type RoleType = "student" | "wing" | "treasurer" | "outreach" | "controller";
 
 export default function UpdateProfile() {
   const navigate = useNavigate();
-  const { actStn, actWing, actTreasurer, actOutReach } = useParams<{
+  const { actStn, actWing, actTreasurer, actOutReach, actController, actUser } = useParams<{
     actStn?: string;
     actWing?: string;
     actTreasurer?: string;
     actOutReach?: string;
+    actController?: string;
+    actUser?: string;
   }>();
 
   // Determine user identifier and role
-  const activeEmail = actStn || actWing || actTreasurer || actOutReach || "";
+  const activeEmail = actStn || actWing || actTreasurer || actOutReach || actController || actUser || "";
   const role: RoleType = actStn
     ? "student"
     : actWing
@@ -53,6 +56,8 @@ export default function UpdateProfile() {
     ? "treasurer"
     : actOutReach
     ? "outreach"
+    : actController
+    ? "controller"
     : "student";
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -106,9 +111,21 @@ export default function UpdateProfile() {
     Notes: "",
   });
 
+  // Controller profile state
+  const [controllerData, setControllerData] = useState({
+    controller_uuid: "",
+    controller_fullName: "",
+    controller_email: "",
+    controller_id: "",
+    category_uuid: "",
+    category_title: "",
+    controller_img: "",
+  });
+
   // Upload states
   const [uploadingPhoto, setUploadingPhoto] = useState<boolean>(false);
   const [uploadingWingLogo, setUploadingWingLogo] = useState<boolean>(false);
+  const [uploadingControllerPhoto, setUploadingControllerPhoto] = useState<boolean>(false);
 
   // Available classes from Our_Classes registry
   const [availableClasses, setAvailableClasses] = useState<
@@ -229,6 +246,41 @@ export default function UpdateProfile() {
     }
   };
 
+  // Handle direct file upload for Controller Photo
+  const handleControllerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingControllerPhoto(true);
+    setStatusMessage({ type: "", text: "" });
+
+    try {
+      const squareDataUrl = await processImageToSquareDataUrl(file, 360, 0.88);
+      let newPhotoUrl = squareDataUrl;
+      try {
+        const res = await uploadImageToImgBB(file, `ctrl_${controllerData.controller_id || "photo"}`);
+        if (res.displayUrl) newPhotoUrl = res.displayUrl;
+      } catch {
+        // Fallback to square data URL
+      }
+
+      setControllerData((prev) => ({ ...prev, controller_img: newPhotoUrl }));
+      setStatusMessage({
+        type: "success",
+        text: "Controller photo uploaded! Click 'Save Changes' to update.",
+      });
+    } catch (err: any) {
+      console.error("Controller photo upload error:", err);
+      setStatusMessage({
+        type: "error",
+        text: err.message || "Failed to process photo.",
+      });
+    } finally {
+      setUploadingControllerPhoto(false);
+      e.target.value = "";
+    }
+  };
+
   // Fetch Profile and User Password on mount
   useEffect(() => {
     async function loadProfile() {
@@ -322,6 +374,34 @@ export default function UpdateProfile() {
               Domain: "Public Outreach, Inter-Collegiate Competitions & Media",
               ContactNumber: "+91 98460 00000",
               Notes: "Managing all outreach programs and external talent participation.",
+            });
+          }
+        } else if (role === "controller") {
+          const { data, error } = await SupaBaseFunction
+            .from("Category_Controller")
+            .select("*")
+            .or(`controller_email.ilike.${activeEmail},controller_user_id.ilike.${activeEmail},controller_id.ilike.${activeEmail}`)
+            .maybeSingle();
+
+          if (error) throw error;
+          if (data) {
+            let catTitle = "";
+            if (data.category_uuid) {
+              const { data: cat } = await SupaBaseFunction
+                .from("Our_Categories")
+                .select("category_title")
+                .eq("category_id", data.category_uuid)
+                .maybeSingle();
+              if (cat) catTitle = cat.category_title;
+            }
+            setControllerData({
+              controller_uuid: data.controller_uuid,
+              controller_fullName: data.controller_fullName || "",
+              controller_email: data.controller_email || "",
+              controller_id: data.controller_id || "",
+              category_uuid: data.category_uuid || "",
+              category_title: catTitle,
+              controller_img: data.controller_img || "",
             });
           }
         }
@@ -440,6 +520,18 @@ export default function UpdateProfile() {
         if (error) throw error;
       } else if (role === "outreach") {
         localStorage.setItem(`outreach_profile_${activeEmail}`, JSON.stringify(outreachData));
+      } else if (role === "controller") {
+        if (!controllerData.controller_uuid) throw new Error("Controller record not found.");
+
+        const { error } = await SupaBaseFunction
+          .from("Category_Controller")
+          .update({
+            controller_fullName: controllerData.controller_fullName.trim(),
+            controller_img: controllerData.controller_img || null,
+          })
+          .eq("controller_uuid", controllerData.controller_uuid);
+
+        if (error) throw error;
       }
 
       setStatusMessage({
@@ -486,6 +578,18 @@ export default function UpdateProfile() {
           title: "Outreach & Engagements",
           color: "bg-purple-50 text-purple-700 border-purple-200",
           icon: <Sparkles className="w-4 h-4 text-purple-600" />,
+        };
+      case "controller":
+        return {
+          title: "Category Controller",
+          color: "bg-indigo-50 text-indigo-700 border-indigo-200",
+          icon: <Layers className="w-4 h-4 text-indigo-600" />,
+        };
+      default:
+        return {
+          title: "Member Portal",
+          color: "bg-slate-50 text-slate-700 border-slate-200",
+          icon: <User className="w-4 h-4 text-slate-600" />,
         };
     }
   };
@@ -1246,6 +1350,115 @@ export default function UpdateProfile() {
                   className="w-full bg-white border border-slate-300 text-slate-800 text-xs sm:text-sm rounded-xl p-3.5 focus:ring-2 focus:ring-purple-500 outline-none transition"
                   placeholder="Summary of external colleges and institutions coordinated..."
                 />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CATEGORY CONTROLLER FORM */}
+        {role === "controller" && (
+          <div className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-sm space-y-5">
+            <div className="border-b border-slate-100 pb-3">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Layers className="w-5 h-5 text-indigo-600" />
+                Category Controller Profile
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Update your administrative coordinator details, display photo, and verify assigned jurisdiction.
+              </p>
+            </div>
+
+            {/* Controller Photo */}
+            <div className="flex flex-col sm:flex-row items-center gap-5 p-4 sm:p-5 rounded-3xl bg-slate-50 border border-slate-200/90 shadow-2xs">
+              <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden shadow-md ring-4 ring-indigo-500/20 bg-white border border-slate-200 shrink-0 flex items-center justify-center p-1">
+                <SafeImage
+                  src={controllerData.controller_img}
+                  alt={controllerData.controller_fullName || "Controller Photo"}
+                  fallbackCategory="general"
+                  fallbackText={controllerData.controller_fullName || "C"}
+                  className="w-full h-full object-cover rounded-2xl"
+                />
+
+                {uploadingControllerPhoto && (
+                  <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex flex-col items-center justify-center gap-1 text-white z-10">
+                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                    <span className="text-[10px] font-bold">Uploading...</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 space-y-3 w-full min-w-0">
+                <label className="block text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-indigo-600" />
+                  Controller Photograph
+                </label>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs shadow-indigo-600/20 cursor-pointer transition-all">
+                    {uploadingControllerPhoto ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    <span>{uploadingControllerPhoto ? "Uploading..." : "Upload Photo"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleControllerPhotoUpload}
+                      disabled={uploadingControllerPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-xs text-slate-400 font-medium">or paste image URL:</span>
+                </div>
+
+                <input
+                  type="url"
+                  placeholder="https://example.com/photo.jpg"
+                  value={controllerData.controller_img}
+                  onChange={(e) =>
+                    setControllerData({ ...controllerData, controller_img: e.target.value })
+                  }
+                  className="w-full bg-white border border-slate-300 text-slate-800 text-xs rounded-xl px-3.5 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={controllerData.controller_fullName}
+                  onChange={(e) =>
+                    setControllerData({ ...controllerData, controller_fullName: e.target.value })
+                  }
+                  className="w-full bg-white border border-slate-300 text-slate-800 text-xs sm:text-sm rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 outline-none transition font-medium"
+                  placeholder="Controller Full Name"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Assigned Jurisdiction (Category)
+                </label>
+                <div className="w-full bg-slate-100 border border-slate-200 text-indigo-700 text-xs sm:text-sm font-bold rounded-xl px-4 py-2.5 flex items-center gap-2">
+                  <Layers size={14} className="text-indigo-600" />
+                  <span>{controllerData.category_title || "Assigned Academic Category"}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Controller ID • Password
+                </label>
+                <div className="w-full bg-slate-100 border border-slate-200 text-slate-800 text-xs sm:text-sm font-mono font-bold rounded-xl px-4 py-2.5 flex items-center gap-2">
+                  <KeyRound size={14} className="text-amber-500" />
+                  <span>{controllerData.controller_id || "ID"}</span>
+                </div>
               </div>
             </div>
           </div>

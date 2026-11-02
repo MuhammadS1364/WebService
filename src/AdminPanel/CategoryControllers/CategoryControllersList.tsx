@@ -234,11 +234,29 @@ export default function CategoryControllersList() {
         throw new Error(`A category controller with email "${email}" already exists.`);
       }
 
-      // Step C: FIRST create new user in UserTable using "Email and controler-id"
+      // Step C: FIRST create or sync user in UserTable using "Email and controller-id"
+      const { data: existingUser } = await SupaBaseFunction
+        .from("UserTable")
+        .select("UserId, UserEmail")
+        .ilike("UserEmail", email)
+        .maybeSingle();
+
+      const safeUuid =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0;
+              const v = c === "x" ? r : (r & 0x3) | 0x8;
+              return v.toString(16);
+            });
+
+      const userIdToUse = existingUser?.UserId || safeUuid;
+
       const { error: userError } = await SupaBaseFunction.from("UserTable").upsert(
         {
+          UserId: userIdToUse,
           UserEmail: email,
-          UserPassword: controllerId, // Controller ID is the password
+          UserPassword: controllerId, // Controller ID serves as password
           UserRole: "CategoryController",
           IsActive: formData.isActive,
           IsAuthenticated: false,
@@ -264,6 +282,10 @@ export default function CategoryControllersList() {
       ]);
 
       if (ccError) {
+        // Rollback user if they were just created
+        if (!existingUser) {
+          await SupaBaseFunction.from("UserTable").delete().ilike("UserEmail", email);
+        }
         throw new Error(`Failed to create record in Category_Controller table: ${ccError.message}`);
       }
 
