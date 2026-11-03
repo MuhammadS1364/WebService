@@ -1,14 +1,22 @@
 
 import { useState, useRef, useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
 import { exportToExcel, parseSpreadsheet, downloadSampleTemplate } from "../../lib/excelService";
 import { importStudentsBatch } from "./ImportStudent";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
-import { Camera, Upload, Trash2, CheckCircle2, AlertCircle, Key } from "lucide-react";
+import { Camera, Upload, Trash2, CheckCircle2, AlertCircle, Key, ArrowLeft } from "lucide-react";
 import ExcelUuidReferenceModal from "../../components/ExcelUuidReferenceModal";
 
 export default function StudentRegistration() {
+    const navigate = useNavigate();
+    const { actUser, actController } = useParams<{ actUser?: string; actController?: string }>();
+    const isController = Boolean(actController) || (typeof window !== "undefined" && window.location.pathname.includes("/controller-panel"));
+    const returnPath = isController
+        ? `/controller-panel/${actController || "controller"}/all-students`
+        : `/admin-panel/${actUser || "admin"}/all-students`;
+
     const meta = useProgrammeMeta();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMessage, setStatusMessage] = useState("");
@@ -269,9 +277,29 @@ export default function StudentRegistration() {
                 </button>
             </div>
 
-            {/* Registration Form UI remains here... */}
+            {/* Registration Form UI */}
             <div className="rounded-2xl bg-white p-8 shadow-xl border border-gray-100">
-                <h2 className="mb-6 text-2xl font-bold text-gray-800">Student Registration & User Setup</h2>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-2xl font-bold text-gray-800">Student Registration & User Setup</h2>
+                            {isController && (
+                                <span className="text-[10px] font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                    Controller
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Create student account with password credentials and class assignment</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => navigate(returnPath)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                    >
+                        <ArrowLeft size={14} />
+                        <span>Back to Directory</span>
+                    </button>
+                </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

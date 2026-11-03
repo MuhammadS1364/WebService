@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 import { exportToExcel } from "../../lib/excelService";
 import SafeImage from "../../lib/SafeImage";
+import { resolveControllerProfile, type LoggedInControllerProfile } from "../../lib/controllerResolver";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
 import formatResultDate from "../../PublicProgrammesComponents/DateFormatConvertor";
@@ -76,7 +78,32 @@ interface SquadOption {
   memberNames?: string[];
 }
 
-export default function RegistrationConsole() {
+export interface RegistrationConsoleProps {
+  controllerCategoryUuid?: string;
+  controllerCategoryName?: string;
+  isControllerMode?: boolean;
+}
+
+export default function RegistrationConsole({
+  controllerCategoryUuid: propCategoryUuid,
+  controllerCategoryName: propCategoryName,
+  isControllerMode: propIsController,
+}: RegistrationConsoleProps = {}) {
+  const { actController } = useParams<{ actController?: string }>();
+  const [controllerProfile, setControllerProfile] = useState<LoggedInControllerProfile | null>(null);
+
+  useEffect(() => {
+    if (actController) {
+      resolveControllerProfile(actController).then((p) => {
+        if (p) setControllerProfile(p);
+      });
+    }
+  }, [actController]);
+
+  const activeCategoryUuid = propCategoryUuid || controllerProfile?.category_uuid;
+  const activeCategoryName = propCategoryName || controllerProfile?.category_title;
+  const isController = Boolean(propIsController || actController || activeCategoryUuid);
+
   const meta = useProgrammeMeta();
 
   // Core Data
@@ -146,14 +173,17 @@ export default function RegistrationConsole() {
           .order("squad_title", { ascending: true }),
       ]);
 
-      const progs = (progsRes.data || []) as ProgrammeRow[];
+      let progs = (progsRes.data || []) as ProgrammeRow[];
+      if (activeCategoryUuid) {
+        progs = progs.filter((p) => p.Category === activeCategoryUuid);
+      }
       setProgrammes(progs);
 
       const squads = (squadsRes.data || []) as SquadOption[];
       setAvailableSquads(squads);
 
-      // Auto-select first programme if none selected
-      if (!selectedProgCode && progs.length > 0) {
+      // Auto-select first programme if none selected or if previous selected is not in current category
+      if (progs.length > 0 && (!selectedProgCode || !progs.some((p) => p.Program_Code === selectedProgCode))) {
         setSelectedProgCode(progs[0].Program_Code);
       }
     } catch (err: any) {
@@ -162,7 +192,7 @@ export default function RegistrationConsole() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedProgCode]);
+  }, [selectedProgCode, activeCategoryUuid]);
 
   useEffect(() => {
     loadProgrammes();
@@ -755,14 +785,20 @@ export default function RegistrationConsole() {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-300 text-xs font-bold mb-2.5">
             <ShieldCheck size={14} className="text-teal-400" />
-            <span>Admin Authority • Candidate Registration Console (Reg-Console)</span>
+            <span>
+              {isController
+                ? `Category Controller Authority • ${activeCategoryName || "Assigned Category"} • Candidate Registration Console (Reg-Console)`
+                : "Admin Authority • Candidate Registration Console (Reg-Console)"}
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white flex items-center gap-2.5">
             <UserCheck className="w-8 h-8 text-teal-400" />
             <span>Reg-Console: Candidate Management</span>
           </h1>
           <p className="text-slate-300 text-xs sm:text-sm mt-1.5 max-w-2xl">
-            Complete registration control center: add individual candidates or squads, swap students, edit topic approvals, and bulk-manage enrolments across all programmes.
+            {isController
+              ? `Complete candidate control center for "${activeCategoryName || "Assigned Category"}": add candidates or squads, edit topic approvals, and manage participants.`
+              : "Complete registration control center: add individual candidates or squads, swap students, edit topic approvals, and bulk-manage enrolments across all programmes."}
           </p>
         </div>
 

@@ -3,7 +3,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { uploadImageToImgBB, processImageToSquareDataUrl } from "../../lib/imgbbService";
 import { useNavigate, useParams } from "react-router-dom";
-import { Camera, Upload, Trash2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Camera, Upload, Trash2, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { useProgrammeMeta } from "../../lib/programmeMeta";
 
 interface FormDataState {
@@ -20,11 +20,19 @@ interface FormDataState {
 }
 
 export default function EditStudentRecord() {
-  const { StnAddNo } = useParams<{ StnAddNo: string }>();
-  const { actUser } = useParams<{ actUser: string }>();
+  const { StnAddNo, actUser, actController } = useParams<{
+    StnAddNo?: string;
+    actUser?: string;
+    actController?: string;
+  }>();
 
   const navigate = useNavigate();
   const meta = useProgrammeMeta();
+
+  const isController = Boolean(actController) || (typeof window !== "undefined" && window.location.pathname.includes("/controller-panel"));
+  const returnPath = isController
+    ? `/controller-panel/${actController || "controller"}/all-students`
+    : `/admin-panel/${actUser || "admin"}/all-students`;
 
   const [formData, setFormData] = useState<FormDataState>({
     AddNo: "",
@@ -271,7 +279,7 @@ export default function EditStudentRecord() {
       if (updateError) throw new Error(`Profile Update Failed: ${updateError.message}`);
 
       setMessage({ type: "success", text: "Student records updated successfully!" });
-      navigate(`/admin-panel/${actUser}/all-students`);
+      navigate(returnPath);
     } catch (error: any) {
       setMessage({ type: "error", text: error.message || error });
     } finally {
@@ -293,11 +301,26 @@ export default function EditStudentRecord() {
   return (
     <div className="max-w-5xl mx-auto p-8 bg-white rounded-xl shadow-lg mt-10 border border-slate-100">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-200 pb-5">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-slate-200 pb-5 gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Edit Student Record</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Edit Student Record</h2>
+            {isController && (
+              <span className="text-[10px] font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                Controller
+              </span>
+            )}
+          </div>
           <p className="text-slate-500 text-sm mt-1">Manage and update student profile information</p>
         </div>
+        <button
+          type="button"
+          onClick={() => navigate(returnPath)}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+        >
+          <ArrowLeft size={16} />
+          <span>Back to Students</span>
+        </button>
       </div>
 
       {/* Global Message Alerts */}

@@ -45,9 +45,14 @@ interface StudentRecord {
 }
 
 export default function OurStudentsList() {
-  const { actUser } = useParams();
+  const { actUser, actController } = useParams<{ actUser?: string; actController?: string }>();
   const navigate = useNavigate();
   const meta = useProgrammeMeta();
+
+  const isController = Boolean(actController) || (typeof window !== "undefined" && window.location.pathname.includes("/controller-panel"));
+  const studentBasePath = isController
+    ? `/controller-panel/${actController || "controller"}`
+    : `/admin-panel/${actUser || "admin"}`;
 
   const [students, setStudents] = useState<StudentRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -477,13 +482,18 @@ export default function OurStudentsList() {
       {/* Top Header Card */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-4 gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-2xl font-black tracking-tight text-slate-900">
               Students Directory
             </h2>
             <span className="text-[11px] font-extrabold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
               Total {students.length}
             </span>
+            {isController && (
+              <span className="text-[11px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full border border-indigo-200 flex items-center gap-1">
+                <span>Controller Authorized</span>
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 font-medium mt-1">
             Browse, search, edit, and bulk-manage student profiles, classes, and performance records.
@@ -519,7 +529,7 @@ export default function OurStudentsList() {
           </button>
 
           <button
-            onClick={() => navigate(`/admin-panel/${actUser}/new-student`)}
+            onClick={() => navigate(`${studentBasePath}/new-student`)}
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200 transition cursor-pointer"
           >
             <PlusCircle size={15} />
@@ -939,7 +949,7 @@ export default function OurStudentsList() {
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => navigate(`/admin-panel/${actUser}/edite-student/${student.AddNo}`)}
+                            onClick={() => navigate(`${studentBasePath}/edite-student/${student.AddNo}`)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 transition cursor-pointer"
                             title="Edit Profile"
                           >
@@ -1104,7 +1114,7 @@ export default function OurStudentsList() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate(`/admin-panel/${actUser}/edite-student/${student.AddNo}`)}
+                    onClick={() => navigate(`${studentBasePath}/edite-student/${student.AddNo}`)}
                     className="flex-1 rounded-xl bg-emerald-600 py-2 text-center text-xs font-bold text-white shadow-2xs hover:bg-emerald-700 transition-colors cursor-pointer"
                   >
                     Update Profile

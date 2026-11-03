@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   Clock,
   KeyRound,
+  GraduationCap,
+  UserCheck,
 } from "lucide-react";
 
 export default function ControllerPanel() {
@@ -120,6 +122,12 @@ export default function ControllerPanel() {
             <span>Dashboard Overview</span>
           </NavLink>
 
+          {/* Students Management (Create, Edit, Delete) */}
+          <NavLink to={`/controller-panel/${activeUser}/all-students`} className={navLinkClasses}>
+            <GraduationCap size={16} className="text-emerald-600" />
+            <span>Students Directory</span>
+          </NavLink>
+
           <NavLink to={`/controller-panel/${activeUser}/programmes`} className={navLinkClasses}>
             <Calendar size={16} />
             <span>Category Programmes</span>
@@ -130,19 +138,26 @@ export default function ControllerPanel() {
             <span>Add Programme</span>
           </NavLink>
 
-          <NavLink to={`/controller-panel/${activeUser}/create-result`} className={navLinkClasses}>
-            <Award size={16} />
-            <span>Declare Result</span>
+          {/* Result Control: Resole */}
+          <NavLink to={`/controller-panel/${activeUser}/resole`} className={navLinkClasses}>
+            <Trophy size={16} className="text-amber-500" />
+            <span>Resole (Result Control)</span>
+          </NavLink>
+
+          {/* Candidate Registration Control: Reg-Console */}
+          <NavLink to={`/controller-panel/${activeUser}/reg-console`} className={navLinkClasses}>
+            <UserCheck size={16} className="text-teal-600" />
+            <span>Reg-Console (Candidates)</span>
           </NavLink>
 
           <NavLink to={`/controller-panel/${activeUser}/results`} className={navLinkClasses}>
-            <Trophy size={16} />
+            <Award size={16} />
             <span>Results & Standings</span>
           </NavLink>
 
           <NavLink to={`/controller-panel/${activeUser}/registrations`} className={navLinkClasses}>
             <Users size={16} />
-            <span>Candidate Registrations</span>
+            <span>Candidate Sheets</span>
           </NavLink>
 
           <NavLink to={`/controller-panel/${activeUser}/calendar`} className={navLinkClasses}>
@@ -261,17 +276,17 @@ export default function ControllerPanel() {
             <LayoutDashboard size={17} />
             <span>Home</span>
           </NavLink>
-          <NavLink to={`/controller-panel/${activeUser}/programmes`} className={bottomBarLinkClasses}>
-            <Calendar size={17} />
-            <span>Programs</span>
+          <NavLink to={`/controller-panel/${activeUser}/all-students`} className={bottomBarLinkClasses}>
+            <GraduationCap size={17} className="text-emerald-600" />
+            <span>Students</span>
           </NavLink>
-          <NavLink to={`/controller-panel/${activeUser}/create-program`} className={bottomBarLinkClasses}>
-            <PlusCircle size={17} />
-            <span>Add</span>
+          <NavLink to={`/controller-panel/${activeUser}/resole`} className={bottomBarLinkClasses}>
+            <Trophy size={17} className="text-amber-500" />
+            <span>Resole</span>
           </NavLink>
-          <NavLink to={`/controller-panel/${activeUser}/create-result`} className={bottomBarLinkClasses}>
-            <Award size={17} />
-            <span>Result</span>
+          <NavLink to={`/controller-panel/${activeUser}/reg-console`} className={bottomBarLinkClasses}>
+            <UserCheck size={17} className="text-teal-600" />
+            <span>Reg-Console</span>
           </NavLink>
           <button
             type="button"
@@ -305,6 +320,33 @@ export default function ControllerPanel() {
 
               <div className="grid grid-cols-2 gap-2.5">
                 <NavLink
+                  to={`/controller-panel/${activeUser}/all-students`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-emerald-50 text-emerald-800 text-xs font-semibold border border-emerald-200 col-span-2"
+                >
+                  <GraduationCap size={16} className="text-emerald-600" />
+                  <span>Students Directory (Create, Edit, Delete)</span>
+                </NavLink>
+
+                <NavLink
+                  to={`/controller-panel/${activeUser}/resole`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200"
+                >
+                  <Trophy size={16} className="text-amber-600" />
+                  <span>Resole (Results)</span>
+                </NavLink>
+
+                <NavLink
+                  to={`/controller-panel/${activeUser}/reg-console`}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  className="flex items-center gap-2 p-3 rounded-2xl bg-teal-50 text-teal-800 text-xs font-semibold border border-teal-200"
+                >
+                  <UserCheck size={16} className="text-teal-600" />
+                  <span>Reg-Console (Candidates)</span>
+                </NavLink>
+
+                <NavLink
                   to={`/controller-panel/${activeUser}/programmes`}
                   onClick={() => setIsMobileDrawerOpen(false)}
                   className="flex items-center gap-2 p-3 rounded-2xl bg-indigo-50 text-indigo-800 text-xs font-semibold border border-indigo-200 col-span-2"
@@ -323,20 +365,11 @@ export default function ControllerPanel() {
                 </NavLink>
 
                 <NavLink
-                  to={`/controller-panel/${activeUser}/create-result`}
-                  onClick={() => setIsMobileDrawerOpen(false)}
-                  className="flex items-center gap-2 p-3 rounded-2xl bg-amber-50 text-amber-800 text-xs font-semibold border border-amber-200"
-                >
-                  <Award size={16} className="text-amber-600" />
-                  <span>Declare Result</span>
-                </NavLink>
-
-                <NavLink
                   to={`/controller-panel/${activeUser}/results`}
                   onClick={() => setIsMobileDrawerOpen(false)}
                   className="flex items-center gap-2 p-3 rounded-2xl bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200"
                 >
-                  <Trophy size={16} className="text-yellow-600" />
+                  <Award size={16} className="text-yellow-600" />
                   <span>Results Showcase</span>
                 </NavLink>
 
@@ -346,7 +379,7 @@ export default function ControllerPanel() {
                   className="flex items-center gap-2 p-3 rounded-2xl bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200"
                 >
                   <Users size={16} className="text-emerald-600" />
-                  <span>Candidates</span>
+                  <span>Candidate Sheets</span>
                 </NavLink>
 
                 <NavLink

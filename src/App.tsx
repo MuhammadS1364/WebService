@@ -265,9 +265,20 @@ export default function App() {
           <Route path='calendar' element={<ProgrammesCalendar />} />
           <Route path='registrations' element={<ControllerRegistrations />} />
           <Route path='candidate-registration/:P_Code' element={<ManageCandidateRegistrations />} />
-          <Route path='manage-registrations/:P_Code' element={<ManageCandidateRegistrations />} />
           <Route path='profile' element={<UpdateProfile />} />
           <Route path='password' element={<UpdatePassword />} />
+
+          {/* Student Management (Create, Edit, Delete) */}
+          <Route path='all-students' element={<OurStudentsList />} />
+          <Route path='students' element={<OurStudentsList />} />
+          <Route path='new-student' element={<StudentRegistration />} />
+          <Route path='edite-student/:StnAddNo' element={<EditeStudentRecord />} />
+
+          {/* Result & Candidate Registration Consoles (Scoped to Category) */}
+          <Route path='resole' element={<ResultConsole />} />
+          <Route path='result-console' element={<ResultConsole />} />
+          <Route path='reg-console' element={<RegistrationConsole />} />
+          <Route path='registration-console' element={<RegistrationConsole />} />
         </Route>
 
         {/* 404 ERROR PAGE (Catches all unknown URLs) */}

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import { SupaBaseFunction } from "../../lib/SupaBase";
 import { hydrateResultRecords, ensureCandidateRegistrationUuid, deleteOfficialResult } from "../../lib/resultService";
 import { syncAllStudentAndSquadPoints, type PointSyncReport } from "../../lib/pointAuditService";
+import { resolveControllerProfile, type LoggedInControllerProfile } from "../../lib/controllerResolver";
 import type { PointsTemplateRecord } from "../../lib/types";
 import PrintCandidateSheetModal from "../../components/PrintCandidateSheetModal";
 import ConfirmDeleteModal from "../../components/ConfirmDeleteModal";
@@ -75,7 +77,32 @@ const INITIAL_HOLDERS: HoldersState = {
   bGrade: { addNo: "", name: "", grade: "B" },
 };
 
-export default function ResultConsole() {
+export interface ResultConsoleProps {
+  controllerCategoryUuid?: string;
+  controllerCategoryName?: string;
+  isControllerMode?: boolean;
+}
+
+export default function ResultConsole({
+  controllerCategoryUuid: propCategoryUuid,
+  controllerCategoryName: propCategoryName,
+  isControllerMode: propIsController,
+}: ResultConsoleProps = {}) {
+  const { actController } = useParams<{ actController?: string }>();
+  const [controllerProfile, setControllerProfile] = useState<LoggedInControllerProfile | null>(null);
+
+  useEffect(() => {
+    if (actController) {
+      resolveControllerProfile(actController).then((p) => {
+        if (p) setControllerProfile(p);
+      });
+    }
+  }, [actController]);
+
+  const activeCategoryUuid = propCategoryUuid || controllerProfile?.category_uuid;
+  const activeCategoryName = propCategoryName || controllerProfile?.category_title;
+  const isController = Boolean(propIsController || actController || activeCategoryUuid);
+
   // Mode: "directory" (table of all programmes & declared results) or "workspace" (create/edit result for a programme)
   const [activeTab, setActiveTab] = useState<"directory" | "workspace">("directory");
 
@@ -141,11 +168,19 @@ export default function ResultConsole() {
           .select("*"),
       ]);
 
-      const progs = (progsRes.data || []) as ProgrammeRow[];
+      let progs = (progsRes.data || []) as ProgrammeRow[];
+      if (activeCategoryUuid) {
+        progs = progs.filter((p) => p.Category === activeCategoryUuid);
+      }
       setProgrammes(progs);
 
       const hydratedResults = await hydrateResultRecords(resultsRes.data || []);
-      setResultsList(hydratedResults);
+      if (activeCategoryUuid) {
+        const pCodeSet = new Set(progs.map((p) => p.Program_Code));
+        setResultsList(hydratedResults.filter((r) => Boolean(r.Program_Id && pCodeSet.has(r.Program_Id))));
+      } else {
+        setResultsList(hydratedResults);
+      }
 
       const tmpls = (tmplRes.data || []) as PointsTemplateRecord[];
       setPointsTemplates(tmpls);
@@ -155,7 +190,7 @@ export default function ResultConsole() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [activeCategoryUuid]);
 
   useEffect(() => {
     loadConsoleData();
@@ -752,14 +787,20 @@ export default function ResultConsole() {
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-bold mb-2.5">
             <ShieldCheck size={14} className="text-indigo-400" />
-            <span>Admin Authority • Official Result Console (Resole)</span>
+            <span>
+              {isController
+                ? `Category Controller Authority • ${activeCategoryName || "Assigned Category"} • Official Result Console (Resole)`
+                : "Admin Authority • Official Result Console (Resole)"}
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white flex items-center gap-2.5">
             <Trophy className="w-8 h-8 text-amber-400" />
             <span>Resole: Result Control Center</span>
           </h1>
           <p className="text-slate-300 text-xs sm:text-sm mt-1.5 max-w-2xl">
-            Full control suite to declare, edit, audit, and delete competition results with real-time authoritative point synchronization.
+            {isController
+              ? `Full control suite to declare, edit, audit, and delete official competition results for "${activeCategoryName || "Assigned Category"}" with real-time authoritative point calibration.`
+              : "Full control suite to declare, edit, audit, and delete competition results with real-time authoritative point synchronization."}
           </p>
         </div>
 

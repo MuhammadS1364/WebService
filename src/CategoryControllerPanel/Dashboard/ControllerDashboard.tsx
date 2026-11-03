@@ -14,7 +14,6 @@ import {
   CheckCircle2,
   Clock,
   Trophy,
-  Users,
   Award,
   Plus,
   ArrowRight,
@@ -24,6 +23,8 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  GraduationCap,
+  UserCheck,
 } from "lucide-react";
 
 export default function ControllerDashboard() {
@@ -280,7 +281,86 @@ export default function ControllerDashboard() {
       </div>
 
       {/* Quick Action Hub */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Card 1: Students Directory (Create, Edit, Delete) */}
+        <Link
+          to={`/controller-panel/${activeEmail}/all-students`}
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-emerald-300 transition group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
+              <GraduationCap size={20} />
+            </span>
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-600 transition">
+                Students Directory
+              </h3>
+              <span className="text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md">
+                Full Access
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Create, edit, and delete student records, assign classes, and export directory.
+            </p>
+          </div>
+        </Link>
+
+        {/* Card 2: Resole (Result Control Center) */}
+        <Link
+          to={`/controller-panel/${activeEmail}/resole`}
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-amber-300 transition group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition">
+              <Trophy size={20} />
+            </span>
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-amber-600 transition">
+                Resole: Result Control
+              </h3>
+              <span className="text-[9px] font-extrabold uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-md">
+                Category
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Full result control: declare, edit, and delete results for your category with points sync.
+            </p>
+          </div>
+        </Link>
+
+        {/* Card 3: Reg-Console (Candidate Registration Center) */}
+        <Link
+          to={`/controller-panel/${activeEmail}/reg-console`}
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-teal-300 transition group flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <span className="p-2.5 rounded-xl bg-teal-50 text-teal-600 group-hover:bg-teal-600 group-hover:text-white transition">
+              <UserCheck size={20} />
+            </span>
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-teal-600 group-hover:translate-x-1 transition" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-slate-900 group-hover:text-teal-600 transition">
+                Reg-Console: Candidates
+              </h3>
+              <span className="text-[9px] font-extrabold uppercase bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded-md">
+                Category
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              Add individual or squad candidates, edit topics, and delete candidate enrolments.
+            </p>
+          </div>
+        </Link>
+
+        {/* Card 4: Create Programme */}
         <Link
           to={`/controller-panel/${activeEmail}/create-program`}
           className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-indigo-300 transition group flex flex-col justify-between"
@@ -293,7 +373,7 @@ export default function ControllerDashboard() {
           </div>
           <div>
             <h3 className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition">
-              Create New Programme
+              Add Programme
             </h3>
             <p className="text-xs text-slate-500 mt-1">
               Add a competition automatically scoped to {controller?.category_title}.
@@ -301,26 +381,7 @@ export default function ControllerDashboard() {
           </div>
         </Link>
 
-        <Link
-          to={`/controller-panel/${activeEmail}/create-result`}
-          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-amber-300 transition group flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition">
-              <Award size={20} />
-            </span>
-            <ArrowRight size={16} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition" />
-          </div>
-          <div>
-            <h3 className="text-sm font-black text-slate-900 group-hover:text-amber-600 transition">
-              Declare Results
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Enter 1st, 2nd, 3rd positions & grades for completed events.
-            </p>
-          </div>
-        </Link>
-
+        {/* Card 5: All Programmes */}
         <Link
           to={`/controller-panel/${activeEmail}/programmes`}
           className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-purple-300 transition group flex flex-col justify-between"
@@ -341,22 +402,23 @@ export default function ControllerDashboard() {
           </div>
         </Link>
 
+        {/* Card 6: Standings & Results */}
         <Link
-          to={`/controller-panel/${activeEmail}/registrations`}
-          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-emerald-300 transition group flex flex-col justify-between"
+          to={`/controller-panel/${activeEmail}/results`}
+          className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-md hover:border-amber-300 transition group flex flex-col justify-between"
         >
           <div className="flex items-center justify-between mb-3">
-            <span className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
-              <Users size={20} />
+            <span className="p-2.5 rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition">
+              <Award size={20} />
             </span>
-            <ArrowRight size={16} className="text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition" />
+            <ArrowRight size={16} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-1 transition" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-600 transition">
-              Candidate Registrations
+            <h3 className="text-sm font-black text-slate-900 group-hover:text-amber-600 transition">
+              Results Showcase
             </h3>
             <p className="text-xs text-slate-500 mt-1">
-              Review participants & print official A4 evaluation sheets.
+              Public and official standings for concluded events.
             </p>
           </div>
         </Link>
