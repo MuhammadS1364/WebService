@@ -78,7 +78,7 @@ export default function ControllerRegistrations() {
 
       // B. Fetch CandidateRegistrations for these programmes
       const { data: regs, error: rErr } = await SupaBaseFunction
-        .from("CandidateRegistration")
+        .from("CandidateRegistrationTable")
         .select("*")
         .in("Program_Code", progCodes);
 

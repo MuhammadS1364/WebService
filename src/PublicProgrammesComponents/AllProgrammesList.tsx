@@ -9,8 +9,29 @@ import SquadRegistrationModal from "./SquadRegistrationModal";
 import ProgrammeResultModal from "../components/ProgrammeResultModal";
 import { useProgrammeMeta } from "../lib/programmeMeta";
 import { resolveStudentProfile } from "../lib/accountResolver";
-import { Download, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User, BookOpen, ExternalLink, Clock, Lock } from "lucide-react";
+import { Download, Shield, Users, Search, X, Maximize2, Trophy, CheckCircle2, User, BookOpen, ExternalLink, Clock, Lock, AlertCircle, RotateCcw } from "lucide-react";
 import { downloadImageFullQuality } from "../lib/imgbbService";
+
+const PUBLIC_CACHE_KEY = "dhiu_public_programmes_v1";
+const CACHE_TTL_MS = 300000; // 5 minutes cache
+
+function getInitialPublicCache(): ProgramData[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(PUBLIC_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+// In-memory cache for instant warm renders across page navigation
+let inMemoryPublicProgrammesCache: ProgramData[] | null = getInitialPublicCache();
+let lastPublicFetchTimestamp = inMemoryPublicProgrammesCache ? Date.now() : 0;
 
 // 1. Production-grade Schema Type Declarations matching your Supabase row fields
 interface ProgramData {
@@ -46,9 +67,9 @@ interface ProgramData {
 export default function PublicProgrammesList() {
   const meta = useProgrammeMeta();
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [programmes, setProgrammes] = useState<ProgramData[]>([]);
+  const [programmes, setProgrammes] = useState<ProgramData[]>(() => inMemoryPublicProgrammesCache || []);
   const [registeredMap, setRegisteredMap] = useState<Record<string, boolean>>({});
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(() => !inMemoryPublicProgrammesCache || inMemoryPublicProgrammesCache.length === 0);
   const [error, setError] = useState<string | null>(null);
 
   // Search & Filter States
@@ -99,23 +120,66 @@ export default function PublicProgrammesList() {
     await downloadImageFullQuality(url, title);
   };
 
-  // Fetch and Filter Data Layer - Ensures ALL programmes appear in public view
-  useEffect(() => {
-    const fetchProgrammes = async () => {
+  // Fetch and Filter Data Layer - Ensures ALL programmes appear in public view with high speed
+  const fetchProgrammes = async (force = false) => {
+    // 1. If cache is valid, show immediately (0ms wait)
+    if (!force && inMemoryPublicProgrammesCache && inMemoryPublicProgrammesCache.length > 0) {
+      setProgrammes(inMemoryPublicProgrammesCache);
+      setIsLoading(false);
+      if (Date.now() - lastPublicFetchTimestamp < CACHE_TTL_MS) {
+        return;
+      }
+    }
+
+    if (!inMemoryPublicProgrammesCache || inMemoryPublicProgrammesCache.length === 0) {
+      setIsLoading(true);
+    }
+    setError(null);
+
+    try {
+      const fetchPromise = SupaBaseFunction
+        .from('ProgrammesBox')
+        .select('*')
+        .order('Date', { ascending: false });
+
+      // Generous 20s network timeout
+      const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) =>
+        setTimeout(() => resolve({ isTimeout: true }), 20000)
+      );
+
+      const result = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if ('isTimeout' in result) {
+        // If we already have cached programmes displayed, don't break the UI!
+        if (inMemoryPublicProgrammesCache && inMemoryPublicProgrammesCache.length > 0) {
+          console.warn("Background programmes fetch timed out, keeping cached data.");
+          return;
+        }
+        throw new Error("Connection is taking longer than expected. Please tap retry.");
+      }
+
+      const { data, error: fetchError } = result;
+      if (fetchError) throw fetchError;
+
+      const loaded = (data as ProgramData[]) || [];
+      inMemoryPublicProgrammesCache = loaded;
+      lastPublicFetchTimestamp = Date.now();
       try {
-        setIsLoading(true);
-        const { data, error: fetchError } = await SupaBaseFunction
-          .from('ProgrammesBox')
-          .select('*')
-          .order('Date', { ascending: false });
+        localStorage.setItem(PUBLIC_CACHE_KEY, JSON.stringify(loaded));
+      } catch {}
 
-        if (fetchError) throw fetchError;
-        setProgrammes((data as ProgramData[]) || []);
+      setProgrammes(loaded);
+      
+      // UNBLOCK UI IMMEDIATELY
+      setIsLoading(false);
 
-        const student = await resolveStudentProfile();
-        if (student?.AddNo) {
-          setCurrentUser(student);
-          const userAddNo = student.AddNo.trim().toUpperCase();
+      // Background non-blocking check for logged-in student registrations
+      resolveStudentProfile().then(async (student) => {
+        if (!student?.AddNo) return;
+        setCurrentUser(student);
+        const userAddNo = student.AddNo.trim().toUpperCase();
+
+        try {
           const [candRegs, userSquadsRes] = await Promise.all([
             SupaBaseFunction
               .from("CandidateRegistrationTable")
@@ -152,16 +216,25 @@ export default function PublicProgrammesList() {
           }
 
           setRegisteredMap(map);
+        } catch (stnErr) {
+          console.warn("Background student registration lookup skipped:", stnErr);
         }
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : "An unexpected data fetching anomaly occurred.";
-        console.error("Fetch Error:", errorMessage);
-        setError(errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      }).catch((profileErr) => {
+        console.warn("Background profile resolution skipped:", profileErr);
+      });
 
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "An unexpected data fetching anomaly occurred.";
+      console.error("Fetch Error:", errorMessage);
+      if (!inMemoryPublicProgrammesCache || inMemoryPublicProgrammesCache.length === 0) {
+        setError(errorMessage);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchProgrammes();
   }, []);
 
@@ -247,8 +320,24 @@ export default function PublicProgrammesList() {
     );
   }
 
-  if (error) {
-    return <div className="text-center p-10 text-red-500 font-bold">Error: {error}</div>;
+  if (error && programmes.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-3xl border border-red-100 shadow-xs max-w-md mx-auto my-12">
+        <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mb-4">
+          <AlertCircle size={24} />
+        </div>
+        <h3 className="text-base font-bold text-slate-900 mb-1">Failed to load programmes</h3>
+        <p className="text-xs text-slate-500 mb-4">{error}</p>
+        <button
+          type="button"
+          onClick={() => fetchProgrammes(true)}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+        >
+          <RotateCcw size={13} />
+          <span>Try Again</span>
+        </button>
+      </div>
+    );
   }
 
   return (

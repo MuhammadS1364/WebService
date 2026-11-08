@@ -141,6 +141,23 @@ export const resolveClassName = (
   return val;
 };
 
+const META_CACHE_KEY = "dhiu_meta_cache_v1";
+const CACHE_TTL = 600000; // 10 minutes cache
+
+function getInitialMetaCache(): typeof inMemoryMetaCache {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(META_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.categories && parsed.wings) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 // In-memory cache to make lookups instantaneous across components
 let inMemoryMetaCache: {
   categories: OurCategoryRecord[];
@@ -153,9 +170,7 @@ let inMemoryMetaCache: {
   wings: WingLookup[];
   expectedTimes: ExpectedTimesRecord[];
   timestamp: number;
-} | null = null;
-
-const CACHE_TTL = 30000; // 30s cache
+} | null = getInitialMetaCache();
 
 export function useProgrammeMeta(): ProgrammeMetaState {
   const [categories, setCategories] = useState<OurCategoryRecord[]>(
@@ -195,7 +210,9 @@ export function useProgrammeMeta(): ProgrammeMetaState {
     }
 
     try {
-      setLoading(true);
+      if (!inMemoryMetaCache) {
+        setLoading(true);
+      }
       setError(null);
 
       const [catRes, venRes, grpRes, acadRes, ptsRes, clsRes, batchRes, wingRes, timeRes] = await Promise.all([
@@ -220,7 +237,7 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       const wingData = (wingRes.data as WingLookup[]) || [];
       const timeData = (timeRes.data as ExpectedTimesRecord[]) || [];
 
-      inMemoryMetaCache = {
+      const cachePayload = {
         categories: catData,
         venues: venData,
         groups: grpData,
@@ -233,6 +250,11 @@ export function useProgrammeMeta(): ProgrammeMetaState {
         timestamp: Date.now(),
       };
 
+      inMemoryMetaCache = cachePayload;
+      try {
+        localStorage.setItem(META_CACHE_KEY, JSON.stringify(cachePayload));
+      } catch {}
+
       setCategories(catData);
       setVenues(venData);
       setGroups(grpData);
@@ -244,7 +266,9 @@ export function useProgrammeMeta(): ProgrammeMetaState {
       setExpectedTimes(timeData);
     } catch (err: any) {
       console.error("Failed to load programme meta lookups:", err);
-      setError(err.message || "Failed to load programme metadata.");
+      if (!inMemoryMetaCache) {
+        setError(err.message || "Failed to load programme metadata.");
+      }
     } finally {
       setLoading(false);
     }

@@ -104,6 +104,35 @@ const IMPORT_COLUMNS = [
   "Venue", "Category", "Group", "AccademicYear", "Program_Poster","Total_Registration","IsResulted","IsConducted","Description","OutComes"
 ];
 
+const ADMIN_CACHE_KEY = "dhiu_admin_programmes_v1";
+const ADMIN_WINGS_CACHE_KEY = "dhiu_admin_wings_v1";
+const CACHE_TTL_MS = 300000; // 5 minutes cache
+
+function getInitialAdminCache(): { programmes: Programme[]; wings: Wing[] } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const rawP = localStorage.getItem(ADMIN_CACHE_KEY);
+    const rawW = localStorage.getItem(ADMIN_WINGS_CACHE_KEY);
+    if (rawP && rawW) {
+      const parsedP = JSON.parse(rawP);
+      const parsedW = JSON.parse(rawW);
+      if (Array.isArray(parsedP) && parsedP.length > 0) {
+        return { programmes: parsedP, wings: parsedW };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+const initialAdminCache = getInitialAdminCache();
+
+// In-memory cache for fast tab-switching without re-downloading
+let inMemoryAdminProgrammesCache: {
+  programmes: Programme[];
+  wings: Wing[];
+  timestamp: number;
+} | null = initialAdminCache ? { ...initialAdminCache, timestamp: Date.now() } : null;
+
 export interface AdminProgrammesListProps {
   controllerCategoryUuid?: string;
   controllerCategoryName?: string;
@@ -118,8 +147,8 @@ export default function AdminProgrammesList({
   const { actUser, actController } = useParams<{ actUser?: string; actController?: string }>();
   const activeUser = actController || actUser || "";
   const meta = useProgrammeMeta();
-  const [programmes, setProgrammes] = useState<Programme[]>([]);
-  const [wings, setWings] = useState<Wing[]>([]);
+  const [programmes, setProgrammes] = useState<Programme[]>(() => inMemoryAdminProgrammesCache?.programmes || []);
+  const [wings, setWings] = useState<Wing[]>(() => inMemoryAdminProgrammesCache?.wings || []);
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
@@ -140,7 +169,12 @@ export default function AdminProgrammesList({
   const [isTopicsManagerOpen, setIsTopicsManagerOpen] = useState(false);
   const [selectedTopicProg, setSelectedTopicProg] = useState<Programme | null>(null);
   
-  const [isLoading, setIsLoading] = useState({ fetch: true, import: false, export: false, action: false });
+  const [isLoading, setIsLoading] = useState({ 
+    fetch: !inMemoryAdminProgrammesCache || inMemoryAdminProgrammesCache.programmes.length === 0, 
+    import: false, 
+    export: false, 
+    action: false 
+  });
   const [toast, setToast] = useState<ToastState | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -171,19 +205,66 @@ export default function AdminProgrammesList({
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    setIsLoading(prev => ({ ...prev, fetch: true }));
+  const fetchData = async (force = false) => {
+    // 1. If cache is valid, display immediately without waiting
+    if (!force && inMemoryAdminProgrammesCache && inMemoryAdminProgrammesCache.programmes.length > 0) {
+      setProgrammes(inMemoryAdminProgrammesCache.programmes);
+      setWings(inMemoryAdminProgrammesCache.wings);
+      setIsLoading(prev => ({ ...prev, fetch: false }));
+      if (Date.now() - inMemoryAdminProgrammesCache.timestamp < CACHE_TTL_MS) {
+        return;
+      }
+    }
+
+    if (!inMemoryAdminProgrammesCache || inMemoryAdminProgrammesCache.programmes.length === 0) {
+      setIsLoading(prev => ({ ...prev, fetch: true }));
+    }
+
     try {
-      const { data: progData, error: progError } = await SupaBaseFunction.from("ProgrammesBox").select("*").order("Date", { ascending: false });
-      const { data: wingData, error: wingError } = await SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle, Total_Registrations");
+      const fetchPromise = Promise.all([
+        SupaBaseFunction.from("ProgrammesBox").select("*").order("Date", { ascending: false }),
+        SupaBaseFunction.from("Chs-WingS").select("WingCode, WingTitle, Total_Registrations"),
+      ]);
 
-      if (progError) throw progError;
-      if (wingError) throw wingError;
+      const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) =>
+        setTimeout(() => resolve({ isTimeout: true }), 20000)
+      );
 
-      if (progData) setProgrammes(progData as Programme[]);
-      if (wingData) setWings(wingData as Wing[]);
+      const result = await Promise.race([fetchPromise, timeoutPromise]);
+      if ('isTimeout' in result) {
+        if (inMemoryAdminProgrammesCache && inMemoryAdminProgrammesCache.programmes.length > 0) {
+          console.warn("Background fetch timed out, keeping cached admin programmes.");
+          return;
+        }
+        throw new Error("Connection is taking longer than expected. Please tap reload.");
+      }
+
+      const [progRes, wingRes] = result;
+      if (progRes.error) throw progRes.error;
+      if (wingRes.error) throw wingRes.error;
+
+      const pData = (progRes.data as Programme[]) || [];
+      const wData = (wingRes.data as Wing[]) || [];
+
+      inMemoryAdminProgrammesCache = {
+        programmes: pData,
+        wings: wData,
+        timestamp: Date.now(),
+      };
+
+      try {
+        localStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify(pData));
+        localStorage.setItem(ADMIN_WINGS_CACHE_KEY, JSON.stringify(wData));
+      } catch {}
+
+      setProgrammes(pData);
+      setWings(wData);
     } catch (error: any) {
-      showToast(error.message || "Failed to load data.", "error");
+      if (inMemoryAdminProgrammesCache && inMemoryAdminProgrammesCache.programmes.length > 0) {
+        console.warn("Background refresh failed, using cached programmes:", error);
+      } else {
+        showToast(error.message || "Failed to load data.", "error");
+      }
     } finally {
       setIsLoading(prev => ({ ...prev, fetch: false }));
     }
@@ -346,7 +427,7 @@ export default function AdminProgrammesList({
         if (error) throw error;
         showToast(`Programme result ${newStatus ? 'Published to Public' : 'Unpublished'}.`, "success");
       }
-      await fetchData(); // Refresh data to show updated state
+      await fetchData(true); // Refresh data to show updated state
     } catch (error: any) {
       showToast(error.message || "Action failed.", "error");
     } finally {
@@ -384,7 +465,7 @@ export default function AdminProgrammesList({
         setSelectedPrograms(new Set());
       }
       setDeleteModalState({ isOpen: false, type: "single" });
-      await fetchData();
+      await fetchData(true);
     } catch (error: any) {
       showToast(error.message || "Failed to delete programme.", "error");
     } finally {
@@ -469,7 +550,7 @@ export default function AdminProgrammesList({
         showToast(`Unpublished results for ${toUnpublish.length} programmes.`, "info");
       }
       
-      await fetchData();
+      await fetchData(true);
       setSelectedPrograms(new Set());
     } catch (error: any) {
       showToast(error.message || "Bulk action failed.", "error");
@@ -570,7 +651,7 @@ export default function AdminProgrammesList({
         await Promise.all(updatePromises);
 
         showToast(`Imported ${validPayload.length} new programmes!`, "success");
-        await fetchData(); 
+        await fetchData(true); 
       } catch (error: any) {
         showToast(error.message || "Failed to process imported file.", "error");
       } finally {
@@ -808,7 +889,40 @@ export default function AdminProgrammesList({
       {/* MAIN CONTENT AREA */}
       <div className="max-w-7xl mx-auto">
         {isLoading.fetch ? (
-          <div className="flex justify-center items-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div></div>
+          <div className="flex flex-col justify-center items-center py-20 gap-3">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
+            <p className="text-xs font-semibold text-slate-500 animate-pulse">Loading programmes...</p>
+          </div>
+        ) : filteredProgrammes.length === 0 ? (
+          <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-xs max-w-lg mx-auto my-8">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-3">
+              <Calendar size={22} />
+            </div>
+            <p className="text-sm font-bold text-slate-800 mb-1">No programmes match current filters.</p>
+            <p className="text-xs text-slate-500 mb-4">Try clearing filters or search terms to see all available programmes.</p>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilters({ AccademicYear: "", Category: controllerCategoryUuid || "", Group: "", Venue: "", WingCode: "" });
+                  setApprovalFilter("all");
+                  setResultFilter("all");
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Reset Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => fetchData(true)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer flex items-center gap-1.5"
+              >
+                <RotateCcw size={13} />
+                <span>Reload Data</span>
+              </button>
+            </div>
+          </div>
         ) : viewMode === "cards" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProgrammes.map((prog) => {
@@ -1285,7 +1399,7 @@ export default function AdminProgrammesList({
           onClose={() => setEditingProgram(null)}
           onSuccess={() => {
             showToast("Programme details updated successfully!", "success");
-            fetchData();
+            fetchData(true);
           }}
         />
 
